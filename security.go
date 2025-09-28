@@ -26,7 +26,7 @@ func MiddlewareRejectUnprintableURI(next http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			if i := gg.Printable(r.RequestURI); i >= 0 {
-				WriteErr(w, r, http.StatusBadRequest,
+				gg.WriteErr(w, r, http.StatusBadRequest,
 					"Invalid URI with non-printable symbol",
 					"position", i)
 				log.Warn("reject non-printable URI or with <CR> or <LF>:", gg.Sanitize(r.RequestURI))

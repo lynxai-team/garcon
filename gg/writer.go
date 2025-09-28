@@ -1,9 +1,8 @@
-// Copyright 2021 Teal.Finance/Garcon contributors
-// This file is part of Teal.Finance/Garcon,
-// an API and website server under the MIT License.
+// Copyright 2021-2025 The contributors of Garcon.
+// This file is part of Garcon, web+API server toolkit under the MIT License.
 // SPDX-License-Identifier: MIT
 
-package garcon
+package gg
 
 import (
 	"encoding/json"
@@ -12,17 +11,15 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-
-	"github.com/teal-finance/garcon/gg"
 )
+
+// Writer enables writing useful JSON error message in the HTTP response body.
+type Writer string
 
 const (
 	pathReserved = "Path is reserved for future use. Please contact us to share your ideas."
 	pathInvalid  = "Path is not valid. Please refer to the documentation."
 )
-
-// Writer enables writing useful JSON error message in the HTTP response body.
-type Writer string
 
 // NewWriter creates a Writer structure.
 func NewWriter(docURL string) Writer {
@@ -57,7 +54,7 @@ func WriteOK(w http.ResponseWriter, kv ...any) {
 func (gw Writer) TraversalPath(w http.ResponseWriter, r *http.Request) bool {
 	if strings.Contains(r.URL.Path, "..") {
 		gw.WriteErr(w, r, http.StatusBadRequest, "URL contains '..'")
-		log.Warn("reject path with '..'", gg.Sanitize(r.URL.Path))
+		log.Warn("reject path with '..'", Sanitize(r.URL.Path))
 		return true
 	}
 	return false

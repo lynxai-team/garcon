@@ -17,17 +17,20 @@ import (
 	"github.com/LM4eu/garcon/gg"
 )
 
-type ReqLimiter struct {
-	gw          Writer
+type (
+	ReqLimiter struct {
 	visitors    map[string]*visitor
 	initLimiter *rate.Limiter
+		writer      gg.Writer
 	mu          sync.Mutex
 }
 
-type visitor struct {
+	visitor struct {
 	lastSeen time.Time
 	limiter  *rate.Limiter
 }
+)
+
 
 func (g *Garcon) MiddlewareRateLimiter(settings ...int) gg.Middleware {
 	var maxReqBurst, maxReqPerMinute int
@@ -50,7 +53,7 @@ func (g *Garcon) MiddlewareRateLimiter(settings ...int) gg.Middleware {
 	return reqLimiter.MiddlewareRateLimiter
 }
 
-func NewRateLimiter(gw Writer, maxReqBurst, maxReqPerMinute int, devMode bool) ReqLimiter {
+func NewRateLimiter(writer gg.Writer, maxReqBurst, maxReqPerMinute int, devMode bool) ReqLimiter {
 	if devMode {
 		maxReqBurst *= 2
 		maxReqPerMinute *= 2
@@ -59,7 +62,7 @@ func NewRateLimiter(gw Writer, maxReqBurst, maxReqPerMinute int, devMode bool) R
 	ratePerSecond := float64(maxReqPerMinute) / 60
 
 	return ReqLimiter{
-		gw:          gw,
+		writer:      writer,
 		visitors:    make(map[string]*visitor),
 		initLimiter: rate.NewLimiter(rate.Limit(ratePerSecond), maxReqBurst),
 		mu:          sync.Mutex{},
@@ -75,7 +78,7 @@ func (rl *ReqLimiter) MiddlewareRateLimiter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
-			rl.gw.WriteErr(w, r, http.StatusInternalServerError,
+			rl.writer.WriteErr(w, r, http.StatusInternalServerError,
 				"Cannot split remote_addr=host:port", "remote_addr", r.RemoteAddr)
 			log.Out("500", r.RemoteAddr, r.Method, r.RequestURI, "Split host:port ERROR:", err)
 			return
@@ -85,7 +88,7 @@ func (rl *ReqLimiter) MiddlewareRateLimiter(next http.Handler) http.Handler {
 
 		if err := limiter.Wait(r.Context()); err != nil {
 			if r.Context().Err() == nil {
-				rl.gw.WriteErr(w, r, http.StatusTooManyRequests, "Too Many Requests",
+				rl.writer.WriteErr(w, r, http.StatusTooManyRequests, "Too Many Requests",
 					"advice", "Please contact the team support is this is annoying")
 				log.Out("429", r.RemoteAddr, r.Method, r.RequestURI, "ERROR:", err)
 			} else {

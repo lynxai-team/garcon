@@ -14,7 +14,7 @@ import (
 )
 
 type WebForm struct {
-	Writer   Writer
+	Writer   gg.Writer
 	Notifier gg.Notifier
 	Redirect string
 
@@ -51,7 +51,7 @@ func (g *Garcon) NewContactForm(redirectURL string) WebForm {
 }
 
 // NewContactForm initializes a new WebForm with the default contact-form settings.
-func NewContactForm(gw Writer, redirectURL string) WebForm {
+func NewContactForm(gw gg.Writer, redirectURL string) WebForm {
 	return WebForm{
 		Writer:             gw,
 		Notifier:           nil,

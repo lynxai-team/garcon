@@ -50,7 +50,7 @@ func main() {
 	garcon.StartPProfServer(pprofPort)
 
 	// Uniformize error responses with API doc
-	gw := garcon.NewWriter(apiDoc)
+	gw := gg.NewWriter(apiDoc)
 
 	middleware, connState, urls := setMiddlewares(gw)
 
@@ -61,7 +61,7 @@ func main() {
 	runServer(h, connState)
 }
 
-func setMiddlewares(gw garcon.Writer) (_ gg.Chain, connState func(net.Conn, http.ConnState), _ []*url.URL) {
+func setMiddlewares(gw gg.Writer) (_ gg.Chain, connState func(net.Conn, http.ConnState), _ []*url.URL) {
 	// authCfg is deprecated
 	// auth := flag.Bool("auth", false, "Enable OPA authorization specified in file "+authCfg)
 
@@ -133,7 +133,7 @@ func runServer(h http.Handler, connState func(net.Conn, http.ConnState)) {
 }
 
 // handler creates the mapping between the endpoints and the handler functions.
-func handler(gw garcon.Writer, c *garcon.JWTChecker) http.Handler {
+func handler(gw gg.Writer, c *gwt.JWTChecker) http.Handler {
 	r := chi.NewRouter()
 
 	// Static website files

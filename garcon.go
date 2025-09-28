@@ -29,7 +29,7 @@ var log = emo.NewZone("garcon")
 
 type Garcon struct {
 	ServerName     ServerName
-	Writer         Writer
+	Writer         gg.Writer
 	docURL         string
 	urls           []*url.URL
 	allowedOrigins []string
@@ -70,7 +70,7 @@ func New(opts ...Option) *Garcon {
 			g.docURL = baseURL + g.docURL
 		}
 	}
-	g.Writer = NewWriter(g.docURL)
+	g.Writer = gg.NewWriter(g.docURL)
 
 	return &g
 }

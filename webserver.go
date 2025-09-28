@@ -18,7 +18,7 @@ import (
 // StaticWebServer is a webserver serving static files
 // among HTML, CSS, JS and popular image formats.
 type StaticWebServer struct {
-	Writer Writer
+	Writer gg.Writer
 	Dir    string
 }
 
@@ -28,7 +28,7 @@ func (g *Garcon) NewStaticWebServer(dir string) StaticWebServer {
 }
 
 // NewStaticWebServer creates a StaticWebServer.
-func NewStaticWebServer(gw Writer, dir string) StaticWebServer {
+func NewStaticWebServer(gw gg.Writer, dir string) StaticWebServer {
 	return StaticWebServer{gw, dir}
 }
 
