@@ -222,10 +222,21 @@ func (g *Garcon) IncorruptibleCheckerBin(secretKeyBin []byte, maxAge int, setIP 
 // The keyTxt scheme is: `alg:xxxxxxxxxxxxxxxxxxxxxxxxxx`
 // where `alg` is the optional algorithm name, and `xxxxxxxxxxxxxxxxxxxxxxxxxx`
 // is the key encoded in either hexadecimal or unpadded Base64 as defined in RFC 4648 §5 (URL encoding).
-func (g *Garcon) JWTChecker(keyTxt string, planPerm ...any) *JWTChecker {
+func (g *Garcon) JWTChecker(keyTxt string, planPerm ...any) *gwt.JWTChecker {
 	if len(g.urls) == 0 {
 		log.Panic("Missing URLs => Set first the URLs with garcon.WithURLs()")
 	}
 
-	return NewJWTChecker(g.Writer, g.urls, keyTxt, g.ServerName.String(), planPerm...)
+	return gwt.NewJWTChecker(g.Writer, g.urls, keyTxt, g.ServerName.String(), planPerm...)
+}
+
+func (g *Garcon) MiddlewareServerHeader(serverName ...string) gg.Middleware {
+	name := g.ServerName.String()
+	if len(serverName) > 0 && serverName[0] != "" {
+		name = serverName[0]
+	}
+
+	version := vv.Version(name)
+
+	return vv.MiddlewareServerHeader(version)
 }

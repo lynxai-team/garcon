@@ -1,9 +1,8 @@
-// Copyright 2021 Teal.Finance/Garcon contributors
-// This file is part of Teal.Finance/Garcon,
-// an API and website server under the MIT License.
+// Copyright 2021-2025 The contributors of Garcon.
+// This file is part of Garcon, web+API server toolkit under the MIT License.
 // SPDX-License-Identifier: MIT
 
-package garcon
+package gwt
 
 import (
 	"context"
@@ -16,13 +15,28 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/teal-finance/garcon/gg"
-	"github.com/teal-finance/garcon/timex"
-	"github.com/teal-finance/quid/tokens"
+	"github.com/LM4eu/emo"
+	"github.com/LM4eu/garcon/gg"
+
+	"github.com/LM4eu/garcon/timex"
+)
+
+type (
+	Perm struct {
+		Value int
+	}
+
+	JWTChecker struct {
+		gw       gg.Writer
+		verifier Verifier
+		perms    []Perm
+		plans    []string
+		cookies  []http.Cookie
+	}
 )
 
 const (
-	// authScheme is part of the HTTP "Authorization" header
+	// AuthScheme is part of the HTTP "Authorization" header
 	// conveying the "Bearer Token" defined by RFC 6750 as
 	// a security token with the property that any party in possession of
 	// the token (a "bearer") can use the token in any way that any other
@@ -38,38 +52,42 @@ const (
 )
 
 var (
+	log = emo.NewZone("gwt")
+
+	ErrColumnInKey     = errors.New("found a column symbol in the key string but NemHMAC() does not support AlgoKey scheme => use NewVerifier(algoKey)")
+	ErrECDSAPubKey     = errors.New("cannot parse the DER bytes as a valid ECDSA public key")
+	ErrEdDSAPubKey     = errors.New("cannot decode the EdDSA public key, please provide 88 hexadecimal digits or a Base64 string containing about 59 characters")
+	ErrES256PubKey     = errors.New("cannot decode the ECDSA-P256-SHA256 public key, please provide 182 hexadecimal digits or a Base64 string containing about 122 characters")
+	ErrES384PubKey     = errors.New("cannot decode the ECDSA-P384-SHA384 public key, please provide 240 hexadecimal digits or a Base64 string containing 160 characters")
+	ErrES512PubKey     = errors.New("cannot decode the ECDSA-P512-SHA512 public key, please provide 316 hexadecimal digits or a Base64 string containing about 211 characters")
 	ErrExpiredToken    = errors.New("expired or invalid access token")
+	ErrHMACKey         = errors.New("cannot decode the HMAC key, please provide a key in hexadecimal or Base64 form (64, 96 or 128 hexadecimal digits ; 43, 64 or 86 Base64 characters)")
+	ErrHS256PubKey     = errors.New("cannot decode the HMAC-SHA256 key, please provide 64 hexadecimal digits or a Base64 string containing about 43 characters")
+	ErrHS384PubKey     = errors.New("cannot decode the HMAC-SHA384 key, please provide 96 hexadecimal digits or a Base64 string containing 64 characters")
+	ErrHS512PubKey     = errors.New("cannot decode the HMAC-SHA512 key, please provide 128 hexadecimal digits or a Base64 string containing about 86 characters")
 	ErrJWTSignature    = errors.New("JWT signature mismatch")
 	ErrNoAuthorization = errors.New("provide your JWT within the 'Authorization Bearer' HTTP header")
 	ErrNoBase64JWT     = errors.New("the token claims (second part of the JWT) is not base64-valid")
 	ErrNoBearer        = errors.New("malformed HTTP Authorization, must be Bearer")
 	ErrNoValidJWT      = errors.New("cannot find a valid JWT in either the cookie or the first 'Authorization' HTTP header")
+	ErrThreeParts      = errors.New("JWT must be composed of three parts separated by periods")
+
+	//nolint:gochecknoglobals // permKey is a Context key and need to be global
+	permKey struct{}
 )
-
-type Perm struct {
-	Value int
-}
-
-type JWTChecker struct {
-	gw       Writer
-	verifier tokens.Verifier
-	perms    []Perm
-	plans    []string
-	cookies  []http.Cookie
-}
 
 // NewJWTChecker supports keyTxt in hexadecimal and Base64 form
 // Moreover the keyTxt parameter can also be prefixed by the signing algorithm.
 // The keyTxt scheme is: `alg:xxxxxxxxxxxxxxxxxxxxxxxxxx`
 // where `alg` is the optional algorithm name, and `xxxxxxxxxxxxxxxxxxxxxxxxxx`
 // is the key encoded in either hexadecimal or unpadded Base64 as defined in RFC 4648 §5 (URL encoding).
-func NewJWTChecker(gw Writer, urls []*url.URL, keyTxt, cookieName string, permissions ...any) *JWTChecker {
+func NewJWTChecker(writer gg.Writer, urls []*url.URL, keyTxt, cookieName string, permissions ...any) *JWTChecker {
 	plans, perms := optionalArgs(permissions...)
 
-	var verifier tokens.Verifier
-	tokenizer, err := tokens.NewHMAC(keyTxt, true)
+	var verifier Verifier
+	tokenizer, err := NewHMAC(keyTxt, true)
 	if err == nil {
-		verifier, err = tokens.NewVerifier(keyTxt, true)
+		verifier, err = NewVerifier(keyTxt, true)
 	} else {
 		verifier = tokenizer
 	}
@@ -78,7 +96,7 @@ func NewJWTChecker(gw Writer, urls []*url.URL, keyTxt, cookieName string, permis
 	}
 
 	ck := &JWTChecker{
-		gw:       gw,
+		gw:       writer,
 		verifier: verifier,
 		plans:    plans,
 		perms:    perms,
@@ -106,7 +124,7 @@ func NewAccessToken(maxTTL, user string, groups, orgs []string, hexKey string) s
 		log.Panic("Middleware JWT cannot decode the HMAC-SHA256 key, please provide 64 hexadecimal digits:", err)
 	}
 
-	token, err := tokens.GenAccessToken(maxTTL, maxTTL, user, groups, orgs, binKey)
+	token, err := GenAccessToken(maxTTL, maxTTL, user, groups, orgs, binKey)
 	if err != nil || token == "" {
 		log.Panic("Middleware JWT cannot create JWT:", err)
 	}
@@ -114,7 +132,7 @@ func NewAccessToken(maxTTL, user string, groups, orgs []string, hexKey string) s
 	return token
 }
 
-func NewCookie(tokenizer tokens.Tokenizer, name, plan, user string, secure bool, dns, dir string) http.Cookie {
+func NewCookie(tokenizer Tokenizer, name, plan, user string, secure bool, dns, dir string) http.Cookie {
 	JWT, err := tokenizer.GenAccessToken("1y", "1y", user, []string{plan}, nil)
 	if err != nil || JWT == "" {
 		log.Panic("Middleware JWT cannot create an access token:", err)
@@ -124,18 +142,20 @@ func NewCookie(tokenizer tokens.Tokenizer, name, plan, user string, secure bool,
 		" path="+dir+" secure=", secure, name+"="+JWT)
 
 	return http.Cookie{
-		Name:       name,
-		Value:      JWT,
-		Path:       dir,
-		Domain:     dns,
-		Expires:    time.Time{},
-		RawExpires: "",
-		MaxAge:     timex.YearSec,
-		Secure:     secure,
-		HttpOnly:   true,
-		SameSite:   http.SameSiteStrictMode,
-		Raw:        "",
-		Unparsed:   nil,
+		Name:        name,
+		Value:       JWT,
+		Path:        dir,
+		Domain:      dns,
+		Expires:     time.Time{},
+		RawExpires:  "",
+		MaxAge:      timex.YearSec,
+		Secure:      secure,
+		HttpOnly:    true,
+		SameSite:    http.SameSiteStrictMode,
+		Raw:         "",
+		Unparsed:    nil,
+		Quoted:      false,
+		Partitioned: false,
 	}
 }
 
@@ -158,15 +178,15 @@ func (ck *JWTChecker) Set(next http.Handler) http.Handler {
 	log.Infof("Middleware JWT.Set cookie %s=%s MaxAge=%d",
 		ck.cookies[0].Name, ck.cookies[0].Value, ck.cookies[0].MaxAge)
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		perm, a := ck.PermFromCookie(r)
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		perm, a := ck.PermFromCookie(req)
 		if a != nil {
 			perm = ck.perms[0]
 			ck.cookies[0].Expires = time.Now().Add(timex.YearNs)
 			http.SetCookie(w, &ck.cookies[0])
 		}
 
-		next.ServeHTTP(w, perm.PutInCtx(r))
+		next.ServeHTTP(w, perm.PutInCtx(req))
 	})
 }
 
@@ -175,14 +195,14 @@ func (ck *JWTChecker) Set(next http.Handler) http.Handler {
 func (ck *JWTChecker) Chk(next http.Handler) http.Handler {
 	log.Info("Middleware JWT.Chk cookie")
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		perm, a := ck.PermFromCookie(r)
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		perm, a := ck.PermFromCookie(req)
 		if a != nil {
-			ck.gw.WriteErr(w, r, http.StatusUnauthorized, a...)
+			ck.gw.WriteErr(w, req, http.StatusUnauthorized, a...)
 			return
 		}
 
-		next.ServeHTTP(w, perm.PutInCtx(r))
+		next.ServeHTTP(w, perm.PutInCtx(req))
 	})
 }
 
@@ -192,14 +212,14 @@ func (ck *JWTChecker) Chk(next http.Handler) http.Handler {
 func (ck *JWTChecker) Vet(next http.Handler) http.Handler {
 	log.Info("Middleware JWT.Vet cookie/bearer")
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		perm, a := ck.PermFromBearerOrCookie(r)
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		perm, a := ck.PermFromBearerOrCookie(req)
 		if a != nil {
-			ck.gw.WriteErr(w, r, http.StatusUnauthorized, a...)
+			ck.gw.WriteErr(w, req, http.StatusUnauthorized, a...)
 			return
 		}
 
-		next.ServeHTTP(w, perm.PutInCtx(r))
+		next.ServeHTTP(w, perm.PutInCtx(req))
 	})
 }
 
@@ -247,10 +267,10 @@ func splitURL(urls []*url.URL) (secure bool, dns, dir string) {
 		log.Panic("Middleware JWT got nil in URL slide:", urls)
 	}
 
-	switch {
-	case u.Scheme == "http":
+	switch u.Scheme {
+	case "http":
 		secure = false
-	case u.Scheme == "https":
+	case "https":
 		secure = true
 	default:
 		log.Panic("Middleware JWT wants http or https in URL scheme but got URL", u)
@@ -315,21 +335,6 @@ func (ck *JWTChecker) PermFromBearerOrCookie(r *http.Request) (perm Perm, err []
 	return ck.PermFromJWT(JWT)
 }
 
-func (ck *JWTChecker) jwtFromBearer(r *http.Request) (string, error) {
-	// simple: check only the first header "Authorization"
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		return "", ErrNoAuthorization
-	}
-
-	n := len(authScheme)
-	if len(auth) > n && auth[:n] == authScheme {
-		return auth[n:], nil
-	}
-
-	return "", ErrNoBearer
-}
-
 func (ck *JWTChecker) PermFromCookie(r *http.Request) (perm Perm, err []any) {
 	c, e := r.Cookie(ck.cookies[0].Name)
 	if e != nil {
@@ -358,7 +363,22 @@ func (ck *JWTChecker) PermFromJWT(jwt string) (Perm, []any) {
 	return perm, nil
 }
 
-func (ck *JWTChecker) permFromAccessClaims(claims *tokens.AccessClaims) (Perm, error) {
+func (ck *JWTChecker) jwtFromBearer(r *http.Request) (string, error) {
+	// simple: check only the first header "Authorization"
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		return "", ErrNoAuthorization
+	}
+
+	n := len(authScheme)
+	if len(auth) > n && auth[:n] == authScheme {
+		return auth[n:], nil
+	}
+
+	return "", ErrNoBearer
+}
+
+func (ck *JWTChecker) permFromAccessClaims(claims *AccessClaims) (Perm, error) {
 	for i := range claims.Groups {
 		for j := range ck.plans {
 			if claims.Groups[i] == ck.plans[j] {
@@ -381,9 +401,6 @@ func (ck *JWTChecker) permFromAccessClaims(claims *tokens.AccessClaims) (Perm, e
 
 // --------------------------------------
 // Read/write permissions to/from context
-
-//nolint:gochecknoglobals // permKey is a Context key and need to be global
-var permKey struct{}
 
 // PermFromCtx gets the permission information from the request context.
 func PermFromCtx(r *http.Request) Perm {

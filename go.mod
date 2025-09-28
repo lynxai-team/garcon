@@ -4,7 +4,8 @@ go 1.22
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
-	github.com/andybalholm/brotli v1.1.0
+	github.com/LM4eu/emo v0.0.0-20250927010905-4655469361e2
+	github.com/LM4eu/incorruptible v0.0.0-20250927034828-df0dad11a4d9
 	github.com/carlmjohnson/flagx v0.22.2
 	github.com/carlmjohnson/versioninfo v0.22.5
 	github.com/go-chi/chi/v5 v5.1.0
@@ -13,12 +14,9 @@ require (
 	github.com/mailru/easyjson v0.7.7
 	github.com/minio/highwayhash v1.0.3
 	github.com/pkg/profile v1.7.0
-	github.com/prometheus/client_golang v1.19.1
-	github.com/rs/cors v1.11.0
-	github.com/teal-finance/emo v0.0.0-20240715102214-6340fad42a06
-	github.com/teal-finance/incorruptible v0.0.0-20240715101921-9d6a5ee47397
-	github.com/teal-finance/quid v0.0.0-20240712160151-79f83e763510
-	golang.org/x/time v0.5.0
+	github.com/prometheus/client_golang v1.23.2
+	github.com/rs/cors v1.11.1
+	golang.org/x/time v0.13.0
 )
 
 require (
