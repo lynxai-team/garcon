@@ -1,5 +1,5 @@
 // Copyright 2009 The Go Authors. All rights reserved.
-// Copyright 2021 Teal.Finance/Garcon contributors
+// Copyright 2021-2025 The contributors of Garcon.
 // Use of this source code is governed by a BSD-style
 // license that can be found at:
 // https://pkg.go.dev/std?tab=licenses

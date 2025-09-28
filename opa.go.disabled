@@ -1,6 +1,5 @@
-// Copyright 2021 Teal.Finance/Garcon contributors
-// This file is part of Teal.Finance/Garcon,
-// an API and website server under the MIT License.
+// Copyright 2021-2025 The contributors of Garcon.
+// This file is part of Garcon, web+API server toolkit under the MIT License.
 // SPDX-License-Identifier: MIT
 
 package garcon
@@ -29,7 +28,7 @@ type Policy struct {
 var ErrEmptyOPAFilename = errors.New("OPA: missing filename")
 
 // NewPolicy creates a new Policy by loading rego files.
-func NewPolicy(gw Writer, filenames []string) (Policy, error) {
+func NewPolicy(gw gg.Writer, filenames []string) (Policy, error) {
 	compiler, err := LoadPolicy(filenames)
 	return Policy{gw, compiler}, err
 }

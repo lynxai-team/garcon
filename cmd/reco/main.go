@@ -1,17 +1,6 @@
-// Copyright (c) 2020-2022 TealTicks contributors
-//
-// This program is free software and can be redistributed and/or modify
-// it under the terms of the GNU Affero General Public License as
-// published by the Free Software Foundation, either version 3 of the
-// License, or (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+// Copyright 2021-2025 The contributors of Garcon.
+// This file is part of Garcon, web+API server toolkit under the MIT License.
+// SPDX-License-Identifier: MIT
 
 // Package main converts a S2-compressed file to a Brotli one.
 package main

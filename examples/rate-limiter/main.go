@@ -1,10 +1,6 @@
-// SPDX-License-Identifier: CC0-1.0
-// Creative Commons Zero v1.0 Universal - No Rights Reserved
-// <https://creativecommons.org/publicdomain/zero/1.0>
-//
-// To the extent possible under law, the Teal.Finance/Garcon contributors
-// have waived all copyright and related/neighboring rights to this
-// file "high-level/main.go" to be freely used without any restriction.
+// Copyright 2021-2025 The contributors of Garcon.
+// This file is part of Garcon, web+API server toolkit under the MIT License.
+// SPDX-License-Identifier: MIT
 
 // this example is an adapation of thise usage:
 // https://github.com/teal-finance/rainbow/blob/main/pkg/provider/deribit/deribit.go

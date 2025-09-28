@@ -1,4 +1,4 @@
-# Teal.Finance/Garcon
+# Garcon
 
 | ![logo](examples/www/myapp/images/garcon.png) | Garcon works with all HTTP routers ans middleware respecting the Go HTTP standards. Garcon provides the batteries: static website server, contact-form backend, API helpers, debugging helpers (PProf), Git version, exporter server (Prometheus), health endpoints (Kubernetes), URI sanitization and middleware: rate-limiter, JWT cookies, CORS, traffic logs, OPA…<br>[![Go Reference](examples/www/myapp/images/go-ref.svg "Go documentation for Garcon")](https://pkg.go.dev/github.com/teal-finance/garcon) [![Go Report Card](https://goreportcard.com/badge/github.com/teal-finance/garcon)](https://goreportcard.com/report/github.com/teal-finance/garcon) |
 | --------------------------------------------- |:--------- |
@@ -668,13 +668,13 @@ your contributions are welcome. :wink:
 
 ## 🗽 Copyright and license
 
-Copyright (c) 2021 Teal.Finance/Garcon contributors
+Copyright (c) 2021-2025 The contributors of Garcon.
 
-Teal.Finance/Garcon is free software, and can be redistributed
+Garcon is free software, and can be redistributed
 and/or modified under the terms of the MIT License.
 SPDX-License-Identifier: MIT
 
-Teal.Finance/Garcon is distributed in the hope that it will be useful,
+Garcon is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty
 of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 

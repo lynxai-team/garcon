@@ -1,4 +1,8 @@
-// modified copy from https://github.com/StevenACoffman/teamboard/main/pkg/tools
+// Copyright 2021 Steve Coffman
+// Copyright 2021-2025 The contributors of Garcon.
+// This file is a modified copy from:
+// https://github.com/StevenACoffman/teamboard/blob/main/pkg/tools/generate.go
+// SPDX-License-Identifier: MIT
 
 package tools
 
