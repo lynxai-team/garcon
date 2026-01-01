@@ -13,14 +13,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/LM4eu/garcon"
+	"github.com/LynxAIeu/garcon"
 
-	"github.com/LM4eu/garcon/gg"
-	"github.com/LM4eu/garcon/gwt"
+	"github.com/LynxAIeu/garcon/gg"
+	"github.com/LynxAIeu/garcon/gwt"
 
-	"github.com/LM4eu/garcon/vv"
+	"github.com/LynxAIeu/garcon/vv"
 
-	"github.com/LM4eu/emo"
+	"github.com/LynxAIeu/emo"
 )
 
 // Garcon settings.

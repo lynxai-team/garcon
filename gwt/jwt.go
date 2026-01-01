@@ -15,10 +15,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/LM4eu/emo"
-	"github.com/LM4eu/garcon/gg"
+	"github.com/LynxAIeu/emo"
+	"github.com/LynxAIeu/garcon/gg"
 
-	"github.com/LM4eu/garcon/timex"
+	"github.com/LynxAIeu/garcon/timex"
 )
 
 type (

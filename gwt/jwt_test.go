@@ -10,8 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LM4eu/garcon/gg"
-	"github.com/LM4eu/garcon/gwt"
+	"github.com/LynxAIeu/garcon/gg"
+	"github.com/LynxAIeu/garcon/gwt"
 )
 
 type next struct {

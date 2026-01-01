@@ -11,7 +11,7 @@ import (
 
 	"github.com/rs/cors"
 
-	"github.com/LM4eu/garcon/gg"
+	"github.com/LynxAIeu/garcon/gg"
 )
 
 type corsLogger struct{}

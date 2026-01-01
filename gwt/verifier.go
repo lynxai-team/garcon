@@ -20,7 +20,7 @@ import (
 
 	turbo64 "github.com/cristalhq/base64"
 
-	"github.com/LM4eu/garcon/gg"
+	"github.com/LynxAIeu/garcon/gg"
 )
 
 type (
@@ -80,7 +80,7 @@ func (b Base) Reuse() bool { return b.reuse }
 //     algoKey = "HS256:9d2e0a02121179a3c3de1b035ae1355b1548781c8ce8538a1dc0853a12dfb13d"
 //
 //  3. the Quid URL to fetch the algo/key info from a given namespace
-//     algoKey = "https://lm4.eu/quid/v1?ns=foobar"
+//     algoKey = "https://lynxai.eu/quid/v1?ns=foobar"
 //
 // In the two first forms, NewVerifier accepts the key to be in hexadecimal, or in Base64 form.
 // NewVerifier converts the verification key into binary DER form

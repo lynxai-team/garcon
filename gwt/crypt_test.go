@@ -7,7 +7,7 @@ package gwt_test
 import (
 	"testing"
 
-	"github.com/LM4eu/garcon/gwt"
+	"github.com/LynxAIeu/garcon/gwt"
 )
 
 func TestAesGcm(t *testing.T) {

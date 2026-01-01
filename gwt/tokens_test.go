@@ -16,9 +16,9 @@ import (
 	turbo64 "github.com/cristalhq/base64"
 	"github.com/golang-jwt/jwt/v4"
 
-	"github.com/LM4eu/garcon/gwt"
+	"github.com/LynxAIeu/garcon/gwt"
 
-	"github.com/LM4eu/emo"
+	"github.com/LynxAIeu/emo"
 )
 
 const jwtSample = `{"usr":"jane","grp":["group1","group2"],"org":["organization1","organization2"],"exp":1595950745}`
@@ -275,7 +275,7 @@ ok      github.com/teal.finance/quid/tokens     6.254s
 Go 1.25.1
 
 goarch: amd64
-pkg: github.com/LM4eu/garcon/gwt
+pkg: github.com/LynxAIeu/garcon/gwt
 cpu: AMD Ryzen 9 3900X 12-Core Processor
 BenchmarkOldDecodeB64-24          4593544   263.8 ns/op   112 B/op   1 allocs/op
 BenchmarkOldDecodeT64-24          7166172   167.1 ns/op   112 B/op   1 allocs/op
@@ -290,7 +290,7 @@ BenchmarkEncodeLenT64-24          8425144   142.3 ns/op   144 B/op   1 allocs/op
 BenchmarkEncodeToStringB64-24     4300639   281.0 ns/op   288 B/op   2 allocs/op
 BenchmarkEncodeToStringT64-24     7856421   154.4 ns/op   144 B/op   1 allocs/op
 PASS
-ok      github.com/LM4eu/garcon/gwt     14.527s
+ok      github.com/LynxAIeu/garcon/gwt     14.527s
 */
 
 func TestEqualBase64Turbo64(t *testing.T) {

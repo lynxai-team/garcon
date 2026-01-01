@@ -1,9 +1,9 @@
 github.com/JohannesKaufmann/html-to-markdown v1.6.0 h1:04VXMiE50YYfCfLboJCLcgqF5x+rHJnb1ssNmqpLH/k=
 github.com/JohannesKaufmann/html-to-markdown v1.6.0/go.mod h1:NUI78lGg/a7vpEJTz/0uOcYMaibytE4BUOQS8k78yPQ=
-github.com/LM4eu/emo v0.0.0-20250927010905-4655469361e2 h1:iEQxJkd7mDtb+GAsl1PgMu2DMjqZHa3wIWrAk5HuwzY=
-github.com/LM4eu/emo v0.0.0-20250927010905-4655469361e2/go.mod h1:KqLb05XU70BLek1CLc1b/Vm02Cs9A5M0igZced3P12s=
-github.com/LM4eu/incorruptible v0.0.0-20250927034828-df0dad11a4d9 h1:GQDkocDQc8F1cd3AnFHNICEQfHNZYV+i9voO7cF9I18=
-github.com/LM4eu/incorruptible v0.0.0-20250927034828-df0dad11a4d9/go.mod h1:+1Aw9RRpswNYvz5bWdFrtWYa3j2UJAu8FqWrAs3f6FU=
+github.com/LynxAIeu/emo v0.0.0-20250927010905-4655469361e2 h1:iEQxJkd7mDtb+GAsl1PgMu2DMjqZHa3wIWrAk5HuwzY=
+github.com/LynxAIeu/emo v0.0.0-20250927010905-4655469361e2/go.mod h1:KqLb05XU70BLek1CLc1b/Vm02Cs9A5M0igZced3P12s=
+github.com/LynxAIeu/incorruptible v0.0.0-20250927034828-df0dad11a4d9 h1:GQDkocDQc8F1cd3AnFHNICEQfHNZYV+i9voO7cF9I18=
+github.com/LynxAIeu/incorruptible v0.0.0-20250927034828-df0dad11a4d9/go.mod h1:+1Aw9RRpswNYvz5bWdFrtWYa3j2UJAu8FqWrAs3f6FU=
 github.com/PuerkitoBio/goquery v1.9.2/go.mod h1:GHPCaP0ODyyxqcNoFGYlAprUFH81NuRPd0GX3Zu2Mvk=
 github.com/PuerkitoBio/goquery v1.10.3 h1:pFYcNSqHxBD06Fpj/KsbStFRsgRATgnf3LeXiUkhzPo=
 github.com/PuerkitoBio/goquery v1.10.3/go.mod h1:tMUX0zDMHXYlAQk6p35XxQMqMweEKB7iK7iLNd4RH4Y=

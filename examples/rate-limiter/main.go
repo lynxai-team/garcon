@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LM4eu/garcon"
+	"github.com/LynxAIeu/garcon"
 
-	"github.com/LM4eu/emo"
+	"github.com/LynxAIeu/emo"
 )
 
 type (

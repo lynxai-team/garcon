@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/LM4eu/garcon/gg"
-	"github.com/LM4eu/garcon/timex"
+	"github.com/LynxAIeu/garcon/gg"
+	"github.com/LynxAIeu/garcon/timex"
 
-	"github.com/LM4eu/emo"
+	"github.com/LynxAIeu/emo"
 )
 
 const (

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/LM4eu/garcon/gg"
+	"github.com/LynxAIeu/garcon/gg"
 )
 
 func clone[T any](slice []T) []T {

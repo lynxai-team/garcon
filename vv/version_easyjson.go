@@ -4,6 +4,7 @@ package vv
 
 import (
 	json "encoding/json"
+
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
@@ -17,7 +18,7 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjson8e52a332DecodeGithubComLM4euGarconVv(in *jlexer.Lexer, out *versionInfo) {
+func easyjson8e52a332DecodeGithubComLynxAIeuGarconVv(in *jlexer.Lexer, out *versionInfo) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -69,7 +70,7 @@ func easyjson8e52a332DecodeGithubComLM4euGarconVv(in *jlexer.Lexer, out *version
 		in.Consumed()
 	}
 }
-func easyjson8e52a332EncodeGithubComLM4euGarconVv(out *jwriter.Writer, in versionInfo) {
+func easyjson8e52a332EncodeGithubComLynxAIeuGarconVv(out *jwriter.Writer, in versionInfo) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -99,23 +100,23 @@ func easyjson8e52a332EncodeGithubComLM4euGarconVv(out *jwriter.Writer, in versio
 // MarshalJSON supports json.Marshaler interface
 func (v versionInfo) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjson8e52a332EncodeGithubComLM4euGarconVv(&w, v)
+	easyjson8e52a332EncodeGithubComLynxAIeuGarconVv(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v versionInfo) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjson8e52a332EncodeGithubComLM4euGarconVv(w, v)
+	easyjson8e52a332EncodeGithubComLynxAIeuGarconVv(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *versionInfo) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjson8e52a332DecodeGithubComLM4euGarconVv(&r, v)
+	easyjson8e52a332DecodeGithubComLynxAIeuGarconVv(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *versionInfo) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjson8e52a332DecodeGithubComLM4euGarconVv(l, v)
+	easyjson8e52a332DecodeGithubComLynxAIeuGarconVv(l, v)
 }
