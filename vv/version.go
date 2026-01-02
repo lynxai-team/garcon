@@ -27,7 +27,7 @@ var (
 	// V is set at build time using the `-ldflags` build flag:
 	//
 	//	v="$(git describe --tags --always --broken)"
-	//	go build -ldflags="-X 'github.com/LynxAIeu/garcon/gc.V=$v'" ./cmd/main/package
+	//	go build -ldflags="-X 'github.com/LynxAIeu/garcon/vv.V=$v'" ./cmd/main/package
 	//
 	// The following commands provide a semver-like version format such as
 	// "v1.2.0-my-branch+3" where "+3" is the number of commits since "v1.2.0".
@@ -38,7 +38,7 @@ var (
 	//	[ _$b = _main ] && b="" || b="-$b"
 	//	n="$(git rev-list --count "$t"..)"
 	//	[ "$n" -eq 0 ] && n="" || n="+$n"
-	//	go build -ldflags="-X 'github.com/LynxAIeu/garcon/gc.$b$n'" ./cmd/main/package
+	//	go build -ldflags="-X 'github.com/LynxAIeu/garcon/vv.V=$t$b$n'" ./cmd/main/package
 	//
 	//nolint:gochecknoglobals,varnamelen // set at build time: should be global and short.
 	V string
