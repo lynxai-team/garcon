@@ -127,7 +127,7 @@ func TestChain_ThenFunc_ConstructsHandlerFunc(t *testing.T) {
 
 	chained.ServeHTTP(rec, (*http.Request)(nil))
 
-	if reflect.TypeOf(chained) != reflect.TypeOf(http.HandlerFunc(nil)) {
+	if reflect.TypeOf(chained) != reflect.TypeFor[http.HandlerFunc]() {
 		t.Error("ThenFunc does not construct HandlerFunc")
 	}
 }
@@ -155,7 +155,7 @@ func TestRTChain_ThenFunc_ConstructsRoundTripperFunc(t *testing.T) {
 		}
 	}
 
-	if reflect.TypeOf(chained) != reflect.TypeOf(gg.RoundTripperFunc(nil)) {
+	if reflect.TypeOf(chained) != reflect.TypeFor[gg.RoundTripperFunc]() {
 		t.Error("ThenFunc does not construct RoundTripperFunc")
 	}
 }

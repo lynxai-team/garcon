@@ -175,16 +175,17 @@ func SafeHeader(r *http.Request, header string) string {
 		return Sanitize(values[0])
 	}
 
-	str := "["
+	var str strings.Builder
+	str.WriteString("[")
 	for i := range values {
 		if i > 0 {
-			str += " "
+			str.WriteString(" ")
 		}
-		str += Sanitize(values[i])
+		str.WriteString(Sanitize(values[i]))
 	}
-	str += "]"
+	str.WriteString("]")
 
-	return str
+	return str.String()
 }
 
 // PrintableRune returns false if rune is

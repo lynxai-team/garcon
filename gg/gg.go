@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -96,12 +97,7 @@ func separatorFunc(separators ...rune) func(rune) bool {
 	}
 
 	return func(r rune) bool {
-		for _, s := range separators {
-			if s == r {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(separators, r)
 	}
 }
 
@@ -444,10 +440,7 @@ func ConvertSize64(sizeInBytes int64) string {
 func ExtractWords(csv string, dictionary []string) []string {
 	prefixes := strings.Split(csv, ",")
 
-	n := len(prefixes)
-	if n > len(dictionary) {
-		n = len(dictionary)
-	}
+	n := min(len(prefixes), len(dictionary))
 	result := make([]string, 0, n)
 
 	for _, p := range prefixes {
