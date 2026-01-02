@@ -261,7 +261,7 @@ Go 1.18 (not sure)
 go test -bench=. -benchmem ./...
 goos: linux
 goarch: amd64
-pkg: github.com/teal.finance/quid/tokens
+pkg: github.com/LynxAIeu/quid/tokens
 cpu: AMD Ryzen 9 3900X 12-Core Processor
 BenchmarkOldDecodeStringB64-24    3331362   376.8 ns/op   256 B/op   2 allocs/op
 BenchmarkOldDecodeB64-24          4375579   277.0 ns/op   112 B/op   1 allocs/op
@@ -270,7 +270,7 @@ BenchmarkOldEncodeB64-24          5913382   209.2 ns/op   144 B/op   1 allocs/op
 BenchmarkOldEncodeT64-24          8053846   144.6 ns/op   144 B/op   1 allocs/op
 BenchmarkOldEncodeToStringB64-24  3928515   297.4 ns/op   256 B/op   2 allocs/op
 PASS
-ok      github.com/teal.finance/quid/tokens     6.254s
+ok      github.com/LynxAIeu/quid/tokens     6.254s
 
 Go 1.25.1
 

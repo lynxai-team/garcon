@@ -5,7 +5,7 @@
 
 ## Motivation
 
-Many projects often start with one of the many nice HTTP routers and middleware already available and develop their own middleware, debugging server, API helpers... At Teal.Finance, we decided to share in one place (here) all our stuff in the idea to let other projects go faster.
+Many projects often start with one of the many nice HTTP routers and middleware already available and develop their own middleware, debugging server, API helpers... At LynxAI.eu, we decided to share in one place (here) all our stuff in the idea to let other projects go faster.
 
 ## Middleware
 
@@ -165,9 +165,9 @@ func main() {
 ## Who use Garcon
 
 In production, this library is used by
-[Rainbow](https://github.com/LynxAIeu/rainbow),
+[Rainbow](https://github.com/teal-finance/rainbow),
 [Quid](https://github.com/LynxAIeu/quid)
-and other internal projects at Teal.Finance.
+and other internal projects at LynxAI.eu.
 
 Please propose a [Pull Request](https://github.com/LynxAIeu/garcon/pulls) to add here your project that also uses Garcon.
 
@@ -659,7 +659,7 @@ and there's always plenty to do!
 If you have some suggestions, or need a new feature,
 please contact us, using the
 [issues](https://github.com/LynxAIeu/garcon/issues),
-or at Teal.Finance@pm.me or
+or at hello@lynxai.eu or
 [@TealFinance](https://twitter.com/TealFinance).
 
 Feel free to propose a
