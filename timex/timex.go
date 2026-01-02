@@ -1,6 +1,6 @@
 // Copyright 2009 The Go Authors. All rights reserved.
 // Copyright 2021 The contributors of Garcon.
-// This file now is part of Garcon, a static web builder, API server and middleware using Git, docker and podman.
+// This file now is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // Use of this source code is governed by a BSD-style
 // license that can be found at:
 // https://pkg.go.dev/std?tab=licenses

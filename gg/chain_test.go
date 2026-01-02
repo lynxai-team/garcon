@@ -5,7 +5,7 @@
 //
 // This file is a modified copy from https://github.com/justinas/alice
 // and also from https://github.com/justinas/alice/pull/40
-// This file is now part of Garcon, a static web builder, API server and middleware using Git, docker and podman.
+// This file is now part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 //
 // SPDX-License-Identifier: MIT
 

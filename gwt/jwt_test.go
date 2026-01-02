@@ -1,5 +1,5 @@
 // Copyright 2021 The contributors of Garcon.
-// This file is part of Garcon, a static web builder, API server and middleware using Git, docker and podman.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
 package gwt_test
