@@ -1,6 +1,6 @@
 module github.com/LynxAIeu/garcon
 
-go 1.25.1
+go 1.25.5
 
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
