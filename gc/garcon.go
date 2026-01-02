@@ -1,5 +1,5 @@
 // Copyright 2021 The contributors of Garcon.
-// This file is part of Garcon, web+API server toolkit under the MIT License.
+// This file is part of Garcon, a static web builder, API server and middleware using Git, docker and podman.
 // SPDX-License-Identifier: MIT
 
 // Package gc is a server for API and static website
@@ -66,7 +66,6 @@ func New(opts ...Option) *Garcon {
 		baseURL := g.urls[0].String()
 		if !strings.HasPrefix(g.docURL, baseURL) &&
 			!strings.Contains(g.docURL, "://") {
-
 			g.docURL = baseURL + g.docURL
 		}
 	}

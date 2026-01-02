@@ -1,5 +1,5 @@
 // Copyright 2021 The contributors of Garcon.
-// This file is part of Garcon, web+API server toolkit under the MIT License.
+// This file is part of Garcon, a static web builder, API server and middleware using Git, docker and podman.
 // SPDX-License-Identifier: MIT
 
 package gc
@@ -110,7 +110,6 @@ func InsertSchema(urls []string) {
 	for i, u := range urls {
 		if !strings.HasPrefix(u, "https://") &&
 			!strings.HasPrefix(u, "http://") {
-
 			urls[i] = "http://" + u
 		}
 	}

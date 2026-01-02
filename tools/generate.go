@@ -1,7 +1,5 @@
-// Copyright 2021 Steve Coffman
-// Copyright 2022 The contributors of Garcon.
-// This file is a modified copy from:
-// https://github.com/StevenACoffman/teamboard/blob/main/pkg/tools/generate.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, a static web builder, API server and middleware using Git, docker and podman.
 // SPDX-License-Identifier: MIT
 
 package tools
