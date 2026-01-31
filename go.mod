@@ -171,3 +171,16 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 	tags.cncf.io/container-device-interface v1.1.0 // indirect
 )
+
+tool (
+	github.com/mailru/easyjson
+	github.com/mailru/easyjson/bootstrap
+	github.com/mailru/easyjson/buffer
+	github.com/mailru/easyjson/easyjson
+	github.com/mailru/easyjson/gen
+	github.com/mailru/easyjson/jlexer
+	github.com/mailru/easyjson/jwriter
+	github.com/mailru/easyjson/opt
+	github.com/mailru/easyjson/parser
+	github.com/mailru/easyjson/tests
+)
