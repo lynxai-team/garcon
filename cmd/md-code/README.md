@@ -50,10 +50,11 @@ go build -o md-code .
 ## Command‑line usage
 
 ```txt
-$ go run ./cmd/md-code/ -h
+$ md-code -h
 md-code - extract or generate fenced code blocks.
 
-Usage:
+USAGE
+
   md-code [options]      <markdown-file> [folder]
   md-code [options] -gen [markdown-file] [folder]
 
@@ -65,7 +66,22 @@ the files found under [folder] (default ".").
 In generation mode, default [markdown-file]
 is the folder name with ".md" extension.
 
-Options:
+EXAMPLES
+
+All these four command lines do the same:
+write all src/* files within the src.md file.
+
+  md-code -gen src
+  md-code -gen src src.md
+  md-code -gen src.md src
+  cd src ; md-code -gen
+
+To filter the Go files only:
+
+  md-code -gen -regex '[/A-Za-z0-9_-]+[.]go' src
+
+OPTIONS
+
   -all
         extract code blocks that have no explicit filename
   -dry-run
@@ -79,7 +95,7 @@ Options:
   -overwrite
         overwrite existing files
   -regex string
-        regular expression that a filename must match (default "[/A-Za-z0-9._-]+")
+        regular expression that a filename must match (default "[/A-Za-z0-9._-]*[A-Za-z0-9]")
   -version
         Print version and exit
 ```

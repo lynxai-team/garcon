@@ -24,6 +24,39 @@ const (
 	defaultFence  = "```"
 	defaultHeader = "## File: "
 	defaultRegex  = "[/A-Za-z0-9._-]*[A-Za-z0-9]"
+
+	usage = `md-code - extract or generate fenced code blocks.
+
+USAGE
+
+  md-code [options]      <markdown-file> [folder]
+  md-code [options] -gen [markdown-file] [folder]
+
+If -gen is omitted the program extracts code blocks
+from <markdown-file> into [folder] (default "out").
+
+With -gen it creates [markdown-file] from
+the files found under [folder] (default ".").
+In generation mode, default [markdown-file]
+is the folder name with ".md" extension.
+
+EXAMPLES
+
+All these four command lines do the same:
+write all src/* files within the src.md file.
+
+  md-code -gen src
+  md-code -gen src src.md
+  md-code -gen src.md src
+  cd src ; md-code -gen
+
+To filter the Go files only:
+
+  md-code -gen -regex '[/A-Za-z0-9_-]+[.]go' src
+
+OPTIONS
+
+`
 )
 
 // Config holds all runtime options.  Fields are private because the program
@@ -64,26 +97,7 @@ func parseFlags(flags *flag.FlagSet, arguments []string) (bool, *Config) {
 		overwrite = flags.Bool("overwrite", false, "overwrite existing files")
 	)
 	vv.SetCustomVersionFlag(flags, "", "")
-	flags.Usage = func() {
-		fmt.Fprintf(flags.Output(),
-			`md-code - extract or generate fenced code blocks.
-
-Usage:
-  md-code [options]      <markdown-file> [folder]
-  md-code [options] -gen [markdown-file] [folder]
-
-If -gen is omitted the program extracts code blocks
-from <markdown-file> into [folder] (default "out").
-
-With -gen it creates [markdown-file] from
-the files found under [folder] (default ".").
-In generation mode, default [markdown-file]
-is the folder name with ".md" extension.
-
-Options:
-`)
-		flags.PrintDefaults()
-	}
+	flags.Usage = func() { fmt.Fprintf(flags.Output(), usage); flags.PrintDefaults() }
 	flags.Parse(arguments)
 
 	// Validate fence - the CommonMark spec requires at least three backticks.
