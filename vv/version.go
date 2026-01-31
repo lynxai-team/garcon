@@ -47,7 +47,7 @@ var (
 // Version format is "Program-1.2.3".
 // If the program argument is empty, the format is "v1.2.3".
 // If V is empty, Version uses the main module version.
-func Version(serverName string) string {
+func Version(program string) string {
 	if V == "" {
 		V = versioninfo.Short()
 		if V == "" {
@@ -55,17 +55,17 @@ func Version(serverName string) string {
 		}
 	}
 
-	if serverName == "" {
+	if program == "" {
 		return V
 	}
 
-	serverName += "-"
+	program += "-"
 
 	if len(V) > 1 && V[0] == 'v' {
-		return serverName + V[1:] // Skip the prefix "v"
+		return program + V[1:] // Skip the prefix "v"
 	}
 
-	return serverName + V
+	return program + V
 }
 
 // SetVersionFlag defines -version flag to print the version stored in V.
@@ -78,19 +78,25 @@ func SetVersionFlag() {
 //
 // Example with default values:
 //
-//	import "github.com/lynxai-team/garcon/gc"
+//	import (
+//		"flag"
+//		"github.com/lynxai-team/garcon/vv"
+//	)
 //
 //	func main() {
-//	     gc.SetCustomVersionFlag(nil, "", "")
+//	     vv.SetCustomVersionFlag(nil, "", "")
 //	     flag.Parse()
 //	}
 //
 // Example with custom values values:
 //
-//	import "github.com/lynxai-team/garcon/gc"
+//	import (
+//		"flag"
+//		"github.com/lynxai-team/garcon/vv"
+//	)
 //
 //	func main() {
-//	     gc.SetCustomVersionFlag(nil, "v", "MyApp")
+//	     vv.SetCustomVersionFlag(nil, "v", "MyApp")
 //	     flag.Parse()
 //	}
 func SetCustomVersionFlag(fs *flag.FlagSet, flagName, program string) {
