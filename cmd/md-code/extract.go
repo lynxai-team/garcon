@@ -86,13 +86,13 @@ func (c *Config) extractFiles() error {
 	defer f.Close()
 
 	var (
-		scanner         = bufio.NewScanner(f)
-		matcher         = c.newMatcher()
-		lineNum         int
-		startLine       int
-		filename        string
-		buf             bytes.Buffer // accumulates the current block
-		skipNextClosing bool
+		scanner     = bufio.NewScanner(f)
+		matcher     = c.newMatcher()
+		lineNum     int
+		startLine   int
+		filename    string
+		buf         bytes.Buffer // accumulates the current block
+		closingIsIn bool         // next closing fence is part of the current block
 	)
 
 	for scanner.Scan() {
@@ -106,8 +106,10 @@ func (c *Config) extractFiles() error {
 			if len(trim) == len(c.fence) {
 				if filename == "" {
 					log.Infof("⚠️  Fence without language tag at line #%d - skipping", lineNum)
-				} else if skipNextClosing {
-					skipNextClosing = false
+				} else if closingIsIn {
+					log.RequestPostf("corresponding closing fence at line #%d", lineNum)
+					closingIsIn = false
+					goto store_line
 				} else {
 					err = c.writeBlock(filename, buf.Bytes())
 					if err != nil {
@@ -137,9 +139,9 @@ func (c *Config) extractFiles() error {
 				continue
 			}
 
-			log.Infof("⚠️  Found an opening fence in a bloc at line #%d - will skip the corresponding closing fence", lineNum)
-			skipNextClosing = true
-			continue
+			log.RequestPostf("opening fence in a bloc at line #%d - will consider the corresponding closing fence as part of the current code block", lineNum)
+			closingIsIn = true
+			goto store_line
 		}
 
 		// empty filename => we are outside of a code bloc
@@ -149,7 +151,7 @@ func (c *Config) extractFiles() error {
 			continue
 		}
 
-		// Inside a fenced block
+	store_line: // Inside a fenced block
 		buf.WriteString(line)
 		buf.WriteByte('\n')
 	}

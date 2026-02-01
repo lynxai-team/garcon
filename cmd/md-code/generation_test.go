@@ -47,7 +47,9 @@ func assertFileExists(t *testing.T, path, expectedContent string) {
 		t.Fatalf("cannot read file %s: %v", path, err)
 	}
 	if string(got) != expectedContent {
-		t.Fatalf("file content mismatch for %s.\nGot: %q\nWant: %q", path, got, expectedContent)
+		t.Fatalf("file content mismatch for %s."+
+			"\n"+"Got  %q"+
+			"\n"+"Want %q", path, got, expectedContent)
 	}
 }
 

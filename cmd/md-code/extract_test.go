@@ -19,7 +19,7 @@ func TestExtractBoldFilename(t *testing.T) {
 ` + "```go" + `
 package main
 func main() {}
-` + "```\n"
+` + "```" + "\n"
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
@@ -34,9 +34,11 @@ func main() {}
 	if err != nil {
 		t.Fatalf("file has not been extracted: %v", err)
 	}
-	want := "package main\nfunc main() {}\n"
+	want := "package main" + "\n" + "func main() {}" + "\n"
 	if string(got) != want {
-		t.Fatalf("file content mismatch.\nGot: %q\nWant: %q", got, want)
+		t.Fatalf("file content mismatch."+
+			"\n"+"Got  %q"+
+			"\n"+"Want %q", got, want)
 	}
 }
 
@@ -49,7 +51,7 @@ func TestExtractHeaderFilename(t *testing.T) {
 ` + "```go" + `
 package main
 // example
-` + "```\n"
+` + "```" + "\n"
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
@@ -78,7 +80,7 @@ func TestOverwriteFlag(t *testing.T) {
 ` + "```go" + `
 package main
 // first version
-` + "```\n"
+` + "```" + "\n"
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
@@ -97,7 +99,7 @@ package main
 ` + "```go" + `
 package main
 // second version – should be ignored
-` + "```\n"
+` + "```" + "\n"
 
 	_ = writeMD(t, md2)
 
@@ -126,7 +128,7 @@ func TestDryRun(t *testing.T) {
 
 ` + "```go" + `
 package main
-` + "```\n"
+` + "```" + "\n"
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
@@ -149,7 +151,7 @@ func TestPathTraversalProtection(t *testing.T) {
 
 ` + "```go" + `
 package main
-` + "```\n"
+` + "```" + "\n"
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
@@ -173,7 +175,7 @@ Some text
 ` + "```go" + `
 package main
 func main() {}
-` + "```\n"
+` + "```" + "\n"
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
@@ -210,7 +212,7 @@ Some text
 ` + "```go" + `
 package main
 func main() {}
-` + "```\n"
+` + "```" + "\n"
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
@@ -235,7 +237,7 @@ func TestEmptyFence(t *testing.T) {
 ` + "```" + `
 package main
 func main() {}
-` + "```\n"
+` + "```" + "\n"
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
@@ -244,6 +246,59 @@ func main() {}
 	err := c.extractFiles()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
+	}
+
+	// Should create the file
+	assertNoFiles(t, dest)
+}
+
+func TestExtractSubBlocks(t *testing.T) {
+	t.Parallel()
+	readme := `This is te README of the project.
+
+Example to use this file:
+
+` + "```go" + `
+package main
+func main() {}
+` + "```" + `
+
+This is the end of the README.
+`
+	file := "package lib" + "\n" + "func Lib() {}" + "\n"
+
+	md := "**README.md**" +
+		"\n" +
+		"\n" + "```md" +
+		"\n" + readme +
+		"```" +
+		"\n" +
+		"\n" + "## `lib.go`" +
+		"\n" + "```go" +
+		"\n" + file +
+		"```"
+
+	mdPath := writeMD(t, md)
+	dest := t.TempDir()
+	c := defaultConfig([]string{"-all", mdPath, dest})
+
+	err := c.extractFiles()
+	if err != nil {
+		t.Fatalf("extractFiles failed: %v", err)
+	}
+
+	readmePath := filepath.Join(dest, "README.md")
+	filePath := filepath.Join(dest, "lib.go")
+	assertFileExists(t, readmePath, readme)
+	assertFileExists(t, filePath, file)
+
+	err = os.Remove(readmePath)
+	if err != nil {
+		t.Errorf("os.Remove(readmePath) %v", err)
+	}
+	err = os.Remove(filePath)
+	if err != nil {
+		t.Errorf("os.Remove(filePath) %v", err)
 	}
 
 	// Should create the file
