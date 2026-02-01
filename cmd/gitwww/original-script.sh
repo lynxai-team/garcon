@@ -119,7 +119,8 @@ deploy() { (
     mkdir -pv "$dir"
     rm -rfv "$dir.new"
 
-    container_id=$($ENGINE create "$1")
+    # last "" is the required command
+    container_id=$($ENGINE create "$1" "")
     $ENGINE cp "$container_id:/dist" "$dir.new"
     $ENGINE rm "$container_id"
 
