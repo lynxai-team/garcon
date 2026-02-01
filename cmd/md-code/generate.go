@@ -67,14 +67,7 @@ func (c *Config) generateMarkdown() error {
 		rel = filepath.ToSlash(rel)
 
 		// Header line with filename.
-		switch {
-		case c.header == "**":
-			_, err = fmt.Fprintf(w, "**%s**\n\n", rel)
-		case len(c.header) == 1:
-			_, err = fmt.Fprintf(w, "%s%s%s\n\n", c.header, rel, c.header)
-		default:
-			_, err = fmt.Fprintf(w, "%s%s\n\n", c.header, rel) // "## File: path/file.go"
-		}
+		_, err = fmt.Fprint(w, c.genFilenameLine(rel)+"\n\n")
 		if err != nil {
 			return err
 		}
@@ -119,6 +112,50 @@ func (c *Config) generateMarkdown() error {
 		return fmt.Errorf("flush output: %w", err)
 	}
 	return nil
+}
+
+// genFilenameLine generates the header line with filename.
+func (c *Config) genFilenameLine(filename string) string {
+	if c.header == "" {
+		return filename
+	}
+
+	idx := strings.LastIndexByte(c.header, ' ')
+
+	switch idx {
+	// header format = "something "
+	case len(c.header) - 1:
+		return c.header + filename
+
+	// header format: "`" or "(" or "something `" or "something ("
+	case len(c.header) - 2:
+		ending := c.header[len(c.header)-1]
+		switch ending {
+		case '/':
+			return c.header + filename
+		case '\\':
+			return c.header + filename
+		case '(':
+			ending = ')'
+		case '[':
+			ending = ']'
+		case '{':
+			ending = '}'
+		}
+		return c.header[:idx+1] + filename + string(ending)
+
+	// header format: "**" or "something **"
+	case len(c.header) - 3:
+		ending := c.header[len(c.header)-2:]
+		switch ending {
+		case "**":
+			return c.header + filename + "**"
+		}
+		return c.header + filename
+
+	default:
+		return c.header + filename // "## File: path/file.go"
+	}
 }
 
 // ----------------------------------------------------------------------

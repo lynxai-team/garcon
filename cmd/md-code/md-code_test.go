@@ -76,9 +76,9 @@ func main() {}
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
-	cfg := defaultConfig([]string{mdPath, dest})
+	c := defaultConfig([]string{mdPath, dest})
 
-	err := cfg.extractFiles()
+	err := c.extractFiles()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -106,9 +106,9 @@ package main
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
-	cfg := defaultConfig([]string{mdPath, dest})
+	c := defaultConfig([]string{mdPath, dest})
 
-	err := cfg.extractFiles()
+	err := c.extractFiles()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -137,8 +137,8 @@ package main
 	dest := t.TempDir()
 
 	// First run – creates the file.
-	cfg := defaultConfig([]string{mdPath, dest})
-	err := cfg.extractFiles()
+	c := defaultConfig([]string{mdPath, dest})
+	err := c.extractFiles()
 	if err != nil {
 		t.Fatalf("first run failed: %v", err)
 	}
@@ -155,8 +155,8 @@ package main
 	_ = writeMD(t, md2)
 
 	// Second run with Overwrite=false.
-	cfg.overwrite = false
-	err = cfg.extractFiles()
+	c.overwrite = false
+	err = c.extractFiles()
 	if err != nil {
 		t.Fatalf("second run failed: %v", err)
 	}
@@ -183,9 +183,9 @@ package main
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
-	cfg := defaultConfig([]string{mdPath, dest})
-	cfg.dryRun = true
-	err := cfg.extractFiles()
+	c := defaultConfig([]string{mdPath, dest})
+	c.dryRun = true
+	err := c.extractFiles()
 	if err != nil {
 		t.Fatalf("dry-run failed: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestGenerateMarkdown(t *testing.T) {
 func TestRoundTrip(t *testing.T) {
 	t.Parallel()
 	src := t.TempDir()
-	dst := t.TempDir()
+	dirMD := t.TempDir()
 
 	// Create test files
 	files := map[string]string{
@@ -247,24 +247,42 @@ func TestRoundTrip(t *testing.T) {
 	}
 	writeFiles(t, src, files)
 
-	md := filepath.Join(dst, "out.md")
-	cfg := defaultConfig([]string{md, src})
-	err := cfg.generateMarkdown()
-	if err != nil {
-		t.Fatalf("GenerateMarkdown failed: %v", err)
+	cases := map[string]string{
+		"default.md":          defaultHeader,
+		"bold.md":             "**",
+		"section-bold.md":     "## **", // TODO FIXME
+		"backtick.md":         "`",
+		"section-backtick.md": "## `",
+		"section-brace.md":    "## (",
 	}
 
-	dest := t.TempDir()
-	cfg = defaultConfig([]string{md, dest})
-	err = cfg.extractFiles()
-	if err != nil {
-		t.Fatalf("ParseFile failed: %v", err)
-	}
+	for fileMD, header := range cases {
+		t.Run(fileMD, func(t *testing.T) {
+			t.Parallel()
+			pathMD := filepath.Join(dirMD, fileMD)
+			c := defaultConfig([]string{"-header", header, pathMD, src})
+			if c.header != header {
+				t.Fatalf("provided header=%q but got=%q", header, c.header)
+			}
 
-	// Verify that the extracted files match the original
-	assertFileExists(t, filepath.Join(dest, "a.go"), files["a.go"])
-	assertFileExists(t, filepath.Join(dest, "b.txt"), files["b.txt"])
-	assertFileExists(t, filepath.Join(dest, "sub", "c.go"), files["sub/c.go"])
+			err := c.generateMarkdown()
+			if err != nil {
+				t.Fatalf("generateMarkdown failed: %v", err)
+			}
+
+			dest := t.TempDir()
+			c = defaultConfig([]string{pathMD, dest})
+			err = c.extractFiles()
+			if err != nil {
+				t.Fatalf("ParseFile failed: %v", err)
+			}
+
+			// Verify that the extracted files match the original
+			assertFileExists(t, filepath.Join(dest, "a.go"), files["a.go"])
+			assertFileExists(t, filepath.Join(dest, "b.txt"), files["b.txt"])
+			assertFileExists(t, filepath.Join(dest, "sub", "c.go"), files["sub/c.go"])
+		})
+	}
 }
 
 // 7️⃣  Path-traversal protection.
@@ -279,9 +297,9 @@ package main
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
-	cfg := defaultConfig([]string{mdPath, dest})
+	c := defaultConfig([]string{mdPath, dest})
 
-	err := cfg.extractFiles()
+	err := c.extractFiles()
 	if err != nil {
 		t.Fatalf("should only raise a warning: no need for an error")
 	}
@@ -303,10 +321,10 @@ func main() {}
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
-	cfg := defaultConfig([]string{mdPath, dest})
-	cfg.all = true // Enable extraction of blocks without filename
+	c := defaultConfig([]string{mdPath, dest})
+	c.all = true // Enable extraction of blocks without filename
 
-	err := cfg.extractFiles()
+	err := c.extractFiles()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -340,10 +358,10 @@ func main() {}
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
-	cfg := defaultConfig([]string{mdPath, dest})
-	cfg.all = false // Disable extraction of blocks without filename
+	c := defaultConfig([]string{mdPath, dest})
+	c.all = false // Disable extraction of blocks without filename
 
-	err := cfg.extractFiles()
+	err := c.extractFiles()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -365,9 +383,9 @@ func main() {}
 
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
-	cfg := defaultConfig([]string{mdPath, dest})
+	c := defaultConfig([]string{mdPath, dest})
 
-	err := cfg.extractFiles()
+	err := c.extractFiles()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -403,9 +421,9 @@ func FuzzExtract(f *testing.F) {
 		}
 
 		// Run the extractor – any error is acceptable, but it must not panic.
-		cfg := defaultConfig([]string{mdPath, dir})
-		cfg.dryRun = true
-		err = cfg.extractFiles()
+		c := defaultConfig([]string{mdPath, dir})
+		c.dryRun = true
+		err = c.extractFiles()
 		if err != nil {
 			// Expected - errors are fine, just don't panic
 			return
@@ -438,9 +456,9 @@ func FuzzGenerate(f *testing.F) {
 		md := filepath.Join(src, "output.md")
 
 		// Run reverse mode – any error is acceptable, but it must not panic.
-		cfg := defaultConfig([]string{md, src})
-		cfg.dryRun = true
-		err := cfg.generateMarkdown()
+		c := defaultConfig([]string{md, src})
+		c.dryRun = true
+		err := c.generateMarkdown()
 		if err != nil {
 			// Expected - errors are fine, just don't panic
 			return
