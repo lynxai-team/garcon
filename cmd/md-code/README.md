@@ -58,13 +58,17 @@ USAGE
   md-code [options]      <markdown-file> [folder]
   md-code [options] -gen [markdown-file] [folder]
 
-If -gen is omitted the program extracts code blocks
+By default the program extracts code blocks
 from <markdown-file> into [folder] (default "out").
+
+  md-code file.md folder
 
 With -gen it creates [markdown-file] from
 the files found under [folder] (default ".").
 In generation mode, default [markdown-file]
 is the folder name with ".md" extension.
+
+  md-code -gen folder    (generates folder.md)
 
 EXAMPLES
 
@@ -86,10 +90,14 @@ This can be changed with -header <text>.
   md-code -gen -header "# "         =>  "# path/file.go"
   md-code -gen -header "## File: "  =>  "## File: path/file.go"
 
-Two special cases in bonus:
+  Bonus:
 
-  md-code -gen -header "**"  =>  "**path/file.go**"
-  md-code -gen -header "`"   =>  "`path/file.go`"
+  md-code -gen -header "`"     =>  "`path/file.go`"
+  md-code -gen -header "("     =>  "(path/file.go)"
+  md-code -gen -header "**"    =>  "**path/file.go**"
+  md-code -gen -header "## `"  =>  "## `path/file.go`"
+  md-code -gen -header "## ("  =>  "## (path/file.go)"
+  md-code -gen -header "## **" =>  "## **path/file.go**"
 
 OPTIONS
 
