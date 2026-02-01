@@ -89,16 +89,19 @@ func (c *Config) generateMarkdown() error {
 		// Stream file contents into the markdown.
 		f, err := os.Open(path)
 		if err != nil {
+			fmt.Fprintf(w, "error os.Open(%s) %v\n", path, err)
+			log.Warnf("error os.Open(%s) %v\n", path, err)
 			// If we cannot read a file, just skip it.
 			return nil
-		}
-		_, copyErr := io.Copy(w, f)
-		closeErr := f.Close()
-		if copyErr != nil {
-			return copyErr
-		}
-		if closeErr != nil {
-			return closeErr
+		} else {
+			_, copyErr := io.Copy(w, f)
+			closeErr := f.Close()
+			if copyErr != nil {
+				log.Warnf("error os.Copy %q %v\n", path, copyErr)
+			}
+			if closeErr != nil {
+				log.Warnf("error os.Close %q %v\n", path, closeErr)
+			}
 		}
 
 		// Ensure the fenced block ends with a newline and a blank line afterwards.
