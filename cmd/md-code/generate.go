@@ -67,7 +67,7 @@ func (c *Config) generateMarkdown() error {
 		rel = filepath.ToSlash(rel)
 
 		// Header line with filename.
-		_, err = fmt.Fprint(w, c.genFilenameLine(rel)+"\n\n")
+		_, err = fmt.Fprint(w, genFilenameLine(c.header, rel)+"\n\n")
 		if err != nil {
 			return err
 		}
@@ -115,26 +115,26 @@ func (c *Config) generateMarkdown() error {
 }
 
 // genFilenameLine generates the header line with filename (or filename regex).
-func (c *Config) genFilenameLine(filename string) string {
-	if c.header == "" {
+func genFilenameLine(header, filename string) string {
+	if header == "" {
 		return filename
 	}
 
-	idx := strings.LastIndexByte(c.header, ' ')
+	idx := strings.LastIndexByte(header, ' ')
 
 	switch idx {
 	// header format = "something "
-	case len(c.header) - 1:
-		return c.header + filename
+	case len(header) - 1:
+		return header + filename
 
 	// header format: "`" or "(" or "something `" or "something ("
-	case len(c.header) - 2:
-		ending := c.header[len(c.header)-1]
+	case len(header) - 2:
+		ending := header[len(header)-1]
 		switch ending {
 		case '/':
-			return c.header + filename
+			return header + filename
 		case '\\':
-			return c.header + filename
+			return header + filename
 		case '(':
 			ending = ')'
 		case '[':
@@ -142,19 +142,19 @@ func (c *Config) genFilenameLine(filename string) string {
 		case '{':
 			ending = '}'
 		}
-		return c.header[:idx+2] + filename + string(ending)
+		return header[:idx+2] + filename + string(ending)
 
 	// header format: "**" or "something **"
-	case len(c.header) - 3:
-		ending := c.header[len(c.header)-2:]
+	case len(header) - 3:
+		ending := header[len(header)-2:]
 		switch ending {
 		case "**":
-			return c.header + filename + "**"
+			return header + filename + "**"
 		}
-		return c.header + filename
+		return header + filename
 
 	default:
-		return c.header + filename // "## File: path/file.go"
+		return header + filename // "## File: path/file.go"
 	}
 }
 

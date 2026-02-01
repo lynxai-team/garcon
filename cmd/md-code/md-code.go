@@ -187,7 +187,7 @@ func parseFlags(flags *flag.FlagSet, arguments []string) (bool, *Config) {
 	// extraction mode: compile the filename regex once; abort early on syntax errors.
 	expr := *regex
 	if !*gen {
-		expr = "^" + regexp.QuoteMeta(*header) + "(" + *regex + ")"
+		expr = genFilenameLine(regexp.QuoteMeta(*header), *regex)
 	}
 	custom, err := regexp.Compile(expr)
 	if err != nil {
