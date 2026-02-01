@@ -19,14 +19,10 @@ import (
 // in the two lines preceding a fenced block.  The patterns are ordered from most
 // specific to most generic.
 type (
-	namedRegex struct {
-		name string
-		re   *regexp.Regexp
-	}
 	matcher struct {
-		exprs []namedRegex // compiled regexes
-		prev  [2]string    // two‑line look‑behind buffer
-		idx   int          // index of the next slot in prev
+		exprs [7]*regexp.Regexp // compiled regexes
+		prev  [2]string         // two‑line look‑behind buffer
+		idx   int               // index of the next slot in prev
 	}
 )
 
@@ -34,12 +30,14 @@ type (
 func (c *Config) newMatcher() *matcher {
 	// The header pattern uses the user‑supplied header text verbatim.
 	return &matcher{
-		exprs: []namedRegex{
-			{"Custom", c.custom},
-			{"File", regexp.MustCompile(`\b[Ff]ile:\s+(` + c.fileRe + `)$`)},
-			{"Chapter", regexp.MustCompile(`^#+\s+(` + c.fileRe + `)$`)},
-			{"BackQuote", regexp.MustCompile("`(" + c.fileRe + ")`[^.]$")},
-			{"Bold", regexp.MustCompile(`^\*\*(` + c.fileRe + `)\*\*`)},
+		exprs: [7]*regexp.Regexp{
+			c.custom,
+			regexp.MustCompile(`\b[Ff]ile:\s+(` + c.fileRe + `)$`),
+			regexp.MustCompile(`^#+\s+(` + c.fileRe + `)$`),
+			regexp.MustCompile(`^#+\s+\((` + c.fileRe + `)\)$`),
+			regexp.MustCompile("`(" + c.fileRe + ")`[^.]$"),
+			regexp.MustCompile("`(" + c.fileRe + ")`$"),
+			regexp.MustCompile(`^#*\s*\*\*(` + c.fileRe + `)\*\*`),
 		},
 	}
 }
@@ -58,11 +56,14 @@ func (m *matcher) filename(fence string) string {
 			continue
 		}
 		for _, ex := range m.exprs {
-			matches := ex.re.FindStringSubmatch(line)
+			matches := ex.FindStringSubmatch(line)
 			if len(matches) > 1 {
-				log.ArrowIn("file", matches[1], ex.name, fence, line)
+				log.ArrowIn("file", matches[1], fence, line, ex)
 				return matches[1]
 			}
+		}
+		for _, ex := range m.exprs {
+			log.Debug("no match", line, ex)
 		}
 	}
 	return ""

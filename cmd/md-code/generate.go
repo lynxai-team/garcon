@@ -114,7 +114,7 @@ func (c *Config) generateMarkdown() error {
 	return nil
 }
 
-// genFilenameLine generates the header line with filename.
+// genFilenameLine generates the header line with filename (or filename regex).
 func (c *Config) genFilenameLine(filename string) string {
 	if c.header == "" {
 		return filename
@@ -142,7 +142,7 @@ func (c *Config) genFilenameLine(filename string) string {
 		case '{':
 			ending = '}'
 		}
-		return c.header[:idx+1] + filename + string(ending)
+		return c.header[:idx+2] + filename + string(ending)
 
 	// header format: "**" or "something **"
 	case len(c.header) - 3:

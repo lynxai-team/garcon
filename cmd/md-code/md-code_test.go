@@ -208,7 +208,7 @@ func TestGenerateMarkdown(t *testing.T) {
 	writeFiles(t, src, files)
 
 	md := filepath.Join(src, "out.md")
-	c := defaultConfig([]string{md, src})
+	c := defaultConfig([]string{"-gen", md, src})
 	err := c.generateMarkdown()
 	if err != nil {
 		t.Fatalf("generateMarkdown failed: %v", err)
@@ -250,7 +250,7 @@ func TestRoundTrip(t *testing.T) {
 	cases := map[string]string{
 		"default.md":          defaultHeader,
 		"bold.md":             "**",
-		"section-bold.md":     "## **", // TODO FIXME
+		"section-bold.md":     "## **",
 		"backtick.md":         "`",
 		"section-backtick.md": "## `",
 		"section-brace.md":    "## (",
@@ -260,7 +260,7 @@ func TestRoundTrip(t *testing.T) {
 		t.Run(fileMD, func(t *testing.T) {
 			t.Parallel()
 			pathMD := filepath.Join(dirMD, fileMD)
-			c := defaultConfig([]string{"-header", header, pathMD, src})
+			c := defaultConfig([]string{"-gen", "-header", header, pathMD, src})
 			if c.header != header {
 				t.Fatalf("provided header=%q but got=%q", header, c.header)
 			}
@@ -456,7 +456,7 @@ func FuzzGenerate(f *testing.F) {
 		md := filepath.Join(src, "output.md")
 
 		// Run reverse mode – any error is acceptable, but it must not panic.
-		c := defaultConfig([]string{md, src})
+		c := defaultConfig([]string{"-gen", md, src})
 		c.dryRun = true
 		err := c.generateMarkdown()
 		if err != nil {
