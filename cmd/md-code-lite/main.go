@@ -160,9 +160,36 @@ func getFilesFromDirectory(dir string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
-			files = append(files, path)
+
+		// Skip certain directories
+		if info.IsDir() {
+			name := info.Name()
+			if name == ".git" || name == "node_modules" || name == "vendor" ||
+				name == "dist" || name == "build" || name == ".next" ||
+				name == "target" || name == "bin" || name == "obj" ||
+				strings.HasPrefix(name, ".") && name != "." {
+				return filepath.SkipDir
+			}
+			return nil
 		}
+
+		// Skip certain files
+		name := info.Name()
+		if strings.HasPrefix(name, ".") ||
+			strings.HasSuffix(name, ".exe") ||
+			strings.HasSuffix(name, ".dll") ||
+			strings.HasSuffix(name, ".so") ||
+			strings.HasSuffix(name, ".dylib") ||
+			strings.HasSuffix(name, ".o") ||
+			strings.HasSuffix(name, ".obj") ||
+			strings.HasSuffix(name, ".log") ||
+			name == "package-lock.json" ||
+			name == "yarn.lock" ||
+			name == "Cargo.lock" {
+			return nil
+		}
+
+		files = append(files, path)
 		return nil
 	})
 	return files, err
