@@ -153,6 +153,61 @@ func CommandToMarkdown() *cobra.Command {
 	return cmd
 }
 
+// Default patterns to skip (gitignore-style)
+var defaultSkipPatterns = []string{
+	// Directories
+	".git/",
+	"node_modules/",
+	"vendor/",
+	"dist/",
+	"build/",
+	".next/",
+	"target/",
+	"bin/",
+	"obj/",
+	".*", // Hidden directories (except current dir)
+	// Files
+	"*.exe",
+	"*.dll",
+	"*.so",
+	"*.dylib",
+	"*.o",
+	"*.obj",
+	"*.log",
+	"package-lock.json",
+	"yarn.lock",
+	"Cargo.lock",
+	".*", // Hidden files
+}
+
+// shouldSkip checks if a path matches any skip pattern
+func shouldSkip(path string, isDir bool, patterns []string) bool {
+	name := filepath.Base(path)
+
+	for _, pattern := range patterns {
+		// Handle directory patterns (ending with /)
+		if strings.HasSuffix(pattern, "/") {
+			if !isDir {
+				continue
+			}
+			dirPattern := strings.TrimSuffix(pattern, "/")
+			if matched, _ := filepath.Match(dirPattern, name); matched {
+				return true
+			}
+		} else {
+			// Handle file patterns
+			if matched, _ := filepath.Match(pattern, name); matched {
+				// Special case: don't skip current directory
+				if pattern == ".*" && name == "." {
+					continue
+				}
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // getFilesFromDirectory returns all source files in a directory
 func getFilesFromDirectory(dir string) ([]string, error) {
 	var files []string
@@ -161,35 +216,18 @@ func getFilesFromDirectory(dir string) ([]string, error) {
 			return err
 		}
 
-		// Skip certain directories
-		if info.IsDir() {
-			name := info.Name()
-			if name == ".git" || name == "node_modules" || name == "vendor" ||
-				name == "dist" || name == "build" || name == ".next" ||
-				name == "target" || name == "bin" || name == "obj" ||
-				strings.HasPrefix(name, ".") && name != "." {
+		// Check if we should skip this path
+		if shouldSkip(path, info.IsDir(), defaultSkipPatterns) {
+			if info.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 
-		// Skip certain files
-		name := info.Name()
-		if strings.HasPrefix(name, ".") ||
-			strings.HasSuffix(name, ".exe") ||
-			strings.HasSuffix(name, ".dll") ||
-			strings.HasSuffix(name, ".so") ||
-			strings.HasSuffix(name, ".dylib") ||
-			strings.HasSuffix(name, ".o") ||
-			strings.HasSuffix(name, ".obj") ||
-			strings.HasSuffix(name, ".log") ||
-			name == "package-lock.json" ||
-			name == "yarn.lock" ||
-			name == "Cargo.lock" {
-			return nil
+		// Only add files, not directories
+		if !info.IsDir() {
+			files = append(files, path)
 		}
-
-		files = append(files, path)
 		return nil
 	})
 	return files, err
