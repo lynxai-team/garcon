@@ -32,21 +32,14 @@ var (
 		"lib-cov",
 		// Coverage directory used by tools like istanbul
 		"coverage",
-		// nyc test coverage
-		".nyc_output",
-		// Grunt intermediate storage
-		".grunt",
 		// TypeScript v1 declaration files
 		"typings",
-		// Cache directories
-		".parcel-cache",
-		".rollup.cache",
-		".sass-cache",
-		".webpack.cache",
 		// npm build output
 		"dist",
 		// Build outputs
+		"bin",
 		"build",
+		"obj",
 		"out",
 		// Temporary files
 		"tmp",
@@ -59,12 +52,6 @@ var (
 		"npm-debug.log*",
 		"yarn-debug.log*",
 		"yarn-error.log*",
-		// node-waf configuration
-		".lock-wscript",
-		// Cache directories
-		".eslintcache",
-		// Optional REPL history
-		".node_repl_history",
 		// Windows cache file
 		"Thumbs.db",
 		// Essential Node.js-related entries
@@ -95,6 +82,13 @@ var (
 	}
 	ignoreSuffixes = []string{
 		".log",
+		// Build output
+		".dll",
+		".dylib",
+		".exe",
+		".o",
+		".obj",
+		".so",
 		// Runtime data
 		".pid.lock",
 		".pid",
@@ -185,20 +179,24 @@ func (c *Config) generateMarkdown() error {
 		// -all omitted => skip the ignored files
 		if !c.all {
 			base := filepath.Base(path)
+			if base[0] == '.' {
+				log.Stopf("SKIP dot %q, use --all to include it", path)
+				return filepath.SkipDir
+			}
 			if d.IsDir() {
 				if slices.Contains(ignoreFolders, base) {
-					log.Stopf("SKIP folder %q is ignored, use --all to include it", path)
+					log.Stopf("SKIP folder %q, use --all to include it", path)
 					return filepath.SkipDir
 				}
 				return nil
 			}
 			if slices.Contains(ignoreFiles, base) {
-				log.Stopf("SKIP file %q is ignored, use --all to include it", path)
+				log.Stopf("SKIP file %q, use --all to include it", path)
 				return nil
 			}
 			for _, suffix := range ignoreSuffixes {
 				if strings.HasSuffix(base, suffix) {
-					log.Stopf("SKIP file %q is ignored (ext %s), use --all to include it", path, suffix)
+					log.Stopf("SKIP file %q (ext %s), use --all to include it", path, suffix)
 					return nil
 				}
 			}
@@ -213,7 +211,7 @@ func (c *Config) generateMarkdown() error {
 			return nil
 		}
 		if isBinary {
-			log.Stopf("SKIP file %q is binary (first bytes are not UTF8)", path)
+			log.Stopf("SKIP file %q is binary (first bytes are not UTF-8)", path)
 			return nil
 		}
 		// Compute a forward‑slash relative path for markdown.
