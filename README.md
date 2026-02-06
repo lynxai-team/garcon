@@ -166,7 +166,7 @@ func main() {
 
 In production, this library is used by
 [Rainbow](https://github.com/teal-finance/rainbow),
-[Quid](https://github.com/lynxai-team/quid)
+[Quid](https://github.com/TealsFi/quid)
 and other internal projects at lynxai.team.
 
 Please propose a [Pull Request](https://github.com/lynxai-team/garcon/pulls) to add here your project that also uses Garcon.
