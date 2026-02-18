@@ -1,53 +1,86 @@
 help:
-	# make all    Do the following commands
-	# make up     Go: Upgrade the patch version of the dependencies
-	# make up+    Go: Upgrade the minor version of the dependencies
-	# make fmt    Update generated code and Format code
+	# make all    Upgrade, Generate, Format, Lint, Tests
+	# make v00X   Upgrade the patch version of the dependencies
+	# make v0XX   Upgrade the minor version of the dependencies
+	# make fmt    Generate code and Format code
+	# make fix    Modernize and lint auto-fix
 	# make test   Check build and Test
-	# make vet    Lint and Run examples
 	# make cov    Browse test coverage
+	# make int    Run integration-tests (use T=timeout)
+	# make clean  Remove code-coverage.out
 
 .PHONY: all
-all: up+ fmt test vet cov
+all: v0XX fmt fix cov
+
+.PHONY: go
+go:
+	go run codegen/main.go -go
+
+.PHONY: ts
+ts:
+	go run codegen/main.go -ts
+
+.PHONY: py
+py:
+	go run codegen/main.go -py
+
+.PHONY: dart
+dart:
+	go run codegen/main.go -dart
+
+.PHONY: doc
+doc:
+	go run codegen/main.go -doc
+
+go.mod:
+	go mod init github.com/lynxai-team/emo
+	go mod tidy
 
 go.sum: go.mod
 	go mod tidy
 
-.PHONY: up
-up: go.sum
+.PHONY: v00X
+v00X: go.sum
 	GOPROXY=direct go get -t -u=patch all
 	go mod tidy
 
-.PHONY: up+
-up+: go.sum
+.PHONY: v0XX
+v0XX: go.sum
 	go get -u -t all
 	go mod tidy
 
 .PHONY: fmt
-fmt:
+fmt: go.sum
 	go generate ./...
-	go run mvdan.cc/gofumpt@latest -w -extra -l -lang go1.25 .
+	go run mvdan.cc/gofumpt@latest -w -extra -l .
 
 .PHONY: test
-test:
+test: code-coverage.out
 	go build ./...
-	go test -race -vet all -tags=garcon -coverprofile=code-coverage.out ./...
-
-code-coverage.out: go.sum */*.go
-	go test -race -vet all -tags=garcon -coverprofile=code-coverage.out ./...
 
 .PHONY: cov
 cov: code-coverage.out
 	go tool cover -html code-coverage.out
+
+code-coverage.out: go.sum *.go */*.go Makefile
+	go test -race -vet all -tags=emo -coverprofile=code-coverage.out ./...
+
+.PHONY: fix
+fix:
+	go fix ./... || true
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run --fix
+
+.PHONY: clean
+clean:
+	rm -vf code-coverage.out
 
 # Allow using a different timeout value, examples:
 #    T=30s make vet
 #    make vet T=1m
 T ?= 10s
 
-.PHONY: vet
-vet:
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest run --fix || true
+.PHONY: int
+int: go.sum
 	pkill -fe [/]exe/complete   || true
 	pkill -fe [/]exe/low-level  || true
 	pkill -fe [/]exe/keystore   || true
