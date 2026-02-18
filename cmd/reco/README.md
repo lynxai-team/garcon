@@ -1,7 +1,8 @@
 # Change the compression format
 
+*`reco` = `re-compress` (to compress again)*
+
 The `reco` command is a pure-Go compressor perfect to compress a file from one format to another one.
-The name `reco` is from `re-compress` (to compress again).
 
 ## Motivation
 
