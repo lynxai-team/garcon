@@ -12,26 +12,6 @@ help:
 .PHONY: all
 all: v0XX fmt fix cov
 
-.PHONY: go
-go:
-	go run codegen/main.go -go
-
-.PHONY: ts
-ts:
-	go run codegen/main.go -ts
-
-.PHONY: py
-py:
-	go run codegen/main.go -py
-
-.PHONY: dart
-dart:
-	go run codegen/main.go -dart
-
-.PHONY: doc
-doc:
-	go run codegen/main.go -doc
-
 go.mod:
 	go mod init github.com/lynxai-team/emo
 	go mod tidy
