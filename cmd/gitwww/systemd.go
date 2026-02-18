@@ -14,7 +14,7 @@ import (
 //go:embed gitwww.service
 var data []byte
 
-func (cfg *Cfg) writeGitwwwService() (string, error) {
+func (cfg *Cfg) writeSystemdService() (string, error) {
 	end := len(defaultCfgDir) - 1
 	if cfg.Repos != defaultCfgDir[:end] {
 		reposSlash := append([]byte(cfg.Repos), '/')

@@ -179,7 +179,7 @@ func getCfg() (*Cfg, error) {
 	}
 
 	if *writeService {
-		service, err := cfg.writeGitwwwService()
+		service, err := cfg.writeSystemdService()
 		if err != nil {
 			slog.Error("Cannot write", "service", service, "err", err)
 		} else {
