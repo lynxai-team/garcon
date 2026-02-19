@@ -53,13 +53,22 @@ func (m *matcher) filename() string {
 		for _, ex := range m.exprs {
 			matches := ex.FindStringSubmatch(line)
 			if len(matches) > 1 {
-				log.ArrowIn("file", matches[1], line, ex)
+				log.ArrowInf("match file=%s %q %s", matches[1], line, ex)
 				return matches[1]
 			}
 		}
-		for _, ex := range m.exprs {
-			log.Debug("no match", line, ex)
-		}
 	}
+
+	// report nothing found
+	for _, line := range m.prev {
+		if line == "" {
+			continue
+		}
+		log.Debugf("no match line=%q", line)
+	}
+	for _, ex := range m.exprs {
+		log.Debugf("no match regex=%q", ex)
+	}
+
 	return ""
 }
