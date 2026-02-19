@@ -144,7 +144,7 @@ var (
 // ----------------------------------------------------------------------
 
 // generateMarkdown walks c.folder and writes a markdown document that
-// contains each file as a fenced code block.  The output is streamed directly
+// contains each file as a fenced code bloc.  The output is streamed directly
 // to the destination file (or discarded in dry‑run mode) to keep memory usage low.
 func (c *Config) generateMarkdown() error {
 	log.Printf("Generating markdown %s from folder %s", c.mdPath, c.folder)
@@ -253,7 +253,7 @@ func (c *Config) generateMarkdown() error {
 			}
 		}
 
-		// Ensure the fenced block ends with a newline and a blank line afterwards.
+		// Ensure the fenced bloc ends with a newline and a blank line afterwards.
 		_, err = fmt.Fprintf(w, "%s\n\n", c.fence)
 		if err != nil {
 			return err

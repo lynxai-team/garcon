@@ -143,7 +143,7 @@ func TestRoundTrip(t *testing.T) {
 
 			dest := t.TempDir()
 			c = defaultConfig([]string{pathMD, dest})
-			err = c.extractFiles()
+			err = c.extract()
 			if err != nil {
 				t.Fatalf("ParseFile failed: %v", err)
 			}

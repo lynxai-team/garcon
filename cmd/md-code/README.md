@@ -1,7 +1,7 @@
-# md-code – extract fenced code blocks from Markdown
+# md-code – extract fenced code blocs from Markdown
 
-`md-code` reads a Markdown file, finds fenced code blocks
-and writes each block to a separate source file.
+`md-code` reads a Markdown file, finds fenced code blocs
+and writes each bloc to a separate source file.
 The filename is taken from the second previous lines
 that appear **just before** the opening fence,
 using some patterns such as:
@@ -51,14 +51,14 @@ go build -o md-code .
 
 ```txt
 $ md-code -h
-md-code - extract or generate fenced code blocks.
+md-code - extract or generate fenced code blocs.
 
 USAGE
 
   md-code [options]      <markdown-file> [folder]
   md-code [options] -gen [markdown-file] [folder]
 
-By default the program extracts code blocks
+By default the program extracts code blocs
 from <markdown-file> into [folder] (default "out").
 
   md-code file.md folder
@@ -102,15 +102,15 @@ This can be changed with -header <text>.
 OPTIONS
 
   -all
-        extract code blocks that have no explicit filename
+        extract code blocs that have no explicit filename
   -dry-run
         run without writing any files
   -fence string
-        fence used to delimit code blocks (must be ≥3 backticks) (default "```")
+        fence used to delimit code blocs (must be ≥3 backticks) (default "```")
   -gen
         generate a markdown file from a folder tree
   -header string
-        text printed before each generated code block (default "## File: ")
+        text printed before each generated code bloc (default "## File: ")
   -overwrite
         overwrite existing files
   -regex string
@@ -129,7 +129,7 @@ OPTIONS
 ### Example
 
 ```bash
-# extract all blocks from README.md into ./out
+# extract all blocs from README.md into ./out
 md-code README.md out/
 
 # show what would be written without touching the filesystem
@@ -163,7 +163,7 @@ cfg := &mdcode.Config{
     Reverse:     false,
 }
 
-// Extract code blocks
+// Extract code blocs
 err := cfg.ExtractFiles()
 if err != nil {
     log.Fatal(err)
@@ -178,14 +178,14 @@ if err != nil {
 
 ## Options
 
-| Flag         | Default    | Description                                        |
-|--------------|------------|----------------------------------------------------|
-| `-all`       | `false`    | Also extract code blocks without detected filename |
-| `-dry-run`   | `false`    | Files are not written - useful for tests           |
-| `-fence`     |  `` ``` `` | Type of fence (code blocks)                        |
-| `-header`    | `## File:` | Header style for filenames                         |
-| `-overwrite` | `false`    | Overwrite existing files                           |
-| `-generate`  | `false`    | Generate markdown from folder tree                 |
+| Flag         | Default    | Description                                       |
+|--------------|------------|---------------------------------------------------|
+| `-all`       | `false`    | Also extract code blocs without detected filename |
+| `-dry-run`   | `false`    | Files are not written - useful for tests          |
+| `-fence`     | `` ``` ``  | Type of fence (code blocs)                        |
+| `-header`    | `## File:` | Header style for filenames                        |
+| `-overwrite` | `false`    | Overwrite existing files                          |
+| `-generate`  | `false`    | Generate markdown from folder tree                |
 
 ### Supported Filename Styles
 

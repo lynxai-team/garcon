@@ -25,7 +25,7 @@ func main() {}
 	dest := t.TempDir()
 	c := defaultConfig([]string{mdPath, dest})
 
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -57,7 +57,7 @@ package main
 	dest := t.TempDir()
 	c := defaultConfig([]string{mdPath, dest})
 
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -87,7 +87,7 @@ package main
 
 	// First run – creates the file.
 	c := defaultConfig([]string{mdPath, dest})
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		t.Fatalf("first run failed: %v", err)
 	}
@@ -105,7 +105,7 @@ package main
 
 	// Second run with Overwrite=false.
 	c.overwrite = false
-	err = c.extractFiles()
+	err = c.extract()
 	if err != nil {
 		t.Fatalf("second run failed: %v", err)
 	}
@@ -134,7 +134,7 @@ package main
 	dest := t.TempDir()
 	c := defaultConfig([]string{mdPath, dest})
 	c.dryRun = true
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		t.Fatalf("dry-run failed: %v", err)
 	}
@@ -157,7 +157,7 @@ package main
 	dest := t.TempDir()
 	c := defaultConfig([]string{mdPath, dest})
 
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		t.Fatalf("should only raise a warning: no need for an error")
 	}
@@ -166,7 +166,7 @@ package main
 	assertNoFiles(t, dest)
 }
 
-// 8️⃣  All flag – extract blocks without filename.
+// 8️⃣  All flag – extract blocs without filename.
 func TestAllFlag(t *testing.T) {
 	t.Parallel()
 	md := `
@@ -180,9 +180,9 @@ func main() {}
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
 	c := defaultConfig([]string{mdPath, dest})
-	c.all = true // Enable extraction of blocks without filename
+	c.all = true // Enable extraction of blocs without filename
 
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -197,13 +197,13 @@ func main() {}
 		t.Fatalf("expected 1 file, got %d", len(entries))
 	}
 
-	// The filename should contain "code-block-4.go"
-	if !strings.Contains(entries[0].Name(), "code-block-4.go") {
+	// The filename should contain "code-bloc-4.go"
+	if !strings.Contains(entries[0].Name(), "code-bloc-4.go") {
 		t.Fatalf("unexpected filename: %s", entries[0].Name())
 	}
 }
 
-// 9️⃣  No filename blocks – should be ignored when all=false.
+// 9️⃣  No filename blocs – should be ignored when all=false.
 func TestNoFilenameIgnored(t *testing.T) {
 	t.Parallel()
 	md := `
@@ -217,9 +217,9 @@ func main() {}
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
 	c := defaultConfig([]string{mdPath, dest})
-	c.all = false // Disable extraction of blocks without filename
+	c.all = false // Disable extraction of blocs without filename
 
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -228,7 +228,7 @@ func main() {}
 	assertNoFiles(t, dest)
 }
 
-// 🔟  Empty fence – should skip blocks without language.
+// 🔟  Empty fence – should skip blocs without language.
 func TestEmptyFence(t *testing.T) {
 	t.Parallel()
 	md := `
@@ -243,7 +243,7 @@ func main() {}
 	dest := t.TempDir()
 	c := defaultConfig([]string{mdPath, dest})
 
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -252,7 +252,7 @@ func main() {}
 	assertNoFiles(t, dest)
 }
 
-func TestExtractSubBlocks(t *testing.T) {
+func TestExtractSubBlocs(t *testing.T) {
 	t.Parallel()
 	readme := `This is te README of the project.
 
@@ -282,7 +282,7 @@ This is the end of the README.
 	dest := t.TempDir()
 	c := defaultConfig([]string{"-all", mdPath, dest})
 
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		t.Fatalf("extractFiles failed: %v", err)
 	}
@@ -317,7 +317,7 @@ func FuzzExtract(f *testing.F) {
 	f.Add([]byte("Some content\n\n```python\nprint('hello')\n```\n"))
 	f.Add([]byte("--- File: dir/subdir/file.go\n```go\nfunc test() {}\n```\n"))
 	f.Add([]byte("**test.go**\n```\nno lang\n```\n"))
-	f.Add([]byte("No fenced block\n"))
+	f.Add([]byte("No fenced bloc\n"))
 	f.Add([]byte("--- File: path/with/slashes.go\n```c\n#include <stdio.h>\n```\n"))
 
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -334,7 +334,7 @@ func FuzzExtract(f *testing.F) {
 		// Run the extractor – any error is acceptable, but it must not panic.
 		c := defaultConfig([]string{mdPath, dir})
 		c.dryRun = true
-		err = c.extractFiles()
+		err = c.extract()
 		if err != nil {
 			// Expected - errors are fine, just don't panic
 			return

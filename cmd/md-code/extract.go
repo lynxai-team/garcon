@@ -9,75 +9,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	log "github.com/lynxai-team/emo"
 )
 
-// matcher holds the compiled regular expressions used to locate a filename
-// in the two lines preceding a fenced block.  The patterns are ordered from most
-// specific to most generic.
-type (
-	matcher struct {
-		exprs [7]*regexp.Regexp // compiled regexes
-		prev  [2]string         // two‑line look‑behind buffer
-		idx   int               // index of the next slot in prev
-	}
-)
-
-// newMatcher builds a matcher based on the current Config.
-func (c *Config) newMatcher() *matcher {
-	// The header pattern uses the user‑supplied header text verbatim.
-	return &matcher{
-		exprs: [7]*regexp.Regexp{
-			c.custom,
-			regexp.MustCompile(`\b[Ff]ile:\s+(` + c.fileRe + `)$`),
-			regexp.MustCompile(`^#+\s+(` + c.fileRe + `)$`),
-			regexp.MustCompile(`^#+\s+\((` + c.fileRe + `)\)$`),
-			regexp.MustCompile("`(" + c.fileRe + ")`[^.]$"),
-			regexp.MustCompile("`(" + c.fileRe + ")`$"),
-			regexp.MustCompile(`^#*\s*\*\*(` + c.fileRe + `)\*\*`),
-		},
-	}
-}
-
-// store pushes a new line into the look‑behind buffer.
-func (m *matcher) store(line string) {
-	m.prev[m.idx] = line
-	m.idx = 1 - m.idx
-}
-
-// filename scans the stored lines for a filename using the compiled regexes.
-// The first successful match wins.
-func (m *matcher) filename(fence string) string {
-	for _, line := range m.prev {
-		if line == "" {
-			continue
-		}
-		for _, ex := range m.exprs {
-			matches := ex.FindStringSubmatch(line)
-			if len(matches) > 1 {
-				log.ArrowIn("file", matches[1], fence, line, ex)
-				return matches[1]
-			}
-		}
-		for _, ex := range m.exprs {
-			log.Debug("no match", line, ex)
-		}
-	}
-	return ""
-}
-
-// ----------------------------------------------------------------------
-// Extraction mode
-// ----------------------------------------------------------------------
-
-// extractFiles reads the source markdown, finds fenced blocks, determines a
-// filename for each block and writes the block to disk (or simulates the
+// extract reads the source markdown, finds fenced blocs, determines a
+// filename for each bloc and writes the bloc to disk (or simulates the
 // write when dry‑run is enabled).
-func (c *Config) extractFiles() error {
-	log.Printf("Extracting code blocks from %q → %q", c.mdPath, c.folder)
+func (c *Config) extract() error {
+	log.Printf("Extracting code blocs from %q → %q", c.mdPath, c.folder)
 
 	f, err := os.Open(c.mdPath)
 	if err != nil {
@@ -85,14 +26,14 @@ func (c *Config) extractFiles() error {
 	}
 	defer f.Close()
 
+	c.buildMatcher()
+
 	var (
 		scanner     = bufio.NewScanner(f)
-		matcher     = c.newMatcher()
 		lineNum     int
-		startLine   int
-		filename    string
-		buf         bytes.Buffer // accumulates the current block
-		closingIsIn bool         // next closing fence is part of the current block
+		start       int
+		buf         bytes.Buffer // accumulates the current bloc
+		closingIsIn bool         // next closing fence is part of the current bloc
 	)
 
 	for scanner.Scan() {
@@ -104,54 +45,43 @@ func (c *Config) extractFiles() error {
 		if strings.HasPrefix(line, c.fence) {
 			// Closing fence
 			if len(trim) == len(c.fence) {
-				if filename == "" {
-					log.Infof("⚠️  Fence without language tag at line #%d - skipping", lineNum)
+				if start == 0 {
+					log.Warnf("Fence without language tag at line #%d - skipping", lineNum)
 				} else if closingIsIn {
 					log.RequestPostf("corresponding closing fence at line #%d", lineNum)
 					closingIsIn = false
 					goto store_line
 				} else {
-					err = c.writeBlock(filename, buf.Bytes())
-					if err != nil {
-						log.Printf("⚠️  Failed to write %q (lines %d‑%d): %v", filename, startLine, lineNum, err)
-					} else {
-						log.Printf("✅ Written %s (%d lines)", filename, lineNum-startLine)
-					}
-					// change state: empty filename means outside of a code bloc
-					filename = ""
+					c.extractBloc(buf.Bytes(), start, lineNum)
+					// change state: zero start means outside of a code bloc
+					start = 0
 					buf.Reset()
 				}
 				continue
 			}
 
 			// Opening fence while searching a new bloc
-			if filename == "" {
-				if filename = matcher.filename(trim); filename != "" {
-					// Success: we just inferred the filename from the preceding lines.
-				} else if c.all {
-					// Auto‑generate a filename using the fence language tag.
-					filename = fmt.Sprintf("code-block-%d.%s", lineNum, trim[len(c.fence):])
-				} else {
-					log.Printf("⚠️  No filename detected for block starting at line %d - skipping", lineNum)
-					continue
-				}
-				startLine = lineNum
+			if start == 0 {
+				start = lineNum
+				c.matcher.lang = trim[len(c.fence):] // store the language tag of the fence (```go)
 				continue
 			}
 
-			log.RequestPostf("opening fence in a bloc at line #%d - will consider the corresponding closing fence as part of the current code block", lineNum)
+			log.RequestPostf("opening fence in a bloc at line #%d - will consider the corresponding closing fence as part of the current code bloc", lineNum)
 			closingIsIn = true
 			goto store_line
 		}
 
-		// empty filename => we are outside of a code bloc
-		if filename == "" {
-			// Update the look‑behind buffer for the next iteration.
-			matcher.store(line)
-			continue
+		// zero start => we are outside of a code bloc
+		// lineNum==start+1 => we are at the first line of a code bloc
+		if start == 0 || (lineNum == start+1) {
+			c.matcher.store(line)
+			if start == 0 {
+				continue
+			}
 		}
 
-	store_line: // Inside a fenced block
+	store_line: // Inside a fenced bloc
 		buf.WriteString(line)
 		buf.WriteByte('\n')
 	}
@@ -160,68 +90,59 @@ func (c *Config) extractFiles() error {
 	if err != nil {
 		return fmt.Errorf("scan error: %w", err)
 	}
-	if filename != "" {
-		return fmt.Errorf("unterminated fenced block starting at line %d", startLine)
+	if start > 0 {
+		return fmt.Errorf("unterminated fenced bloc starting at line %d", start)
 	}
+
+	log.Resultf("Files extracted to %s", c.folder)
 	return nil
 }
 
-// writeBlock creates the target file atomically, respects dry‑run and
+// extractBloc creates the target file atomically, respects dry‑run and
 // overwrite semantics and rejects any attempt to write outside of the output
 // folder (directory‑traversal protection).
-func (c *Config) writeBlock(name string, data []byte) error {
+func (c *Config) extractBloc(data []byte, start, stop int) {
+	filename := c.matcher.filename()
+	if filename == "" {
+		if c.all { // Auto‑generate a filename using the fence language tag.
+			filename = fmt.Sprintf("code-bloc-%d+%d.%s", start, stop-start, c.matcher.lang)
+		} else {
+			log.Warnf("No filename detected - skip bloc #%d (%d lines) lang=%s - skipping", start, stop-start, c.matcher.lang)
+			return
+		}
+	}
+
 	// Resolve the final destination and ensure it stays inside c.folder.
-	target := filepath.Join(c.folder, name)
+	target := filepath.Join(c.folder, filename)
 	cleanTarget := filepath.Clean(target)
 
 	// Reject absolute paths or paths that escape the output folder.
-	if filepath.IsAbs(name) {
-		return fmt.Errorf("absolute filename %q is not allowed", name)
+	if filepath.IsAbs(filename) {
+		log.Errorf("absolute filename %q is not allowed - skip bloc #%d (%d lines) lang=%s", filename, start, stop-start, c.matcher.lang)
+		return
 	}
 	rel, err := filepath.Rel(c.folder, cleanTarget)
 	if err != nil {
-		return fmt.Errorf("cannot compute relative path: %w", err)
+		log.Errorf("no filepath.Rel: %w - skip %q #%d (%d lines) lang=%s", err, filename, start, stop-start, c.matcher.lang)
+		return
 	}
 	if strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || rel == ".." {
-		return fmt.Errorf("filename %q resolves outside the output folder", name)
+		log.Errorf("filename %q resolves outside the output folder - skip bloc #%d (%d lines) lang=%s", filename, start, stop-start, c.matcher.lang)
+		return
+	}
+
+	// Dry‑run - nothing to write.
+	if c.dryRun {
+		log.Checkf("dry-run %s #%d (%d lines) lang=%s", filename, start, stop-start, c.matcher.lang)
+		return
 	}
 
 	// Ensure the directory hierarchy exists.
 	dir := filepath.Dir(cleanTarget)
 	err = os.MkdirAll(dir, 0o755)
 	if err != nil {
-		return fmt.Errorf("mkdir %s: %w", dir, err)
-	}
-
-	// Dry‑run - nothing to write.
-	if c.dryRun {
-		return nil
-	}
-
-	// Write to a temporary file first, then rename atomically.
-	tmp, err := os.CreateTemp(dir, ".tmp-*")
-	if err != nil {
-		return fmt.Errorf("create temp file: %w", err)
-	}
-	// In case of any error, clean up the temporary file.
-	defer func() {
-		tmp.Close()
-		if err != nil {
-			_ = os.Remove(tmp.Name())
-		}
-	}()
-
-	_, err = tmp.Write(data)
-	if err != nil {
-		return fmt.Errorf("write temp file: %w", err)
-	}
-	err = tmp.Sync()
-	if err != nil {
-		return fmt.Errorf("sync temp file: %w", err)
-	}
-	err = tmp.Close()
-	if err != nil {
-		return fmt.Errorf("close temp file: %w", err)
+		log.Errorf("mkdir %s: %w - skip %q #%d (%d lines) lang=%s", dir, err, filename, start, stop-start, c.matcher.lang)
+		return
 	}
 
 	// If overwriting is allowed, remove the existing file first (required on Windows).
@@ -229,9 +150,12 @@ func (c *Config) writeBlock(name string, data []byte) error {
 		_ = os.Remove(cleanTarget)
 	}
 
-	err = os.Rename(tmp.Name(), cleanTarget)
+	err = os.WriteFile(cleanTarget, data, 0o600)
 	if err != nil {
-		return fmt.Errorf("rename %s → %s: %w", tmp.Name(), cleanTarget, err)
+		log.Errorf("os.WriteFile: %w - skip %q #%d (%d lines) lang=%s", err, filename, start, stop-start, c.matcher.lang)
+		return
 	}
-	return nil
+
+	log.Checkf("%s #%d (%d lines) lang=%s", filename, start, stop-start, c.matcher.lang)
+	return
 }

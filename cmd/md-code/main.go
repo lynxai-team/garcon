@@ -3,8 +3,8 @@
 
 // md-code is a tiny CLI to:
 //
-//   - extract fenced code blocks from a Markdown file and write them to a folder tree,
-//   - generate a Markdown document that contains all files (from a folder) as fenced blocks.
+//   - extract fenced code blocs from a Markdown file and write them to a folder tree,
+//   - generate a Markdown document that contains all files (from a folder) as fenced blocs.
 package main
 
 import (
@@ -25,14 +25,14 @@ const (
 	defaultHeader = "## File: "
 	defaultRegex  = "[\\/A-Za-z0-9._-]*[A-Za-z0-9]"
 
-	usage = `md-code - extract or generate fenced code blocks.
+	usage = `md-code - extract or generate fenced code blocs.
 
 USAGE
 
   md-code [options]      <markdown-file> [folder]
   md-code [options] -gen [markdown-file] [folder]
 
-By default the program extracts code blocks
+By default the program extracts code blocs
 from <markdown-file> into [folder] (default "out").
 
   md-code file.md folder
@@ -81,19 +81,16 @@ OPTIONS
 // Config holds all runtime options.  Fields are private because the program
 // manipulates the struct only internally. See also parseFlags().
 type Config struct {
-	custom *regexp.Regexp // custom regex to grasp the filename
-	fileRe string         // filename regex
-
-	mdPath string // markdown source (extract) or destination (generate)
-	folder string // directory where files are read from or written to
-
-	fence  string // fence marker, e.g. "```"
-	header string // header prefix used when generating markdown
-
-	// behavioral flags
-	all       bool // extract blocks without a detected filename
-	dryRun    bool // simulate all write operations
-	overwrite bool // allow overwriting existing files
+	custom    *regexp.Regexp
+	matcher   *matcher
+	fileRe    string
+	mdPath    string
+	folder    string
+	fence     string
+	header    string
+	all       bool
+	dryRun    bool
+	overwrite bool
 }
 
 // defaultConfig creates a stub configuration for testing.
@@ -107,10 +104,10 @@ func defaultConfig(arguments []string) *Config {
 // It aborts the program with a helpful message on any error.
 func parseFlags(flags *flag.FlagSet, arguments []string) (bool, *Config) {
 	var (
-		fence     = flags.String("fence", defaultFence, "fence used to delimit code blocks (must be ≥3 backticks)")
-		header    = flags.String("header", defaultHeader, "text printed before each generated code block")
+		fence     = flags.String("fence", defaultFence, "fence used to delimit code blocs (must be ≥3 backticks)")
+		header    = flags.String("header", defaultHeader, "text printed before each generated code bloc")
 		regex     = flags.String("regex", defaultRegex, "regular expression that a filename must match")
-		all       = flags.Bool("all", false, "extract code blocks that have no explicit filename")
+		all       = flags.Bool("all", false, "extract code blocs that have no explicit filename")
 		dryRun    = flags.Bool("dry-run", false, "run without writing any files")
 		gen       = flags.Bool("gen", false, "generate a markdown file from a folder tree")
 		overwrite = flags.Bool("overwrite", false, "overwrite existing files")
@@ -233,15 +230,14 @@ func main() {
 		if err != nil {
 			log.Fatalf("generation failed: %v", err)
 		}
-		log.Printf("✅ Markdown generated at %s", c.mdPath)
+		log.Resultf("Markdown generated at %s", c.mdPath)
 		return
 	}
 
-	err := c.extractFiles()
+	err := c.extract()
 	if err != nil {
 		log.Fatalf("extraction failed: %v", err)
 	}
-	log.Printf("✅ Files extracted to %s", c.folder)
 
 	results, err := collectResults(c.folder)
 	if err != nil {
