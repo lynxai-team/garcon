@@ -50,7 +50,8 @@ func (cfg *Cfg) buildDeploy(ctx context.Context, repo *git.Repository, dir strin
 		case "docker":
 			err = cfg.buildDockerImage(ctx, dir)
 		case "podman":
-			err = cfg.buildPodmanImage(ctx, dir)
+			// temporary disabled -- err = cfg.buildPodmanImage(ctx, dir)
+			logError("podman is disabled, please use Docker")
 		default:
 			logError("Unexpected engine=" + engine)
 		}
