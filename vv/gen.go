@@ -1,3 +1,7 @@
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
+
 package vv
 
 //go:generate go tool github.com/mailru/easyjson/easyjson -all -byte -disable_members_unescape -disallow_unknown_fields -snake_case version.go
