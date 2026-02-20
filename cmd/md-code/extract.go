@@ -49,7 +49,7 @@ func (c *Config) extractFromReader(reader io.Reader) error {
 			// Closing fence
 			if len(trim) == len(c.fence) {
 				if start == 0 {
-					log.Warnf("Fence without language tag %s:%d - Skip", c.mdPath, lineNum)
+					log.Warnf("Skip fence without language tag %s:%d", c.mdPath, lineNum)
 				} else if closingIsIn {
 					log.RequestPostf("corresponding closing fence %s:%d", c.mdPath, lineNum)
 					closingIsIn = false
@@ -109,7 +109,7 @@ func (c *Config) extractBloc(data []byte, start, stop int) {
 		if c.all { // Auto‑generate a filename using the fence language tag.
 			filename = fmt.Sprintf("code-bloc-%d+%d.%s", start, stop-start, c.matcher.lang)
 		} else {
-			log.Warnf("No filename detected - skip bloc (%d lines) lang=%s - Skip %s:%d", stop-start, c.matcher.lang, c.mdPath, start)
+			log.Warnf("Skip bloc without filename (%d lines) lang=%s %s:%d", stop-start, c.matcher.lang, c.mdPath, start)
 			return
 		}
 	}
@@ -120,16 +120,16 @@ func (c *Config) extractBloc(data []byte, start, stop int) {
 
 	// Reject absolute paths or paths that escape the output folder.
 	if filepath.IsAbs(filename) {
-		log.Errorf("Absolute filename %q is not allowed - Skip %d lines lang=%s %s:%d", filename, stop-start, c.matcher.lang, c.mdPath, start)
+		log.Errorf("Skip %q absolute path not allowed (%d lines) lang=%s %s:%d", filename, stop-start, c.matcher.lang, c.mdPath, start)
 		return
 	}
 	rel, err := filepath.Rel(c.folder, cleanTarget)
 	if err != nil {
-		log.Errorf("No filepath.Rel: %s - Skip %q (%d lines) lang=%s %s:%d", err, filename, stop-start, c.matcher.lang, c.mdPath, start)
+		log.Errorf("filepath.Rel: %s - Skip %q (%d lines) lang=%s %s:%d", err, filename, stop-start, c.matcher.lang, c.mdPath, start)
 		return
 	}
 	if strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || rel == ".." {
-		log.Errorf("Filename %q resolves outside the output folder=%s - Skip %d lines lang=%s %s:%d", filename, c.folder, stop-start, c.matcher.lang, c.mdPath, start)
+		log.Errorf("Skip %q because outside output folder=%s (%d lines) lang=%s %s:%d", filename, c.folder, stop-start, c.matcher.lang, c.mdPath, start)
 		return
 	}
 
@@ -158,7 +158,6 @@ func (c *Config) extractBloc(data []byte, start, stop int) {
 		return
 	}
 
-	log.Checkf("%s (%d lines) lang=%s %s:%d", filename, stop-start, c.matcher.lang, c.mdPath, start)
 	c.count++
-	return
+	log.Checkf("Extracted %s (%d lines) lang=%s %s:%d", filename, stop-start, c.matcher.lang, c.mdPath, start)
 }
