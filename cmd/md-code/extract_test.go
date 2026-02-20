@@ -365,9 +365,9 @@ flashbuilder/
 ├── main.go
 ├── version.go
 ├── templates/
-│   ├── embed.go.tmpl
-│   ├── main.go.tmpl
-│   └── handlers.go.tmpl
+│   ├── embed.gotmpl
+│   ├── main.gotmpl
+│   └── handlers.gotmpl
 └── generated/
     └── flash/
         ├── assets/
