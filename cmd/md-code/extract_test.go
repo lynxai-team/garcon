@@ -6,6 +6,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -340,4 +341,77 @@ func FuzzExtract(f *testing.F) {
 			return
 		}
 	})
+}
+
+func Test_matcher_filename(t *testing.T) {
+	t.Parallel()
+
+	custom, err := regexp.Compile(defaultRegex)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct{ md, want string }{{
+		`# Complete Flashbuilder Implementation
+
+I'll now implement the complete ` + "`flashbuilder`" + ` tool following the specification with all clarifications incorporated.
+
+## Project Structure
+
+` + "```" + `
+flashbuilder/
+├── go.mod
+├── go.sum
+├── main.go
+├── version.go
+├── templates/
+│   ├── embed.go.tmpl
+│   ├── main.go.tmpl
+│   └── handlers.go.tmpl
+└── generated/
+    └── flash/
+        ├── assets/
+        │   └── embed.go
+        ├── www/
+        │   └── ...
+        ├── main.go
+        ├── go.mod
+        └── go.sum
+` + "```" + `
+
+I'll now provide all the source files:
+
+## go.mod
+
+` + "```go" + `
+module github.com/flashbuilder/flashbuilder
+
+go 1.26
+
+require (
+    github.com/alecthomas/kong v0.38.0
+    github.com/kalafit/imohash v1.0.0
+    github.com/google/brotli/go v0.0.0
+    github.com/vegidio/avif-go v0.0.0
+    github.com/kolesa-team/go-webp v0.0.0
+    github.com/mtraver/base91 v1.0.0
+    golang.org/x/net v0.25.0
+    github.com/quic-go/quic-go v0.48.0
+)
+` + "```" + "\n", "go.mod"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.md[:10], func(t *testing.T) {
+			t.Parallel()
+
+			c := defaultConfig([]string{"in.md", "out/dir"})
+			c.dryRun = true
+			c.custom = custom
+			c.extractFromReader(strings.NewReader(tt.md))
+			got := c.matcher.filename()
+			if got != tt.want {
+				t.Errorf("filename() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

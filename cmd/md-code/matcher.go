@@ -40,7 +40,7 @@ func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
 // store pushes a new line into the search buffer.
 func (m *matcher) store(line string) {
 	m.prev[m.idx] = line
-	m.idx = 1 - m.idx
+	m.idx = (m.idx + 1) % len(m.prev)
 }
 
 // filename scans the stored lines for a filename using the compiled regexes.
