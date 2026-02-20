@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,16 +27,18 @@ func (c *Config) extract() error {
 	}
 	defer f.Close()
 
-	c.buildMatcher()
+	return c.extractFromReader(f)
+}
 
-	var (
-		scanner     = bufio.NewScanner(f)
-		lineNum     int
-		start       int
-		buf         bytes.Buffer // accumulates the current bloc
-		closingIsIn bool         // next closing fence is part of the current bloc
-	)
+func (c *Config) extractFromReader(reader io.Reader) error {
+	c.matcher = newMatcher(c.custom, c.fileRe)
 
+	var lineNum int
+	var start int
+	var buf bytes.Buffer // accumulates the current bloc
+	var closingIsIn bool // next closing fence is part of the current bloc
+
+	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		lineNum++
 		line := scanner.Text()
@@ -46,9 +49,9 @@ func (c *Config) extract() error {
 			// Closing fence
 			if len(trim) == len(c.fence) {
 				if start == 0 {
-					log.Warnf("Fence without language tag at line #%d - skipping", lineNum)
+					log.Warnf("Fence without language tag %s:%d - Skip", c.mdPath, lineNum)
 				} else if closingIsIn {
-					log.RequestPostf("corresponding closing fence at line #%d", lineNum)
+					log.RequestPostf("corresponding closing fence %s:%d", c.mdPath, lineNum)
 					closingIsIn = false
 					goto store_line
 				} else {
@@ -67,7 +70,7 @@ func (c *Config) extract() error {
 				continue
 			}
 
-			log.RequestPostf("opening fence in a bloc at line #%d - will consider the corresponding closing fence as part of the current code bloc", lineNum)
+			log.RequestPostf("Opening fence %s:%d - will consider the corresponding closing fence as part of the current code bloc", c.mdPath, lineNum)
 			closingIsIn = true
 			goto store_line
 		}
@@ -86,15 +89,14 @@ func (c *Config) extract() error {
 		buf.WriteByte('\n')
 	}
 
-	err = scanner.Err()
+	err := scanner.Err()
 	if err != nil {
 		return fmt.Errorf("scan error: %w", err)
 	}
 	if start > 0 {
-		return fmt.Errorf("unterminated fenced bloc starting at line %d", start)
+		return fmt.Errorf("Unterminated fenced bloc starting %s:%d", c.mdPath, start)
 	}
 
-	log.Resultf("Files extracted to %s", c.folder)
 	return nil
 }
 
@@ -107,7 +109,7 @@ func (c *Config) extractBloc(data []byte, start, stop int) {
 		if c.all { // Auto‑generate a filename using the fence language tag.
 			filename = fmt.Sprintf("code-bloc-%d+%d.%s", start, stop-start, c.matcher.lang)
 		} else {
-			log.Warnf("No filename detected - skip bloc #%d (%d lines) lang=%s - skipping", start, stop-start, c.matcher.lang)
+			log.Warnf("No filename detected - skip bloc (%d lines) lang=%s - Skip %s:%d", stop-start, c.matcher.lang, c.mdPath, start)
 			return
 		}
 	}
@@ -118,22 +120,22 @@ func (c *Config) extractBloc(data []byte, start, stop int) {
 
 	// Reject absolute paths or paths that escape the output folder.
 	if filepath.IsAbs(filename) {
-		log.Errorf("absolute filename %q is not allowed - skip bloc #%d (%d lines) lang=%s", filename, start, stop-start, c.matcher.lang)
+		log.Errorf("Absolute filename %q is not allowed - Skip %d lines lang=%s %s:%d", filename, stop-start, c.matcher.lang, c.mdPath, start)
 		return
 	}
 	rel, err := filepath.Rel(c.folder, cleanTarget)
 	if err != nil {
-		log.Errorf("no filepath.Rel: %w - skip %q #%d (%d lines) lang=%s", err, filename, start, stop-start, c.matcher.lang)
+		log.Errorf("No filepath.Rel: %s - Skip %q (%d lines) lang=%s %s:%d", err, filename, stop-start, c.matcher.lang, c.mdPath, start)
 		return
 	}
 	if strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || rel == ".." {
-		log.Errorf("filename %q resolves outside the output folder - skip bloc #%d (%d lines) lang=%s", filename, start, stop-start, c.matcher.lang)
+		log.Errorf("Filename %q resolves outside the output folder=%s - Skip %d lines lang=%s %s:%d", filename, c.folder, stop-start, c.matcher.lang, c.mdPath, start)
 		return
 	}
 
 	// Dry‑run - nothing to write.
 	if c.dryRun {
-		log.Checkf("dry-run %s #%d (%d lines) lang=%s", filename, start, stop-start, c.matcher.lang)
+		log.Checkf("dry-run %s (%d lines) lang=%s %s:%d", filename, stop-start, c.matcher.lang, c.mdPath, start)
 		return
 	}
 
@@ -141,7 +143,7 @@ func (c *Config) extractBloc(data []byte, start, stop int) {
 	dir := filepath.Dir(cleanTarget)
 	err = os.MkdirAll(dir, 0o755)
 	if err != nil {
-		log.Errorf("mkdir %s: %w - skip %q #%d (%d lines) lang=%s", dir, err, filename, start, stop-start, c.matcher.lang)
+		log.Errorf("mkdir %s: %s - Skip %q (%d lines) lang=%s %s:%d", dir, err, filename, stop-start, c.matcher.lang, c.mdPath, start)
 		return
 	}
 
@@ -152,10 +154,11 @@ func (c *Config) extractBloc(data []byte, start, stop int) {
 
 	err = os.WriteFile(cleanTarget, data, 0o600)
 	if err != nil {
-		log.Errorf("os.WriteFile: %w - skip %q #%d (%d lines) lang=%s", err, filename, start, stop-start, c.matcher.lang)
+		log.Errorf("os.WriteFile: %s - Skip %q (%d lines) lang=%s %s:%d", err, filename, stop-start, c.matcher.lang, c.mdPath, start)
 		return
 	}
 
-	log.Checkf("%s #%d (%d lines) lang=%s", filename, start, stop-start, c.matcher.lang)
+	log.Checkf("%s (%d lines) lang=%s %s:%d", filename, stop-start, c.matcher.lang, c.mdPath, start)
+	c.count++
 	return
 }

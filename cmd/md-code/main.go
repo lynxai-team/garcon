@@ -91,6 +91,7 @@ type Config struct {
 	all       bool
 	dryRun    bool
 	overwrite bool
+	count     int // number of generated/extracted files
 }
 
 // defaultConfig creates a stub configuration for testing.
@@ -230,7 +231,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("generation failed: %v", err)
 		}
-		log.Resultf("Markdown generated at %s", c.mdPath)
+		log.Resultf("Generated markdown with %d code blocs: %s", c.count, c.mdPath)
 		return
 	}
 
@@ -238,6 +239,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("extraction failed: %v", err)
 	}
+	log.Resultf("Extracted %d files in %s", c.count, c.folder)
 
 	results, err := collectResults(c.folder)
 	if err != nil {

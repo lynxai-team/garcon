@@ -258,6 +258,8 @@ func (c *Config) generateMarkdown() error {
 		if err != nil {
 			return err
 		}
+
+		c.count++
 		return nil
 	})
 	if err != nil {

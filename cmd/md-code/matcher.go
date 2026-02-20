@@ -20,19 +20,19 @@ type matcher struct {
 }
 
 // newMatcher builds a matcher based on the current Config.
-func (c *Config) buildMatcher() {
+func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
 	// The header pattern uses the user‑supplied header text verbatim.
-	c.matcher = &matcher{
+	return &matcher{
 		exprs: [9]*regexp.Regexp{
-			c.custom,
-			regexp.MustCompile(`\b[Ff]ile:\s+(` + c.fileRe + `)$`),
-			regexp.MustCompile(`^#+\s+(` + c.fileRe + `)$`),
-			regexp.MustCompile(`^//\s+(` + c.fileRe + `)$`),
-			regexp.MustCompile(`^//\s+(` + c.fileRe + `) - `),
-			regexp.MustCompile(`^#+\s+\((` + c.fileRe + `)\)$`),
-			regexp.MustCompile("`(" + c.fileRe + ")`[^.]$"),
-			regexp.MustCompile("`(" + c.fileRe + ")`$"),
-			regexp.MustCompile(`^#*\s*\*\*(` + c.fileRe + `)\*\*`),
+			custom,
+			regexp.MustCompile(`\b[Ff]ile:\s+(` + fileRe + `)$`),
+			regexp.MustCompile(`^#+\s+(` + fileRe + `)$`),
+			regexp.MustCompile(`^//\s+(` + fileRe + `)$`),
+			regexp.MustCompile(`^//\s+(` + fileRe + `) - `),
+			regexp.MustCompile(`^#+\s+\((` + fileRe + `)\)$`),
+			regexp.MustCompile("`(" + fileRe + ")`[^.]$"),
+			regexp.MustCompile("`(" + fileRe + ")`$"),
+			regexp.MustCompile(`^#*\s*\*\*(` + fileRe + `)\*\*`),
 		},
 	}
 }
@@ -53,21 +53,21 @@ func (m *matcher) filename() string {
 		for _, ex := range m.exprs {
 			matches := ex.FindStringSubmatch(line)
 			if len(matches) > 1 {
-				log.ArrowInf("match file=%s %q %s", matches[1], line, ex)
+				log.ArrowInf("Match file=%s %q %s", matches[1], line, ex)
 				return matches[1]
 			}
 		}
 	}
 
 	// report nothing found
-	for _, line := range m.prev {
+	for i, line := range m.prev {
 		if line == "" {
 			continue
 		}
-		log.Debugf("no match line=%q", line)
+		log.Debugf("No match #%d line=%q", i, line)
 	}
-	for _, ex := range m.exprs {
-		log.Debugf("no match regex=%q", ex)
+	for i, ex := range m.exprs {
+		log.Debugf("No match #%d regex=%q", i, ex)
 	}
 
 	return ""
