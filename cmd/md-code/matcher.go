@@ -13,20 +13,21 @@ import (
 // in the two lines preceding a fenced bloc.  The patterns are ordered from most
 // specific to most generic.
 type matcher struct {
-	exprs [9]*regexp.Regexp // compiled regexes
-	prev  [3]string         // buffer with two lines before + one line after
-	lang  string            // language tag of the opening fence
-	idx   int               // index of the next slot in prev
+	exprs [10]*regexp.Regexp // compiled regexes
+	prev  [3]string          // buffer with two lines before + one line after
+	lang  string             // language tag of the opening fence
+	idx   int                // index of the next slot in prev
 }
 
 // newMatcher builds a matcher based on the current Config.
 func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
 	// The header pattern uses the user‑supplied header text verbatim.
 	return &matcher{
-		exprs: [9]*regexp.Regexp{
+		exprs: [10]*regexp.Regexp{
 			custom,
 			regexp.MustCompile(`\b[Ff]ile:\s+(` + fileRe + `)$`),
 			regexp.MustCompile(`^#+\s+(` + fileRe + `)$`),
+			regexp.MustCompile("^#+\\s+`(" + fileRe + ")`"),
 			regexp.MustCompile(`^//\s+(` + fileRe + `)$`),
 			regexp.MustCompile(`^//\s+(` + fileRe + `) - `),
 			regexp.MustCompile(`^#+\s+\((` + fileRe + `)\)$`),
