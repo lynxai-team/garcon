@@ -21,6 +21,6 @@ func (mux *server) handle(path string, w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-Define pertinent and clear task and role. The prompt asks the specification, not the implementation. The ultimate goal is a Go command that search for web static files and generate a Go function. This first step is about elaborating the prompt that request a model to specify that generator command. Use the best practices in prompt engineering. Request to analyze carefully the prompt to grasp the intent, purpose, rational and motivation, so the model can generate a specification according these intent, purpose, rational and motivation. The model should feel free to complete the specification with other non-specified aspects and using the best practices about Go specification writing.
+Define pertinent and clear task and role. The prompt asks the specification, not the implementation. The ultimate goal is a Go command that search for web static files and generate a Go function. This first step is about elaborating the prompt that request a model to specify that generator command. Use the best practices in prompt engineering. Request to analyze carefully the prompt to grasp the intent, purpose, rationale and motivation, so the model can generate a specification according these intent, purpose, rationale and motivation. The model should feel free to complete the specification with other non-specified aspects and using the best practices about Go specification writing.
 
 Output only the elaborated prompt.

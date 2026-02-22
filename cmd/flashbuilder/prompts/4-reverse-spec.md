@@ -228,7 +228,7 @@ var (
 ```go
 type Server struct {
     logger   *slog.Logger
-    dispatch [MAXLEN+1]func(http.ResponseWriter, *http.Request)
+    dispatch [MaxLen+1]func(http.ResponseWriter, *http.Request)
     tlsCfg   *tls.Config
 }
 ```
@@ -236,7 +236,7 @@ type Server struct {
 ### 5.6 Constants
 
 ```go
-const MAXLEN = <computed_at_generation>  // Maximum path length in asset set
+const MaxLen = <computed_at_generation>  // Maximum path length in asset set
 ```
 
 ---
@@ -476,15 +476,15 @@ func estimateFrequencyScore(path string, isEmbed bool) int {
 
 ```
 FUNCTION build_dispatch_array(all_paths):
-    MAXLEN = compute_maxlen(all_paths)
-    dispatch = make([]func(http.ResponseWriter, *http.Request), MAXLEN+1)
+    MaxLen = compute_maxlen(all_paths)
+    dispatch = make([]func(http.ResponseWriter, *http.Request), MaxLen+1)
     
     if has_root_index():
         dispatch[0] = serve_root_index()
     else:
         dispatch[0] = http.NotFound
     
-    for L = 1 to L = MAXLEN+1:
+    for L = 1 to L = MaxLen+1:
         routes = collect_routes_of_length(L)
         if len(routes) > 0:
             sortRoutesByFrequency(routes)
@@ -515,7 +515,7 @@ func find_nearest_valid_dispatch(dispatch []http.HandlerFunc, maxIndex int) int 
 
 ```go
 func fallback_long_path(w http.ResponseWriter, r *http.Request, path string) {
-    for L := MAXLEN; L >= 0; L-- {
+    for L := MaxLen; L >= 0; L-- {
         if len(path) >= L {
             prefix := path[:L]
             if dispatch[L] != nil && dispatch[L] != http.NotFound {
@@ -630,7 +630,7 @@ import (
 
 type Server struct {
     logger   *slog.Logger
-    dispatch [MAXLEN+1]func(http.ResponseWriter, *http.Request)
+    dispatch [MaxLen+1]func(http.ResponseWriter, *http.Request)
     tlsCfg   *tls.Config
 }
 
@@ -638,7 +638,7 @@ func handleLen0(w http.ResponseWriter, r *http.Request) {
     // Generated switch for length 0
 }
 
-// ... up to handleLen<MAXLEN> ...
+// ... up to handleLen<MaxLen> ...
 
 func serveAssetDownloadsFile(w http.ResponseWriter, r *http.Request) {
     http.ServeFile(w, r, "www/downloads/file.zip")
@@ -804,7 +804,7 @@ func setupGracefulShutdown(httpSrv *http.Server, adminSrv *http.Server, logger *
 10. **Link Creation:** Case 1 (hard link), Case 2 (symbolic link), Case 3 (symbolic link in www/), Case 4 (no creation).
 11. **Build Path Maps:** `canonicalPaths`, `shortcutPaths`, `duplicatePaths` with collision detection.
 12. **Generate embed.go:** Package, imports, `//go:embed` directives, headers, handlers.
-13. **Router Generation:** Compute `MAXLEN`, generate dispatch array, per-length handlers, fallback logic.
+13. **Router Generation:** Compute `MaxLen`, generate dispatch array, per-length handlers, fallback logic.
 14. **TLS Configuration:** Self-signed RSA 2048-bit, random 64-bit serial, 10-year validity.
 15. **Protocol Listeners:** HTTP/1.1 + h2c, HTTP/2 via ALPN, HTTP/3 via QUIC.
 16. **Module Initialization:** `go mod init flash`, `go mod tidy`.
@@ -948,7 +948,7 @@ handler := handlers[path]
 **After Generation:**
 ```go
 // FAST: direct function pointer array
-var dispatch [MAXLEN]func(http.ResponseWriter, *http.Request)
+var dispatch [MaxLen]func(http.ResponseWriter, *http.Request)
 dispatch[idx](w, r)
 ```
 
@@ -973,8 +973,8 @@ func ServeAssetMainCss(w http.ResponseWriter, r *http.Request) {
 ### 16.5 Use Path Length as Dispatch Index
 
 **Algorithm:**
-1. Compute MAXLEN = maximum path length in asset set
-2. Create dispatch array of size MAXLEN+1
+1. Compute MaxLen = maximum path length in asset set
+2. Create dispatch array of size MaxLen+1
 3. Index by `len(r.URL.Path)` - one bounds check only
 4. Each dispatch entry is a generated switch statement
 

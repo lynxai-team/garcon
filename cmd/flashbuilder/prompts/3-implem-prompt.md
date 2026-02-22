@@ -18,7 +18,7 @@ You must implement `flashbuilder`. This tool must generate a **single-binary Go 
 |------|---------------|
 | Generator Target | Go 1.26, Linux AMD64, CGO required |
 | Generated Server Target | Go 1.26, Linux AMD64, pure Go (no CGO) |
-| Generator Dependencies | Go standard library, `github.com/alecthomas/kong`, `github.com/kalafut/imohash`, `github.com/google/brotli/go`, `github.com/vegidio/avif-go`, `github.com/kolesa-team/go-webp` |
+| Generator Dependencies | Go standard library, `github.com/alecthomas/kong`, `github.com/kalafut/imohash`, `github.com/google/brotli/go/cbrotli`, `github.com/vegidio/avif-go`, `github.com/kolesa-team/go-webp/encoder` |
 | Generated Server Dependencies | Go standard library, `github.com/alecthomas/kong`, `golang.org/x/net/http2`, `github.com/quic-go/quic-go/http3` |
 
 ---
@@ -373,10 +373,10 @@ func estimateFrequencyScore(path string, isEmbedEligible bool, filename string) 
 
 ```
 FUNCTION build_dispatch_array(all_paths):
-    MAXLEN = compute_maxlen(all_paths)
-    dispatch = make([]func(http.ResponseWriter, *http.Request), MAXLEN+1)
+    MaxLen = compute_maxlen(all_paths)
+    dispatch = make([]func(http.ResponseWriter, *http.Request), MaxLen+1)
     
-    for L = 0 to MAXLEN:
+    for L = 0 to MaxLen:
         routes = collect_routes_of_length(L)
         if len(routes) > 0:
             sortRoutesByFrequency(routes)
@@ -413,7 +413,7 @@ func find_nearest_valid_dispatch(dispatch []http.HandlerFunc, maxIndex int) int 
 
 ```go
 func fallback_long_path(w http.ResponseWriter, r *http.Request, path string) {
-    for L := MAXLEN; L >= 0; L-- {
+    for L := MaxLen; L >= 0; L-- {
         if len(path) >= L {
             prefix := path[:L]
             if dispatch[L] != nil && dispatch[L] != http.NotFound {
@@ -526,7 +526,7 @@ import (
 
 type Server struct {
     logger   *slog.Logger
-    dispatch [MAXLEN+1]func(http.ResponseWriter, *http.Request)
+    dispatch [MaxLen+1]func(http.ResponseWriter, *http.Request)
     tlsCfg   *tls.Config
 }
 
@@ -534,7 +534,7 @@ func handleLen0(w http.ResponseWriter, r *http.Request) {
     // Generated switch for length 0
 }
 
-// ... up to handleLen<MAXLEN> ...
+// ... up to handleLen<MaxLen> ...
 
 func serveAssetDownloadsFile(w http.ResponseWriter, r *http.Request) {
     http.ServeFile(w, r, "www/downloads/file.zip")
@@ -700,7 +700,7 @@ func setupGracefulShutdown(httpSrv *http.Server, adminSrv *http.Server, logger *
 10. **Link Creation:** Case 1 (hard link), Case 2 (symbolic link), Case 3 (symbolic link in www/), Case 4 (no creation).
 11. **Build Path Maps:** `canonicalPaths`, `shortcutPaths`, `duplicatePaths` with collision detection.
 12. **Generate embed.go:** Package, imports, `//go:embed` directives, headers, handlers.
-13. **Router Generation:** Compute `MAXLEN`, generate dispatch array, per-length handlers, fallback logic.
+13. **Router Generation:** Compute `MaxLen`, generate dispatch array, per-length handlers, fallback logic.
 14. **TLS Configuration:** Self-signed RSA 2048-bit, random 64-bit serial, 10-year validity.
 15. **Protocol Listeners:** HTTP/1.1 + h2c, HTTP/2 via ALPN, HTTP/3 via QUIC.
 16. **Module Initialization:** `go mod init flash`, `go mod tidy`.
