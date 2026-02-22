@@ -1,0 +1,31 @@
+{{/* Header literals template */}}
+
+{{/* HTTP */}}
+{{define "httpHeader"}}
+Content-Type: {{.MIME}}
+Cache-Control: public, max-age=31536000, immutable{{if .IsIndex}}, must-revalidate{{end}}
+Content-Length: {{.Size}}
+{{if .IsHTML}}{{if .CSP}}Content-Security-Policy: {{.CSP}}
+{{end}}{{end}}
+
+{{end}}
+
+{{/* HTTPS */}}
+{{define "httpsHeader"}}
+Content-Type: {{.MIME}}
+Cache-Control: public, max-age=31536000, immutable{{if .IsIndex}}, must-revalidate{{end}}
+Content-Length: {{.Size}}
+{{if .IsHTML}}{{if .CSP}}Content-Security-Policy: {{.CSP}}
+{{end}}{{end}}
+Strict-Transport-Security: max-age=31536000
+Alt-Svc: h3=":{{.HTTPSPort}}"; ma=2592000
+
+{{end}}
+
+{{define "httpHeaderLiteral"}}
+var {{.Identifier}}HeaderHTTP = []byte(`{{.HeaderHTTP}}`)
+{{end}}
+
+{{define "httpsHeaderLiteral"}}
+var {{.Identifier}}HeaderHTTPS = []byte(`{{.HeaderHTTPS}}`)
+{{end}}

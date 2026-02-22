@@ -1,0 +1,48 @@
+{{/* Per-length handler template for HTTP */}}
+{{define "httpHandler"}}
+// handleLen{{.Index}}HTTP handles HTTP requests for paths of length {{.Index}}.
+// Dispatch array index = {{.Index}} corresponds to asset routes of length {{.Index}}-1.
+// Request paths include leading slash: "/example" -> pathNoSlash = "example" (length 7)
+// Asset routes are relative paths without leading slash: "example" (length 7)
+// This design eliminates runtime slash removal and byte subtraction.
+func (s *Server) handleLen{{.Index}}HTTP(w http.ResponseWriter, r *http.Request) {
+    const L = {{.Index}}
+    pathNoSlash := r.URL.Path[1:]
+    if len(pathNoSlash) < L-1 {
+        s.DispatchHTTP[L-1](w, r)
+        return
+    }
+    truncated := pathNoSlash[:L-1]
+    switch truncated {
+    {{range .Routes}}
+        case "{{.Path}}":
+            s.Serve{{.Identifier}}HTTP(w, r)
+    {{end}}
+    default:
+        s.DispatchHTTP[L-1](w, r)
+    }
+}
+{{end}}
+
+{{/* Per-length handler template for HTTPS */}}
+{{define "httpsHandler"}}
+// handleLen{{.Index}}HTTPS handles HTTPS requests for paths of length {{.Index}}.
+// Dispatch array index = {{.Index}} corresponds to asset routes of length {{.Index}}-1.
+func (s *Server) handleLen{{.Index}}HTTPS(w http.ResponseWriter, r *http.Request) {
+    const L = {{.Index}}
+    pathNoSlash := r.URL.Path[1:]
+    if len(pathNoSlash) < L-1 {
+        s.DispatchHTTPS[L-1](w, r)
+        return
+    }
+    truncated := pathNoSlash[:L-1]
+    switch truncated {
+    {{range .Routes}}
+        case "{{.Path}}":
+            s.Serve{{.Identifier}}HTTPS(w, r)
+    {{end}}
+    default:
+        s.DispatchHTTPS[L-1](w, r)
+    }
+}
+{{end}}
