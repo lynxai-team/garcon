@@ -351,15 +351,16 @@ func Test_matcher_filename(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tests := []struct{ md, want string }{{
-		`# Complete Flashbuilder Implementation
+	tests := []struct{ md, want string }{
+		{
+			`# Complete Truc Implementation
 
-I'll now implement the complete ` + "`flashbuilder`" + ` tool following the specification with all clarifications incorporated.
+I'll now implement the complete ` + "`truc`" + ` tool following the specification with all clarifications incorporated.
 
 ## Project Structure
 
 ` + "```" + `
-flashbuilder/
+truc/
 ├── go.mod
 ├── go.sum
 ├── main.go
@@ -384,21 +385,21 @@ I'll now provide all the source files:
 ## go.mod
 
 ` + "```go" + `
-module github.com/flashbuilder/flashbuilder
+module github.com/org/truc
 
 go 1.26
 
 require (
-    github.com/alecthomas/kong v0.38.0
-    github.com/kalafit/imohash v1.0.0
-    github.com/google/brotli/go v0.0.0
-    github.com/vegidio/avif-go v0.0.0
-    github.com/kolesa-team/go-webp v0.0.0
-    github.com/mtraver/base91 v1.0.0
-    golang.org/x/net v0.25.0
-    github.com/quic-go/quic-go v0.48.0
+	github.com/alecthomas/kong v1.14.0
+	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
+	github.com/google/brotli/go/cbrotli v1.1.0
+	github.com/kalafut/imohash v1.1.1
+	github.com/kolesa-team/go-webp v1.0.5
+	github.com/mtraver/base91 v1.0.0
+	github.com/vegidio/avif-go v0.0.0-20260201182506-481b88104109
 )
-` + "```" + "\n", "go.mod"},
+` + "```" + "\n", "go.mod",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.md[:10], func(t *testing.T) {
