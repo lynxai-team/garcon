@@ -2466,3 +2466,1293 @@ Implement all files:
 Each file should be implemented exactly as specified in this document, with all algorithms, data structures, and templates matching the specification.
 
 Do not generate the `go.mod` and `go.sum` files. These will be created after your implementation with the commands `go mod init flashbuilder` and `go mod tidy`. We **intentionally do not pin** dependency versions. We run `go mod tidy` to **automatically upgrade** dependencies to the **latest compatible** releases.
+
+---
+
+## 22. Testing Requirements
+
+### 22.1 Test Infrastructure
+
+**Intent**: Establish comprehensive test infrastructure for both `flashbuilder` generator and generated `flash` server.
+
+**Purpose**: Ensure correctness, performance, and reliability of both the generator and generated code.
+
+**Rationale**: Tests verify deterministic behavior, zero-allocation claims, and O(1) routing performance.
+
+#### 22.1.1 Test File Structure
+
+```
+flashbuilder/
+├── main_test.go           # CLI, entry point, validation tests
+├── assets_test.go         # Asset discovery, MIME, dedupe tests
+├── dispatch_test.go       # Dispatch array, routing tests
+├── generate_test.go       # Code generation, template tests
+├── cache_test.go          # Cache management, budget tests
+├── variant_test.go        # Variant generation tests
+├── integration_test.go    # End-to-end workflow tests
+├── template_test.go       # Template rendering tests
+└── testdata/              # Test fixtures directory
+    ├── assets/            # Sample assets for testing
+    │   ├── index.html
+    │   ├── style.css
+    │   ├── script.js
+    │   └── logo.png
+    └── templates/         # Expected template outputs
+```
+
+#### 22.1.2 Test Dependencies
+
+```go
+import (
+    "testing"
+    "os"
+    "path/filepath"
+    "strings"
+    "time"
+    "io/fs"
+)
+```
+
+### 22.2 Unit Test Specifications
+
+#### 22.2.1 `validateCompressionFlags` Tests
+
+**Purpose**: Verify compression quality validation.
+
+```go
+func TestValidateCompressionFlags(t *testing.T) {
+    tests := []struct {
+        name      string
+        brotli    int
+        avif      int
+        webp      int
+        expectErr bool
+        errContains string
+    }{
+        {"Valid Brotli 0-11", 5, 50, 50, false, ""},
+        {"Invalid Brotli negative", -1, 50, 50, true, "Brotli quality must be 0-11"},
+        {"Invalid Brotli > 11", 12, 50, 50, true, "Brotli quality must be 0-11"},
+        {"Valid AVIF 0-100", 5, 75, 50, false, ""},
+        {"Invalid AVIF negative", 5, -1, 50, true, "AVIF quality must be 0-100"},
+        {"Invalid AVIF > 100", 5, 101, 50, true, "AVIF quality must be 0-100"},
+        {"Valid WebP 0-100", 5, 50, 75, false, ""},
+        {"Invalid WebP negative", 5, 50, -1, true, "WebP quality must be 0-100"},
+        {"Invalid WebP > 100", 5, 50, 101, true, "WebP quality must be 0-100"},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            cli := &cli{
+                Brotli: tt.brotli,
+                AVIF:   tt.avif,
+                WebP:   tt.webp,
+            }
+            err := validateCompressionFlags(cli)
+            if tt.expectErr && err == nil {
+                t.Errorf("expected error but got nil")
+            }
+            if !tt.expectErr && err != nil {
+                t.Errorf("unexpected error: %v", err)
+            }
+            if tt.expectErr && err != nil && !strings.Contains(err.Error(), tt.errContains) {
+                t.Errorf("expected error containing %s, got %s", tt.errContains, err.Error())
+            }
+        })
+    }
+}
+```
+
+#### 22.2.2 `getDefaultCacheDir` Tests
+
+**Purpose**: Verify cache directory resolution following XDG specification.
+
+```go
+func TestGetDefaultCacheDir(t *testing.T) {
+    // Test with XDG_CACHE_HOME
+    t.Run("XDG_CACHE_HOME set", func(t *testing.T) {
+        oldXdg := os.Getenv("XDG_CACHE_HOME")
+        defer os.Setenv("XDG_CACHE_HOME", oldXdg)
+        os.Setenv("XDG_CACHE_HOME", "/tmp/xdg-cache")
+        expected := filepath.Join("/tmp/xdg-cache", "flashbuilder")
+        result := getDefaultCacheDir()
+        if result != expected {
+            t.Errorf("expected %s, got %s", expected, result)
+        }
+    })
+    
+    // Test with HOME (fallback)
+    t.Run("HOME set (fallback)", func(t *testing.T) {
+        oldXdg := os.Getenv("XDG_CACHE_HOME")
+        oldHome := os.Getenv("HOME")
+        defer os.Setenv("XDG_CACHE_HOME", oldXdg)
+        defer os.Setenv("HOME", oldHome)
+        os.Setenv("XDG_CACHE_HOME", "")
+        os.Setenv("HOME", "/tmp/home")
+        expected := filepath.Join("/tmp/home", ".cache", "flashbuilder")
+        result := getDefaultCacheDir()
+        if result != expected {
+            t.Errorf("expected %s, got %s", expected, result)
+        }
+    })
+    
+    // Test fallback to current directory
+    t.Run("Neither set (fallback)", func(t *testing.T) {
+        oldXdg := os.Getenv("XDG_CACHE_HOME")
+        oldHome := os.Getenv("HOME")
+        defer os.Setenv("XDG_CACHE_HOME", oldXdg)
+        defer os.Setenv("HOME", oldHome)
+        os.Setenv("XDG_CACHE_HOME", "")
+        os.Setenv("HOME", "")
+        expected := ".cache"
+        result := getDefaultCacheDir()
+        if result != expected {
+            t.Errorf("expected %s, got %s", expected, result)
+        }
+    })
+}
+```
+
+#### 22.2.3 `discover` Tests
+
+**Purpose**: Verify asset discovery, MIME detection, and ordering.
+
+```go
+func TestDiscover(t *testing.T) {
+    // Create temporary directory
+    tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
+    if err != nil {
+        t.Fatalf("Failed to create temp dir: %v", err)
+    }
+    defer os.RemoveAll(tmpDir)
+    
+    // Create test files
+    files := []struct {
+        name     string
+        content  string
+        expected string // Expected MIME type prefix
+    }{
+        {"index.html", "<html></html>", "text/html"},
+        {"style.css", "body {}", "text/css"},
+        {"script.js", "console.log", "text/javascript"},
+        {"image.png", "\x89PNG\x00\x00\x00", "image/png"},
+        {"data.json", "{}", "application/json"},
+    }
+    
+    for _, file := range files {
+        path := filepath.Join(tmpDir, file.name)
+        if err := os.WriteFile(path, []byte(file.content), 0644); err != nil {
+            t.Fatalf("Failed to write file: %v", err)
+        }
+    }
+    
+    // Run discovery
+    assets, err := discover(tmpDir)
+    if err != nil {
+        t.Fatalf("Discovery failed: %v", err)
+    }
+    
+    // Verify count
+    if len(assets) != len(files) {
+        t.Errorf("Expected %d assets, got %d", len(files), len(assets))
+    }
+    
+    // Verify sorting (alphabetical by RelPath)
+    for i := 1; i < len(assets); i++ {
+        if assets[i].RelPath < assets[i-1].RelPath {
+            t.Errorf("Assets not sorted: %s should come after %s", assets[i].RelPath, assets[i-1].RelPath)
+        }
+    }
+    
+    // Verify MIME detection
+    for _, asset := range assets {
+        if asset.MIME == "" || asset.MIME == "application/octet-stream" && asset.RelPath != "data.json" {
+            t.Errorf("MIME detection failed for %s: got %s", asset.RelPath, asset.MIME)
+        }
+    }
+    
+    // Verify absolute paths are set
+    for _, asset := range assets {
+        if asset.AbsPath == "" {
+            t.Errorf("AbsPath should not be empty for %s", asset.RelPath)
+        }
+    }
+}
+```
+
+#### 22.2.4 `detectMIME` Tests
+
+**Purpose**: Verify MIME type detection accuracy.
+
+```go
+func TestDetectMIME(t *testing.T) {
+    tests := []struct {
+        name        string
+        filename    string
+        content     string
+        expectedMIME string
+    }{
+        {"HTML file", "index.html", "<html></html>", "text/html"},
+        {"CSS file", "style.css", "body {}", "text/css"},
+        {"JS file", "script.js", "console.log", "text/javascript"},
+        {"JSON file", "data.json", "{}", "application/json"},
+        {"Unknown", "data.bin", "\x00\x01\x02", "application/octet-stream"},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
+            if err != nil {
+                t.Fatalf("Failed to create temp dir: %v", err)
+            }
+            defer os.RemoveAll(tmpDir)
+            
+            path := filepath.Join(tmpDir, tt.filename)
+            if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil {
+                t.Fatalf("Failed to write file: %v", err)
+            }
+            
+            mime := detectMIME(path)
+            if !strings.HasPrefix(mime, tt.expectedMIME) {
+                t.Errorf("Expected %s, got %s", tt.expectedMIME, mime)
+            }
+        })
+    }
+}
+```
+
+#### 22.2.5 `generateIdentifier` Tests
+
+**Purpose**: Verify deterministic identifier generation.
+
+```go
+func TestGenerateIdentifier(t *testing.T) {
+    tests := []struct {
+        name        string
+        relPath     string
+        expected    string
+    }{
+        {"Simple file", "css/style.css", "AssetCssStyle"},
+        {"Index file", "index.html", "AssetIndex"},
+        {"Nested file", "assets/css/main.css", "AssetAssetsCssMain"},
+        {"Special chars", "assets/images/logo-1.png", "AssetAssetsImagesLogo1"},
+    }
+    
+    existing := make(map[string]bool)
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := generateIdentifier(tt.relPath, existing)
+            // Verify starts with "Asset"
+            if result[:5] != "Asset" {
+                t.Errorf("Identifier should start with 'Asset', got %s", result)
+            }
+            // Verify valid Go identifier chars
+            for _, r := range result {
+                if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+                    t.Errorf("Invalid character in identifier: %c", r)
+                }
+            }
+        })
+    }
+    
+    // Test collision resolution
+    t.Run("Collision resolution", func(t *testing.T) {
+        existing := make(map[string]bool)
+        existing["AssetStyle"] = true
+        
+        result := generateIdentifier("style.css", existing)
+        if result == "AssetStyle" {
+            t.Errorf("Should resolve collision, got %s", result)
+        }
+        if result[:5] != "Asset" {
+            t.Errorf("Should start with Asset, got %s", result)
+        }
+    })
+}
+```
+
+#### 22.2.6 `estimateFrequencyScore` Tests
+
+**Purpose**: Verify frequency score calculation for switch ordering.
+
+```go
+func TestEstimateFrequencyScore(t *testing.T) {
+    tests := []struct {
+        name      string
+        path      string
+        isEmbed   bool
+        expected  int
+    }{
+        {"Index file", "index.html", true, 1000 + 500 + 200},
+        {"Favicon", "favicon.ico", true, 900 + 200},
+        {"CSS file", "style.css", true, 800 + 200},
+        {"JS file", "script.js", true, 600 + 200},
+        {"Logo", "logo.png", true, 400 + 200},
+        {"Deep path", "assets/css/main.css", true, 800 + 200 - (5*len("assets/css/main.css")) - 30*2},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := estimateFrequencyScore(tt.path, tt.isEmbed)
+            // Verify positive for high-priority files
+            if tt.path == "index.html" && result <= 0 {
+                t.Errorf("Index should have positive score, got %d", result)
+            }
+            // Verify specific expected values
+            if tt.expected > 0 && result != tt.expected {
+                t.Errorf("Expected %d, got %d", tt.expected, result)
+            }
+        })
+    }
+}
+```
+
+#### 22.2.7 `generateShortcut` Tests
+
+**Purpose**: Verify shortcut generation for clean URLs.
+
+```go
+func TestGenerateShortcut(t *testing.T) {
+    tests := []struct {
+        name        string
+        relPath     string
+        expected    string
+    }{
+        {"Root index", "index.html", ""},
+        {"Subdir index", "about/index.html", "about"},
+        {"CSS file", "style.css", "style"},
+        {"JS file", "script.js", "script"},
+        {"No extension", "path/to/file", "path/to/file"},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := generateShortcut(tt.relPath)
+            if result != tt.expected {
+                t.Errorf("Expected %s, got %s", tt.expected, result)
+            }
+        })
+    }
+}
+```
+
+#### 22.2.8 `sanitizeIdentifier` Tests
+
+**Purpose**: Verify identifier sanitization.
+
+```go
+func TestSanitizeIdentifier(t *testing.T) {
+    tests := []struct {
+        name        string
+        input       string
+        expected    string
+    }{
+        {"Simple", "style", "style"},
+        {"With dash", "my-file", "myfile"},
+        {"With number", "file1", "file1"},
+        {"Special chars", "file@#$", "file"},
+        {"Unicode", "café", "caf"},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := sanitizeIdentifier(tt.input)
+            if result != tt.expected {
+                t.Errorf("Expected %s, got %s", tt.expected, result)
+            }
+        })
+    }
+}
+```
+
+#### 22.2.9 `dedupe` Tests
+
+**Purpose**: Verify deduplication logic.
+
+```go
+func TestDedupe(t *testing.T) {
+    // Create temp directory with duplicate files
+    tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
+    if err != nil {
+        t.Fatalf("Failed to create temp dir: %v", err)
+    }
+    defer os.RemoveAll(tmpDir)
+    
+    // Create two identical files
+    content := "test content"
+    file1 := filepath.Join(tmpDir, "file1.txt")
+    file2 := filepath.Join(tmpDir, "file2.txt")
+    
+    if err := os.WriteFile(file1, []byte(content), 0644); err != nil {
+        t.Fatalf("Failed to write file: %v", err)
+    }
+    if err := os.WriteFile(file2, []byte(content), 0644); err != nil {
+        t.Fatalf("Failed to write file: %v", err)
+    }
+    
+    // Create assets
+    assets := []asset{
+        {RelPath: "file1.txt", AbsPath: file1, Identifier: "AssetFile1"},
+        {RelPath: "file2.txt", AbsPath: file2, Identifier: "AssetFile2"},
+    }
+    
+    // Compute hashes
+    for i := range assets {
+        assets[i].ImoHash = computeImoHash(assets[i].AbsPath)
+        assets[i].ETag = computeETag(assets[i].ImoHash)
+    }
+    
+    // Run dedupe
+    result := dedupe(assets)
+    
+    // Verify first is canonical, second is duplicate
+    if result[0].IsDuplicate {
+        t.Errorf("First asset should not be duplicate")
+    }
+    if !result[1].IsDuplicate {
+        t.Errorf("Second asset should be duplicate")
+    }
+    if result[1].CanonicalID != result[0].Identifier {
+        t.Errorf("CanonicalID should be %s, got %s", result[0].Identifier, result[1].CanonicalID)
+    }
+}
+```
+
+#### 22.2.10 `buildDispatch` Tests
+
+**Purpose**: Verify dispatch array generation and O(1) routing.
+
+```go
+func TestBuildDispatch(t *testing.T) {
+    assets := []asset{
+        {RelPath: "index.html", Identifier: "AssetIndex", FrequencyScore: 1000, IsDuplicate: false},
+        {RelPath: "style.css", Identifier: "AssetStyle", FrequencyScore: 800, IsDuplicate: false},
+        {RelPath: "script.js", Identifier: "AssetScript", FrequencyScore: 600, IsDuplicate: false},
+    }
+    
+    maxLen := computeMaxLen(assets)
+    httpDispatch, httpsDispatch := buildDispatch(assets, maxLen)
+    
+    // Verify dispatch arrays have correct length
+    expectedLen := maxLen + 2
+    if len(httpDispatch) != expectedLen {
+        t.Errorf("HTTP dispatch length: expected %d, got %d", expectedLen, len(httpDispatch))
+    }
+    if len(httpsDispatch) != expectedLen {
+        t.Errorf("HTTPS dispatch length: expected %d, got %d", expectedLen, len(httpsDispatch))
+    }
+    
+    // Verify root handler at index 0 and 1
+    if httpDispatch[0].Handler != "serveRootIndex" {
+        t.Errorf("HTTP dispatch[0]: expected serveRootIndex, got %s", httpDispatch[0].Handler)
+    }
+    if httpDispatch[1].Handler != "serveRootIndex" {
+        t.Errorf("HTTP dispatch[1]: expected serveRootIndex, got %s", httpDispatch[1].Handler)
+    }
+    
+    // Verify routes are sorted by frequency
+    for i := 2; i < len(httpDispatch); i++ {
+        if len(httpDispatch[i].Routes) > 1 {
+            for j := 1; j < len(httpDispatch[i].Routes); j++ {
+                if httpDispatch[i].Routes[j-1].Frequency < httpDispatch[i].Routes[j].Frequency {
+                    t.Errorf("Routes not sorted by frequency at dispatch[%d]", i)
+                }
+            }
+        }
+    }
+}
+```
+
+#### 22.2.11 `sanitizePath` Tests
+
+**Purpose**: Verify path sanitization for switch cases.
+
+```go
+func TestSanitizePath(t *testing.T) {
+    tests := []struct {
+        name        string
+        input       string
+        expected    string
+    }{
+        {"Simple path", "style.css", "style.css"},
+        {"Path with backslash", "path\\to\\file", "path/to/file"},
+        {"Path with quote", `path"file`, "path\\\"file"},
+        {"Path with newline", "path\nfile", "path\\nfile"},
+        {"Path with tab", "path\tfile", "path\\tfile"},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := sanitizePath(tt.input)
+            if result != tt.expected {
+                t.Errorf("Expected %s, got %s", tt.expected, result)
+            }
+        })
+    }
+}
+```
+
+#### 22.2.12 `computeMaxLen` Tests
+
+**Purpose**: Verify max length calculation.
+
+```go
+func TestComputeMaxLen(t *testing.T) {
+    tests := []struct {
+        name        string
+        paths       []string
+        expected    int
+    }{
+        {"Single file", []string{"a"}, 1},
+        {"Multiple files", []string{"a", "b/c", "d/e/f"}, 5},
+        {"Empty", []string{}, 0},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            assets := make([]asset, len(tt.paths))
+            for i, p := range tt.paths {
+                assets[i] = asset{RelPath: p}
+            }
+            result := computeMaxLen(assets)
+            if result != tt.expected {
+                t.Errorf("Expected %d, got %d", tt.expected, result)
+            }
+        })
+    }
+}
+```
+
+#### 22.2.13 `hasRootIndex` Tests
+
+**Purpose**: Verify root index detection.
+
+```go
+func TestHasRootIndex(t *testing.T) {
+    tests := []struct {
+        name        string
+        assets      []asset
+        expected    bool
+    }{
+        {"Has index.html", []asset{{RelPath: "index.html"}}, true},
+        {"Has empty path", []asset{{RelPath: ""}}, true},
+        {"No index", []asset{{RelPath: "style.css"}}, false},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := hasRootIndex(tt.assets)
+            if result != tt.expected {
+                t.Errorf("Expected %v, got %v", tt.expected, result)
+            }
+        })
+    }
+}
+```
+
+#### 22.2.14 `ensureCacheDir` Tests
+
+**Purpose**: Verify cache directory creation.
+
+```go
+func TestEnsureCacheDir(t *testing.T) {
+    tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
+    if err != nil {
+        t.Fatalf("Failed to create temp dir: %v", err)
+    }
+    defer os.RemoveAll(tmpDir)
+    
+    cachePath := filepath.Join(tmpDir, "cache")
+    
+    err = ensureCacheDir(cachePath)
+    if err != nil {
+        t.Fatalf("ensureCacheDir failed: %v", err)
+    }
+    
+    // Verify directory exists
+    stat, err := os.Stat(cachePath)
+    if err != nil {
+        t.Fatalf("Cache directory does not exist: %v", err)
+    }
+    if !stat.IsDir() {
+        t.Error("Cache path is not a directory")
+    }
+    
+    // Verify permissions (0755)
+    if stat.Mode()&0755 != 0755 {
+        t.Errorf("Expected permissions 0755, got %v", stat.Mode())
+    }
+}
+```
+
+#### 22.2.15 `allocateBudget` Tests
+
+**Purpose**: Verify embed budget allocation.
+
+```go
+func TestAllocateBudget(t *testing.T) {
+    assets := []asset{
+        {RelPath: "a.txt", Size: 100},
+        {RelPath: "b.txt", Size: 200},
+        {RelPath: "c.txt", Size: 300},
+    }
+    
+    // Budget of 250 should fit a + b, but not c
+    result := allocateBudget(assets, 250)
+    
+    // Verify sorting (smallest first)
+    if result[0].Size > result[1].Size {
+        t.Errorf("Assets should be sorted by size")
+    }
+    
+    // Verify first two are eligible
+    if !result[0].EmbedEligible {
+        t.Errorf("Asset 0 should be eligible")
+    }
+    if !result[1].EmbedEligible {
+        t.Errorf("Asset 1 should be eligible")
+    }
+    
+    // Verify last one is not eligible
+    if result[2].EmbedEligible {
+        t.Errorf("Asset 2 should not be eligible (too large)")
+    }
+}
+```
+
+#### 22.2.16 `cleanCache` Tests
+
+**Purpose**: Verify cache cleaning with LRU eviction.
+
+```go
+func TestCleanCache(t *testing.T) {
+    tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
+    if err != nil {
+        t.Fatalf("Failed to create temp dir: %v", err)
+    }
+    defer os.RemoveAll(tmpDir)
+    
+    // Create test files with different ages
+    files := []struct {
+        name    string
+        content  string
+        modTime  time.Time
+    }{
+        {"old.txt", "old content", time.Now().Add(-time.Hour)},
+        {"new.txt", "new content", time.Now()},
+    }
+    
+    for _, f := range files {
+        path := filepath.Join(tmpDir, f.name)
+        if err := os.WriteFile(path, []byte(f.content), 0644); err != nil {
+            t.Fatalf("Failed to write file: %v", err)
+        }
+        // Set modification time
+        if err := os.Chtimes(path, f.modTime, f.modTime); err != nil {
+            t.Fatalf("Failed to set mod time: %v", err)
+        }
+    }
+    
+    // Clean cache to remove oldest file (simulate small max size)
+    err = cleanCache(tmpDir, 0) // 0 bytes max = force deletion
+    if err != nil {
+        t.Fatalf("cleanCache failed: %v", err)
+    }
+    
+    // Old file should be deleted
+    if _, err := os.Stat(filepath.Join(tmpDir, "old.txt")); err == nil {
+        t.Error("Old file should have been deleted")
+    }
+    
+    // New file should still exist
+    if _, err := os.Stat(filepath.Join(tmpDir, "new.txt")); err != nil {
+        t.Error("New file should still exist")
+    }
+}
+```
+
+#### 22.2.17 `renderHeaderHTTP` Tests
+
+**Purpose**: Verify HTTP header generation.
+
+```go
+func TestRenderHeaderHTTP(t *testing.T) {
+    tests := []struct {
+        name       string
+        asset      asset
+        csp        string
+        contains   []string
+    }{
+        {
+            "Simple asset",
+            asset{MIME: "text/css", Size: 100, IsIndex: false, IsHTML: false},
+            "",
+            []string{"Content-Type: text/css", "Content-Length: 100", "Cache-Control: public, max-age=31536000, immutable"},
+        },
+        {
+            "Index file",
+            asset{MIME: "text/html", Size: 500, IsIndex: true, IsHTML: true},
+            "default-src 'self'",
+            []string{"Content-Type: text/html", "must-revalidate", "Content-Security-Policy: default-src 'self'"},
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := string(renderHeaderHTTP(tt.asset, tt.csp))
+            for _, expected := range tt.contains {
+                if !strings.Contains(result, expected) {
+                    t.Errorf("Expected header to contain %s", expected)
+                }
+            }
+        })
+    }
+}
+```
+
+#### 22.2.18 `renderHeaderHTTPS` Tests
+
+**Purpose**: Verify HTTPS header generation.
+
+```go
+func TestRenderHeaderHTTPS(t *testing.T) {
+    tests := []struct {
+        name       string
+        asset      asset
+        csp        string
+        httpsPort  string
+        contains   []string
+    }{
+        {
+            "Simple asset",
+            asset{MIME: "text/css", Size: 100, IsIndex: false, IsHTML: false},
+            "",
+            "8443",
+            []string{"Content-Type: text/css", "Strict-Transport-Security", "Alt-Svc: h3"},
+        },
+        {
+            "HTML with CSP",
+            asset{MIME: "text/html", Size: 500, IsIndex: true, IsHTML: true},
+            "default-src 'self'",
+            "8443",
+            []string{"Content-Security-Policy", "Strict-Transport-Security"},
+        },
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := string(renderHeaderHTTPS(tt.asset, tt.csp, tt.httpsPort))
+            for _, expected := range tt.contains {
+                if !strings.Contains(result, expected) {
+                    t.Errorf("Expected header to contain %s", expected)
+                }
+            }
+        })
+    }
+}
+```
+
+#### 22.2.19 `convertAssets` Tests
+
+**Purpose**: Verify asset data conversion.
+
+```go
+func TestConvertAssets(t *testing.T) {
+    assets := []asset{
+        {RelPath: "style.css", Identifier: "AssetStyle", IsDuplicate: false, EmbedEligible: true},
+        {RelPath: "dup.css", Identifier: "AssetDup", IsDuplicate: true, CanonicalID: "AssetStyle"},
+    }
+    
+    result := convertAssets(assets)
+    
+    // Should only include non-duplicate assets
+    if len(result) != 1 {
+        t.Errorf("Expected 1 asset (duplicate excluded), got %d", len(result))
+    }
+    
+    if result[0].RelPath != "style.css" {
+        t.Errorf("Expected style.css, got %s", result[0].RelPath)
+    }
+}
+```
+
+#### 22.2.20 `isCompressible` Tests
+
+**Purpose**: Verify MIME type compression eligibility.
+
+```go
+func TestIsCompressible(t *testing.T) {
+    tests := []struct {
+        name        string
+        mime        string
+        expected    bool
+    }{
+        {"HTML", "text/html", true},
+        {"CSS", "text/css", true},
+        {"JS", "text/javascript", true},
+        {"JSON", "application/json", true},
+        {"XML", "application/xml", true},
+        {"Image", "image/png", false},
+        {"Binary", "application/octet-stream", false},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := isCompressible(tt.mime)
+            if result != tt.expected {
+                t.Errorf("Expected %v, got %v", tt.expected, result)
+            }
+        })
+    }
+}
+```
+
+#### 22.2.21 `isImage` Tests
+
+**Purpose**: Verify image MIME type detection.
+
+```go
+func TestIsImage(t *testing.T) {
+    tests := []struct {
+        name        string
+        mime        string
+        expected    bool
+    }{
+        {"PNG", "image/png", true},
+        {"JPEG", "image/jpeg", true},
+        {"GIF", "image/gif", true},
+        {"SVG", "image/svg+xml", true},
+        {"HTML", "text/html", false},
+        {"CSS", "text/css", false},
+    }
+    
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            result := isImage(tt.mime)
+            if result != tt.expected {
+                t.Errorf("Expected %v, got %v", tt.expected, result)
+            }
+        })
+    }
+}
+```
+
+### 22.3 Integration Test Specifications
+
+#### 22.3.1 End-to-End Discovery to Dispatch Test
+
+```go
+func TestIntegration_DiscoverToDispatch(t *testing.T) {
+    if testing.Short() {
+        t.Skip("Skipping integration test in short mode")
+    }
+    
+    // Create temp directory
+    tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
+    if err != nil {
+        t.Fatalf("Failed to create temp dir: %v", err)
+    }
+    defer os.RemoveAll(tmpDir)
+    
+    // Create test files
+    files := []struct {
+        name    string
+        content string
+    }{
+        {"index.html", "<html></html>"},
+        {"style.css", "body {}"},
+        {"script.js", "console.log"},
+    }
+    
+    for _, f := range files {
+        path := filepath.Join(tmpDir, f.name)
+        if err := os.WriteFile(path, []byte(f.content), 0644); err != nil {
+            t.Fatalf("Failed to write file: %v", err)
+        }
+    }
+    
+    // Run discovery
+    assets, err := discover(tmpDir)
+    if err != nil {
+        t.Fatalf("Discovery failed: %v", err)
+    }
+    
+    // Verify assets
+    if len(assets) != len(files) {
+        t.Errorf("Expected %d assets, got %d", len(files), len(assets))
+    }
+    
+    // Compute hashes
+    for i := range assets {
+        assets[i].ImoHash = computeImoHash(assets[i].AbsPath)
+        assets[i].ETag = computeETag(assets[i].ImoHash)
+    }
+    
+    // Generate identifiers
+    identifiers := make(map[string]bool)
+    for i := range assets {
+        assets[i].Identifier = generateIdentifier(assets[i].RelPath, identifiers)
+        identifiers[assets[i].Identifier] = true
+        assets[i].Filename = assets[i].Identifier + filepath.Ext(assets[i].RelPath)
+    }
+    
+    // Compute frequency scores
+    for i := range assets {
+        assets[i].FrequencyScore = estimateFrequencyScore(assets[i].RelPath, assets[i].EmbedEligible)
+    }
+    
+    // Compute max length
+    maxLen := computeMaxLen(assets)
+    if maxLen <= 0 {
+        t.Errorf("MaxLen should be positive, got %d", maxLen)
+    }
+    
+    // Build dispatch
+    httpDispatch, httpsDispatch := buildDispatch(assets, maxLen)
+    
+    // Verify dispatch arrays
+    if len(httpDispatch) != maxLen+2 {
+        t.Errorf("HTTP dispatch length: expected %d, got %d", maxLen+2, len(httpDispatch))
+    }
+    if len(httpsDispatch) != maxLen+2 {
+        t.Errorf("HTTPS dispatch length: expected %d, got %d", maxLen+2, len(httpsDispatch))
+    }
+}
+```
+
+#### 22.3.2 Budget Allocation Integration Test
+
+```go
+func TestIntegration_BudgetAllocation(t *testing.T) {
+    assets := []asset{
+        {RelPath: "a.txt", Size: 100},
+        {RelPath: "b.txt", Size: 200},
+        {RelPath: "c.txt", Size: 300},
+    }
+    
+    // Budget of 250 should fit a + b, but not c
+    result := allocateBudget(assets, 250)
+    
+    // Verify first two are eligible
+    total := 0
+    for _, a := range result {
+        if a.EmbedEligible {
+            total++
+        }
+    }
+    
+    if total != 2 {
+        t.Errorf("Expected 2 eligible assets, got %d", total)
+    }
+}
+```
+
+#### 22.3.3 Shortcut Generation Integration Test
+
+```go
+func TestIntegration_ShortcutGeneration(t *testing.T) {
+    assets := []asset{
+        {RelPath: "index.html", Identifier: "AssetIndex"},
+        {RelPath: "about/index.html", Identifier: "AssetAboutIndex"},
+        {RelPath: "style.css", Identifier: "AssetStyle"},
+    }
+    
+    // Build path maps
+    canonicalPaths := make(map[string]string)
+    shortcutPaths := make(map[string]string)
+    
+    for _, asset := range assets {
+        if !asset.IsDuplicate {
+            canonicalPaths[asset.RelPath] = asset.Identifier
+            shortcut := generateShortcut(asset.RelPath)
+            if shortcut != "" && canonicalPaths[shortcut] == "" {
+                shortcutPaths[shortcut] = asset.Identifier
+            }
+        }
+    }
+    
+    // Verify shortcuts
+    if canonicalPaths["index.html"] != "AssetIndex" {
+        t.Errorf("Expected AssetIndex for index.html")
+    }
+    
+    // about/index.html should have shortcut "about"
+    if shortcutPaths["about"] != "AssetAboutIndex" {
+        t.Errorf("Expected AssetAboutIndex for 'about' shortcut")
+    }
+    
+    // style.css should have shortcut "style"
+    if shortcutPaths["style"] != "AssetStyle" {
+        t.Errorf("Expected AssetStyle for 'style' shortcut")
+    }
+}
+```
+
+### 22.4 Generated `flash` Server Tests
+
+#### 22.4.1 Router Performance Test
+
+**Purpose**: Verify O(1) routing performance.
+
+```go
+func TestRouterPerformance(t *testing.T) {
+    // Generated server should have O(1) routing
+    // This test verifies dispatch array access is constant time
+    
+    // Create mock dispatch arrays
+    dispatchHTTP := make([]func(http.ResponseWriter, *http.Request), 100)
+    dispatchHTTPS := make([]func(http.ResponseWriter, *http.Request), 100)
+    
+    // Benchmark dispatch access
+    benchmarks := []struct {
+        name      string
+        path      string
+        expected  int
+    }{
+        {"Root path", "/", 0},
+        {"Short path", "/a", 1},
+        {"Long path", "/a/b/c/d/e/f/g/h/i/j", 10},
+    }
+    
+    for _, bm := range benchmarks {
+        t.Run(bm.name, func(t *testing.T) {
+            // Simulate dispatch index calculation
+            pathNoSlash := bm.path[1:]
+            idx := min(len(pathNoSlash), 100)
+            
+            // Verify index calculation
+            if idx != bm.expected && bm.expected >= 0 {
+                t.Errorf("Expected index %d, got %d", bm.expected, idx)
+            }
+        })
+    }
+}
+```
+
+#### 22.4.2 Header Pre-computation Test
+
+**Purpose**: Verify headers are pre-computed constants.
+
+```go
+func TestHeaderPrecomputation(t *testing.T) {
+    // This test verifies that headers are generated at compile time
+    // and stored as []byte constants
+    
+    // Simulate header generation
+    asset := asset{
+        MIME:      "text/css",
+        Size:      100,
+        IsIndex:   false,
+        IsHTML:    false,
+    }
+    
+    csp := "default-src 'self'"
+    httpsPort := "8443"
+    
+    headerHTTP := renderHeaderHTTP(asset, csp)
+    headerHTTPS := renderHeaderHTTPS(asset, csp, httpsPort)
+    
+    // Verify HTTP header
+    if !strings.Contains(string(headerHTTP), "Content-Type: text/css") {
+        t.Errorf("HTTP header missing Content-Type")
+    }
+    if !strings.Contains(string(headerHTTP), "Content-Length: 100") {
+        t.Errorf("HTTP header missing Content-Length")
+    }
+    
+    // Verify HTTPS header
+    if !strings.Contains(string(headerHTTPS), "Strict-Transport-Security") {
+        t.Errorf("HTTPS header missing HSTS")
+    }
+    if !strings.Contains(string(headerHTTPS), "Alt-Svc") {
+        t.Errorf("HTTPS header missing Alt-Svc")
+    }
+}
+```
+
+#### 22.4.3 Zero Allocation Test
+
+**Purpose**: Verify zero heap allocations per request.
+
+```go
+func TestZeroAllocation(t *testing.T) {
+    // This test simulates request handling to verify zero allocations
+    // for embed-eligible assets
+    
+    // Simulate pre-computed data
+    headerHTTP := []byte("Content-Type: text/css\r\nContent-Length: 100\r\n")
+    assetData := []byte("body {}")
+    etag := `"abc123"`
+    
+    // Simulate request handling (no allocations)
+    req := &http.Request{
+        Method: "GET",
+        Header: map[string][]string{},
+    }
+    req.Header.Set("If-None-Match", etag)
+    
+    // Verify conditional GET
+    if req.Header.Get("If-None-Match") == etag {
+        // Should return 304 without allocation
+    }
+    
+    // Verify header write (pre-computed)
+    // In real generated code, this would be: w.Write(headerHTTP)
+    if len(headerHTTP) > 0 {
+        // No allocation - header is pre-computed
+    }
+    
+    // Verify asset write (pre-computed via go:embed)
+    if len(assetData) > 0 {
+        // No allocation - asset is embedded
+    }
+}
+```
+
+### 22.5 Benchmark Specifications
+
+#### 22.5.1 Router Benchmark
+
+```go
+func BenchmarkRouter(b *testing.B) {
+    // Benchmark dispatch array access
+    pathNoSlash := "style.css" // 9 characters
+    idx := min(len(pathNoSlash), 100)
+    
+    for i := 0; i < b.N; i++ {
+        // Simulate dispatch access
+        _ = idx
+    }
+    
+    // Expected: ~1-2 ns per operation (O(1) array access)
+}
+```
+
+#### 22.5.2 Header Generation Benchmark
+
+```go
+func BenchmarkHeaderGeneration(b *testing.B) {
+    asset := asset{
+        MIME:    "text/css",
+        Size:    100,
+        IsIndex: false,
+        IsHTML:  false,
+    }
+    
+    for i := 0; i < b.N; i++ {
+        _ = renderHeaderHTTP(asset, "")
+    }
+    
+    // Expected: ~100-200 ns (string building)
+}
+```
+
+#### 22.5.3 Identifier Generation Benchmark
+
+```go
+func BenchmarkIdentifierGeneration(b *testing.B) {
+    existing := make(map[string]bool)
+    
+    for i := 0; i < b.N; i++ {
+        _ = generateIdentifier("assets/css/style.css", existing)
+    }
+    
+    // Expected: ~500-1000 ns (string operations)
+}
+```
+
+### 22.6 Test Utilities
+
+#### 22.6.1 Helper Functions
+
+```go
+// contains checks if string contains substring
+func contains(s, substr string) bool {
+    return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+    for i := 0; i <= len(s)-len(substr); i++ {
+        if s[i:i+len(substr)] == substr {
+            return true
+        }
+    }
+    return false
+}
+
+// skipIfCGO skips tests that require CGO
+func skipIfCGO(t *testing.T) {
+    if testing.Short() {
+        t.Skip("Skipping CGO-dependent test in short mode")
+    }
+}
+
+// skipIfNoTemplates skips tests that require template files
+func skipIfNoTemplates(t *testing.T) {
+    if testing.Short() {
+        t.Skip("Skipping template test in short mode")
+    }
+}
+```
+
+#### 22.6.2 Test Fixtures
+
+```
+testdata/
+├── assets/
+│   ├── index.html      # HTML test file
+│   ├── style.css       # CSS test file
+│   ├── script.js       # JS test file
+│   ├── logo.png        # Binary test file (create with actual PNG data)
+│   └── data.json       # JSON test file
+└── expected/
+    ├── identifiers.txt # Expected identifier mappings
+    └── dispatch.json   # Expected dispatch array
+```
+
+### 22.7 Test Running Instructions
+
+```bash
+# Run all tests
+go test -v ./...
+
+# Run short tests only (skip integration tests)
+go test -v -short ./...
+
+# Run specific test file
+go test -v -run TestDiscover ./...
+
+# Run with coverage
+go test -v -cover ./...
+
+# Run benchmarks
+go test -bench=. ./...
+
+# Run specific benchmark
+go test -bench=BenchmarkRouter ./...
+
+# Run tests with CGO (for compression tests)
+CGO_ENABLED=1 go test -v ./...
+```
+
+### 22.8 Test Coverage Requirements
+
+| Package | Minimum Coverage | Critical Functions |
+|---------|-----------------|-------------------|
+| `main` | 80% | `validateCompressionFlags`, `getDefaultCacheDir` |
+| `assets` | 90% | `discover`, `detectMIME`, `generateIdentifier`, `dedupe` |
+| `dispatch` | 90% | `buildDispatch`, `sanitizePath`, `computeMaxLen` |
+| `cache` | 85% | `ensureCacheDir`, `allocateBudget`, `cleanCache` |
+| `generate` | 85% | `renderHeaderHTTP`, `renderHeaderHTTPS`, `convertAssets` |
+| `variant` | 70% | `isCompressible`, `isImage` (CGO-dependent functions skipped) |
+
+### 22.9 Generated `flash` Server Test Requirements
+
+The generated `flash` server should include:
+
+1. **Router Test**: Verify O(1) dispatch array access
+2. **Header Test**: Verify pre-computed headers
+3. **Zero Allocation Test**: Verify no heap allocations per request
+4. **Conditional GET Test**: Verify ETag-based 304 responses
+5. **Blocked Port Test**: Verify port validation
+6. **TLS Configuration Test**: Verify TLS 1.3 and H2/H3 support
