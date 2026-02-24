@@ -130,28 +130,14 @@ func main() {
 		}
 	}
 
-	// Step 10: Build path maps
-	canonicalPaths := make(map[string]string)
-	duplicatePaths := make(map[string]string)
-	shortcutPaths := make(map[string]string)
-
-	for _, asset := range assets {
-		if !asset.IsDuplicate {
-			canonicalPaths[asset.RelPath] = asset.Identifier
-			shortcut := generateShortcut(asset.RelPath)
-			if shortcut != "" && canonicalPaths[shortcut] == "" && duplicatePaths[shortcut] == "" {
-				shortcutPaths[shortcut] = asset.Identifier
-			}
-		} else {
-			duplicatePaths[asset.RelPath] = asset.CanonicalID
-		}
-	}
+	// Step 10: Add shortcuts
+	assets = addShortcuts(assets)
 
 	// Step 11: Compute MaxLen
 	maxLen := computeMaxLen(assets)
 
 	// Step 12: Generate dispatch arrays
-	httpDispatch, httpsDispatch := buildDispatch(assets, maxLen)
+	dispatch := buildDispatch(assets, maxLen)
 
 	// Step 13: Convert to template data
 	data := TemplateData{
@@ -160,46 +146,32 @@ func main() {
 			HTTPSPort: "8443",
 			Module:    "flash",
 		},
-		Assets: convertAssets(assets),
-		Dispatch: DispatchData{
-			HTTP:   httpDispatch,
-			HTTPS:  httpsDispatch,
-			MaxLen: maxLen,
-		},
-		PathMaps: PathMapsData{
-			Canonical: canonicalPaths,
-			Duplicate: duplicatePaths,
-			Shortcut:  shortcutPaths,
-		},
-		MaxLen: maxLen,
+		Assets:   convertAssets(assets),
+		Dispatch: dispatch,
+		MaxLen:   maxLen,
 	}
 
 	// Step 14: Generate Go code
-	if !cli.DryRun {
-		if err := generate(data, cli.Output); err != nil {
-			log.Printf("E099: Failed to generate code: %v", err)
-			os.Exit(2)
-		}
+	err = generate(data, cli.Output, cli.DryRun)
+	if err != nil {
+		log.Printf("E099: Failed to generate code: %v", err)
+		os.Exit(2)
 	}
 
-	// Step 15: Run go mod tidy
 	if !cli.DryRun {
+		// Step 15: Run go mod tidy
 		if err := runGoModTidy(cli.Output); err != nil {
 			log.Printf("E099: Failed to run go mod tidy: %v", err)
 			os.Exit(2)
 		}
-	}
 
-	// Step 16: Build binary
-	if !cli.DryRun {
+		// Step 16: Build binary
 		if err := runGoBuild(cli.Output); err != nil {
 			log.Printf("E099: Failed to build binary: %v", err)
 			os.Exit(2)
 		}
-	}
 
-	// Step 17: Run tests
-	if cli.Tests {
+		// Step 17: Run tests
 		if err := runTests(cli.Output); err != nil {
 			log.Printf("E079: Test suite failed: %v", err)
 			os.Exit(3)
@@ -261,7 +233,7 @@ func runGoBuild(output string) error {
 
 // runTests runs the test suite
 func runTests(output string) error {
-	cmd := exec.Command("go", "test", "-v")
+	cmd := exec.Command("go", "test", "-v", "-race", "-vet")
 	cmd.Dir = output
 	return cmd.Run()
 }

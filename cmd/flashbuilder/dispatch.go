@@ -5,9 +5,9 @@
 package main
 
 import (
-	"fmt"
+	"slices"
 	"sort"
-	"strings"
+	"strconv"
 )
 
 // RouteData represents a route for switch statements
@@ -17,133 +17,96 @@ type RouteData struct {
 	Frequency  int    // Request frequency score (for ordering)
 }
 
-// DispatchEntry represents a dispatch array entry
-type DispatchEntry struct {
-	Index   int
-	Handler string
-	Routes  []RouteData
+// Handlers is sed to render the handlers and dispatch array
+type Handlers struct {
+	Routes        []RouteData
+	HandlerName   string
+	PrevEntry     string
+	DispatchEntry string
+	Length        int
 }
 
-// DispatchData holds dispatch array data for template rendering
-type DispatchData struct {
-	HTTP     []DispatchEntry
-	HTTPS    []DispatchEntry
-	MaxLen   int
-}
+// buildRoutesByLength groups routes by length, sorted by frequency score
+func buildRoutesByLength(assets []asset, size int) [][]RouteData {
+	routesByLen := make([][]RouteData, size)
 
-// sanitizePath converts a path to a valid Go string literal for switch cases
-func sanitizePath(path string) string {
-	path = strings.ReplaceAll(path, "\\", "/")
-
-	var result strings.Builder
-	for _, r := range path {
-		switch r {
-		case '\\':
-			result.WriteString("\\\\")
-		case '"':
-			result.WriteString("\\\"")
-		case '\n':
-			result.WriteString("\\n")
-		case '\r':
-			result.WriteString("\\r")
-		case '\t':
-			result.WriteString("\\t")
-		default:
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
-}
-
-// buildDispatch generates dispatch arrays for HTTP and HTTPS
-// Dispatch index = route length + 1 (eliminates runtime slash removal)
-func buildDispatch(assets []asset, maxLen int) (httpDispatch, httpsDispatch []DispatchEntry) {
-	// Group routes by length (asset route length = dispatch index - 1)
-	routesByLength := make(map[int][]RouteData)
-
+	// 1. group routes by length
 	for _, asset := range assets {
-		if asset.IsDuplicate {
-			continue
-		}
-		routeLength := len(asset.RelPath)
-		dispatchIndex := routeLength + 1
-
 		route := RouteData{
-			Path:       sanitizePath(asset.RelPath),
+			Path:       asset.RelPath,
 			Identifier: asset.Identifier,
 			Frequency:  asset.FrequencyScore,
 		}
 
-		routesByLength[dispatchIndex] = append(routesByLength[dispatchIndex], route)
+		routeLen := len(route.Path) // relative path without leading slash
+
+		routesByLen[routeLen] = append(routesByLen[routeLen], route)
 	}
 
-	// Sort routes by frequency score within each length group
-	for _, routes := range routesByLength {
+	// 2. sort by frequency score within each length group
+	for i, routes := range routesByLen {
 		sort.Slice(routes, func(i, j int) bool {
 			return routes[i].Frequency > routes[j].Frequency
 		})
+		routesByLen[i] = routes
 	}
 
-	httpDispatch = make([]DispatchEntry, maxLen+2)
-	httpsDispatch = make([]DispatchEntry, maxLen+2)
-
-	// Index 0 and 1: Root handlers
-	rootHandler := "serveRootIndex"
-	if hasRootIndex(assets) {
-		httpDispatch[0] = DispatchEntry{Index: 0, Handler: rootHandler}
-		httpDispatch[1] = DispatchEntry{Index: 1, Handler: rootHandler}
-		httpsDispatch[0] = DispatchEntry{Index: 0, Handler: rootHandler}
-		httpsDispatch[1] = DispatchEntry{Index: 1, Handler: rootHandler}
-	} else {
-		httpDispatch[0] = DispatchEntry{Index: 0, Handler: "http.NotFound"}
-		httpDispatch[1] = DispatchEntry{Index: 1, Handler: "http.NotFound"}
-		httpsDispatch[0] = DispatchEntry{Index: 0, Handler: "http.NotFound"}
-		httpsDispatch[1] = DispatchEntry{Index: 1, Handler: "http.NotFound"}
-	}
-
-	for index := 2; index <= maxLen+1; index++ {
-		routes := routesByLength[index]
-		if len(routes) == 0 {
-			// No routes at this length, fallback to previous
-			fallback := index - 1
-			for fallback >= 0 && httpDispatch[fallback].Handler == "" {
-				fallback--
-			}
-			if fallback < 0 {
-				httpDispatch[index] = DispatchEntry{Index: index, Handler: "http.NotFound"}
-				httpsDispatch[index] = DispatchEntry{Index: index, Handler: "http.NotFound"}
-			} else {
-				httpDispatch[index] = httpDispatch[fallback]
-				httpsDispatch[index] = httpsDispatch[fallback]
-			}
-			continue
-		}
-
-		handlerName := fmt.Sprintf("handleLen%d", index)
-		httpDispatch[index] = DispatchEntry{
-			Index:   index,
-			Handler: handlerName + "HTTP",
-			Routes:  routes,
-		}
-		httpsDispatch[index] = DispatchEntry{
-			Index:   index,
-			Handler: handlerName + "HTTPS",
-			Routes:  routes,
-		}
-	}
-
-	return httpDispatch, httpsDispatch
+	return routesByLen
 }
 
-// hasRootIndex checks if any asset is the root index file
-func hasRootIndex(assets []asset) bool {
-	for _, asset := range assets {
-		if asset.RelPath == "index.html" || asset.RelPath == "" {
-			return true
+// buildDispatch generates dispatch arrays for HTTP and HTTPS
+// Dispatch index = route length + 1 (eliminates runtime slash removal)
+func buildDispatch(assets []asset, maxLen int) []Handlers {
+	assetRoutesByLen := buildRoutesByLength(assets, maxLen+1)
+	dispatch := make([]Handlers, maxLen+2)
+	dispatchEntry := "s.notFound"
+
+	for i := range dispatch {
+		// dispatch index is the length of the request path (including leading slash)
+		// the asset routes are relative paths (no leading slash)
+		assetRouteLen := max(0, i-1) // subtract the leading slash
+		assetRoutes := assetRoutesByLen[assetRouteLen]
+
+		var handlerName, prevEntry string
+		if len(assetRoutes) > 0 {
+			if assetRouteLen == 0 {
+				dispatchEntry = "s.ServeIndexHtml"
+			} else {
+				handlerName = "handleLen" + strconv.Itoa(assetRouteLen)
+				prevEntry = dispatchEntry
+				dispatchEntry = "s." + handlerName
+			}
+		}
+
+		dispatch[i] = Handlers{
+			Length:        assetRouteLen,
+			HandlerName:   handlerName,
+			DispatchEntry: dispatchEntry,
+			PrevEntry:     prevEntry,
+			Routes:        assetRoutes,
 		}
 	}
-	return false
+
+	return dispatch
+}
+
+func addShortcuts(assets []asset) []asset {
+	canonicalPaths := make(map[string]struct{}, len(assets))
+	shortcuts := make([]asset, 0, len(assets))
+	for _, asset := range assets {
+		canonicalPaths[asset.RelPath] = struct{}{}
+	}
+	for a := range slices.Values(assets) {
+		shortRelPath := generateShortcut(a.RelPath)
+		_, found := canonicalPaths[shortRelPath]
+		if !found {
+			a.IsShortcut = true
+			a.AbsPath = ""
+			a.RelPath = shortRelPath
+			shortcuts = append(shortcuts, a)
+		}
+	}
+	return append(assets, shortcuts...)
 }
 
 // computeMaxLen calculates the maximum path length for dispatch array sizing

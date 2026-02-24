@@ -6,6 +6,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // TestBuildDispatch tests dispatch array generation
@@ -16,59 +18,53 @@ func TestBuildDispatch(t *testing.T) {
 		{RelPath: "script.js", Identifier: "AssetScript", FrequencyScore: 600, IsDuplicate: false},
 	}
 
+	want := []Handlers{
+		{Length: 0, DispatchEntry: "s.ServeIndexHtml", Routes: []RouteData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
+		{Length: 0, DispatchEntry: "s.ServeIndexHtml", Routes: []RouteData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
+		{Length: 1, DispatchEntry: "s.ServeIndexHtml"},
+		{Length: 2, DispatchEntry: "s.ServeIndexHtml"},
+		{Length: 3, DispatchEntry: "s.ServeIndexHtml"},
+		{Length: 4, DispatchEntry: "s.ServeIndexHtml"},
+		{
+			Length:        5,
+			HandlerName:   "handleLen5",
+			PrevEntry:     "s.ServeIndexHtml",
+			DispatchEntry: "s.handleLen5",
+			Routes:        []RouteData{{Path: "style", Identifier: "AssetStyle", Frequency: 800}},
+		},
+		{
+			Length:        6,
+			HandlerName:   "handleLen6",
+			PrevEntry:     "s.handleLen5",
+			DispatchEntry: "s.handleLen6",
+			Routes:        []RouteData{{Path: "script", Identifier: "AssetScript", Frequency: 600}},
+		},
+		{Length: 7, DispatchEntry: "s.handleLen6"},
+		{Length: 8, DispatchEntry: "s.handleLen6"},
+		{
+			Length:        9,
+			HandlerName:   "handleLen9",
+			PrevEntry:     "s.handleLen6",
+			DispatchEntry: "s.handleLen9",
+			Routes: []RouteData{
+				{Path: "style.css", Identifier: "AssetStyle", Frequency: 800},
+				{Path: "script.js", Identifier: "AssetScript", Frequency: 600}},
+		},
+		{
+			Length:        10,
+			HandlerName:   "handleLen10",
+			PrevEntry:     "s.handleLen9",
+			DispatchEntry: "s.handleLen10",
+			Routes:        []RouteData{{Path: "index.html", Identifier: "AssetIndex", Frequency: 1000}},
+		},
+	}
+
+	assets = addShortcuts(assets)
 	maxLen := computeMaxLen(assets)
-	httpDispatch, httpsDispatch := buildDispatch(assets, maxLen)
+	dispatch := buildDispatch(assets, maxLen)
 
-	// Verify dispatch arrays have correct length
-	expectedLen := maxLen + 2
-	if len(httpDispatch) != expectedLen {
-		t.Errorf("HTTP dispatch length: expected %d, got %d", expectedLen, len(httpDispatch))
-	}
-	if len(httpsDispatch) != expectedLen {
-		t.Errorf("HTTPS dispatch length: expected %d, got %d", expectedLen, len(httpsDispatch))
-	}
-
-	// Verify root handler at index 0 and 1
-	if httpDispatch[0].Handler != "serveRootIndex" {
-		t.Errorf("HTTP dispatch[0]: expected serveRootIndex, got %s", httpDispatch[0].Handler)
-	}
-	if httpDispatch[1].Handler != "serveRootIndex" {
-		t.Errorf("HTTP dispatch[1]: expected serveRootIndex, got %s", httpDispatch[1].Handler)
-	}
-
-	// Verify routes are sorted by frequency
-	for i := 2; i < len(httpDispatch); i++ {
-		if len(httpDispatch[i].Routes) > 1 {
-			for j := 1; j < len(httpDispatch[i].Routes); j++ {
-				if httpDispatch[i].Routes[j-1].Frequency < httpDispatch[i].Routes[j].Frequency {
-					t.Errorf("Routes not sorted by frequency at dispatch[%d]", i)
-				}
-			}
-		}
-	}
-}
-
-// TestSanitizePath tests path sanitization for switch cases
-func TestSanitizePath(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"Simple path", "style.css", "style.css"},
-		{"Path with backslash", "path\\to\\file", "path/to/file"},
-		{"Path with quote", `path"file`, "path\\\"file"},
-		{"Path with newline", "path\nfile", "path\\nfile"},
-		{"Path with tab", "path\tfile", "path\\tfile"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := sanitizePath(tt.input)
-			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
-			}
-		})
+	if !cmp.Equal(dispatch, want) {
+		t.Errorf("Structs differ: %v", cmp.Diff(dispatch, want))
 	}
 }
 
@@ -93,28 +89,6 @@ func TestComputeMaxLen(t *testing.T) {
 			result := computeMaxLen(assets)
 			if result != tt.expected {
 				t.Errorf("Expected %d, got %d", tt.expected, result)
-			}
-		})
-	}
-}
-
-// TestHasRootIndex tests root index detection
-func TestHasRootIndex(t *testing.T) {
-	tests := []struct {
-		name     string
-		assets   []asset
-		expected bool
-	}{
-		{"Has index.html", []asset{{RelPath: "index.html"}}, true},
-		{"Has empty path", []asset{{RelPath: ""}}, true},
-		{"No index", []asset{{RelPath: "style.css"}}, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := hasRootIndex(tt.assets)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
 			}
 		})
 	}

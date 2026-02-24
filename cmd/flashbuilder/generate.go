@@ -9,19 +9,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 )
 
-//go:embed templates/*.gotmpl
+//go:embed templates/*.go.gotmpl
 var templateFS embed.FS
 
 // TemplateData aggregates all data for template rendering
 type TemplateData struct {
 	Config   ConfigData
 	Assets   []AssetData
-	Dispatch DispatchData
-	PathMaps PathMapsData
+	Dispatch []Handlers
 	MaxLen   int
 }
 
@@ -62,13 +62,6 @@ type VariantData struct {
 	CachePath   string
 }
 
-// PathMapsData holds path mappings for routing
-type PathMapsData struct {
-	Canonical map[string]string
-	Duplicate map[string]string
-	Shortcut  map[string]string
-}
-
 // HandlerData holds data for handler template rendering
 type HandlerData struct {
 	Index    int
@@ -76,37 +69,23 @@ type HandlerData struct {
 	Protocol string
 }
 
-// cachedTemplates caches parsed templates
-var cachedTemplates *template.Template
-var errCachedTemplates error
-
 // parseTemplates parses and caches templates
 func parseTemplates() (*template.Template, error) {
-	if cachedTemplates != nil {
-		return cachedTemplates, nil
-	}
-	if errCachedTemplates != nil {
-		return nil, errCachedTemplates
-	}
-
 	tmpl := template.New("root").Funcs(funcMap)
-	cachedTemplates, errCachedTemplates = tmpl.ParseFS(templateFS, "templates/*.gotmpl")
-	return cachedTemplates, errCachedTemplates
+	return tmpl.ParseFS(templateFS, "templates/*.go.gotmpl")
 }
 
 // funcMap provides template helper functions
 var funcMap = template.FuncMap{
-	"quote":        func(s string) string { return "\"" + s + "\"" },
+	"quote":        strconv.Quote,
 	"trim":         strings.TrimSpace,
 	"upper":        strings.ToUpper,
 	"lower":        strings.ToLower,
-	"sanitize":     func(s string) string { return sanitizeIdentifier(s) },
 	"escapeHeader": func(s string) string { return strings.ReplaceAll(s, "\n", "\\n") + "\r\n" },
 	"add":          func(a, b int) int { return a + b },
 	"sub":          func(a, b int) int { return a - b },
 	"mul":          func(a, b int) int { return a * b },
 	"div":          func(a, b int) int { return a / b },
-	"len":          func(s string) int { return len(s) },
 	"default": func(def, val string) string {
 		if val != "" {
 			return val
@@ -122,18 +101,12 @@ var funcMap = template.FuncMap{
 }
 
 // renderTemplate renders a template with data
-func renderTemplate(name string, data any) (string, error) {
-	tmpl, err := parseTemplates()
-	if err != nil {
-		return "", err
-	}
-
+func renderTemplate(tmpl *template.Template, name string, data any) (string, error) {
 	var buf strings.Builder
-	err = tmpl.ExecuteTemplate(&buf, name, data)
+	err := tmpl.ExecuteTemplate(&buf, name, data)
 	if err != nil {
 		return "", err
 	}
-
 	return buf.String(), nil
 }
 
@@ -180,32 +153,42 @@ func convertAssets(assets []asset) []AssetData {
 }
 
 // generate generates the Go code for the flash server
-func generate(data TemplateData, output string) error {
-	// Ensure output directory exists
-	if err := os.MkdirAll(output, 0755); err != nil {
-		return fmt.Errorf("E099: Failed to create output directory: %v", err)
+func generate(data TemplateData, output string, dryRun bool) error {
+	tmpl, err := parseTemplates()
+	if err != nil {
+		return fmt.Errorf("E099: Failed to parse templates: %v", err)
 	}
 
 	// Generate assets/embed.go
-	embedCode, err := renderTemplate("embed", data)
+	embedCode, err := renderTemplate(tmpl, "embed.go", data)
 	if err != nil {
 		return fmt.Errorf("E099: Failed to render embed template: %v", err)
 	}
+
 	assetsDir := filepath.Join(output, "assets")
-	if err := os.MkdirAll(assetsDir, 0755); err != nil {
-		return fmt.Errorf("E099: Failed to create assets directory: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(assetsDir, "embed.go"), []byte(embedCode), 0644); err != nil {
-		return fmt.Errorf("E099: Failed to write embed.go: %v", err)
+
+	if !dryRun {
+		err = os.MkdirAll(assetsDir, 0755)
+		if err != nil {
+			return fmt.Errorf("E099: Failed to create assets directory: %v", err)
+		}
+		err = os.WriteFile(filepath.Join(assetsDir, "embed.go"), []byte(embedCode), 0644)
+		if err != nil {
+			return fmt.Errorf("E099: Failed to write embed.go: %v", err)
+		}
 	}
 
 	// Generate main.go
-	mainCode, err := renderTemplate("main", data)
+	mainCode, err := renderTemplate(tmpl, "main.go", data)
 	if err != nil {
 		return fmt.Errorf("E099: Failed to render main template: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(output, "main.go"), []byte(mainCode), 0644); err != nil {
-		return fmt.Errorf("E099: Failed to write main.go: %v", err)
+
+	if !dryRun {
+		err := os.WriteFile(filepath.Join(output, "main.go"), []byte(mainCode), 0644)
+		if err != nil {
+			return fmt.Errorf("E099: Failed to write main.go: %v", err)
+		}
 	}
 
 	return nil

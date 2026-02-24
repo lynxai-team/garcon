@@ -1,5 +1,5 @@
 {{/* Template for assets/embed.go */}}
-{{define "embed"}}
+{{define "embed.go"}}
 // Package assets contains all embed-eligible assets.
 package assets
 
@@ -10,19 +10,16 @@ import (
 
 {{range .Assets}}
     {{if and (not .IsDuplicate) (.EmbedEligible)}}
+        // {{.Identifier}} is a symlink to original {{.RelPath}}
         //go:embed {{.Filename}}
-        // Symlink to original: {{.RelPath}}
         var {{.Identifier}} []byte
-
-        var {{.Identifier}}HeaderHTTP = []byte(`{{.HeaderHTTP}}`)
-        var {{.Identifier}}HeaderHTTPS = []byte(`{{.HeaderHTTPS}}`)
 
         func (s *Server) Serve{{.Identifier}}HTTP(w http.ResponseWriter, r *http.Request) {
             if r.Header.Get("If-None-Match") == `{{.ETag}}` {
                 w.WriteHeader(http.StatusNotModified)
                 return
             }
-            w.Write({{.Identifier}}HeaderHTTP)
+            w.Write([]byte(`{{.HeaderHTTP}}`))
             if r.Method != "" && r.Method[0] == 'H' {
                 return
             }
@@ -34,7 +31,7 @@ import (
                 w.WriteHeader(http.StatusNotModified)
                 return
             }
-            w.Write({{.Identifier}}HeaderHTTPS)
+            w.Write([]byte(`{{.HeaderHTTPS}}`))
             if r.Method != "" && r.Method[0] == 'H' {
                 return
             }

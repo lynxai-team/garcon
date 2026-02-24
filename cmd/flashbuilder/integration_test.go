@@ -77,14 +77,11 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 	}
 
 	// Build dispatch
-	httpDispatch, httpsDispatch := buildDispatch(assets, maxLen)
+	dispatch := buildDispatch(assets, maxLen)
 
 	// Verify dispatch arrays
-	if len(httpDispatch) != maxLen+2 {
-		t.Errorf("HTTP dispatch length: expected %d, got %d", maxLen+2, len(httpDispatch))
-	}
-	if len(httpsDispatch) != maxLen+2 {
-		t.Errorf("HTTPS dispatch length: expected %d, got %d", maxLen+2, len(httpsDispatch))
+	if len(dispatch) != maxLen+2 {
+		t.Errorf("HTTP dispatch length: expected %d, got %d", maxLen+2, len(dispatch))
 	}
 }
 

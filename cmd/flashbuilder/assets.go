@@ -29,6 +29,7 @@ type asset struct {
 	ImoHash        []byte    // Content hash (128 bits) from imohash
 	ETag           string    // base91 ETag for conditional GET (quoted)
 	IsDuplicate    bool      // Content matches another asset
+	IsShortcut     bool      // RelPath without file extension or ending "/index.html"
 	CanonicalID    string    // Canonical identifier if duplicate
 	EmbedEligible  bool      // Selected for embedding within budget
 	Variants       []Variant // Compression variants

@@ -39,15 +39,6 @@ func TestFuncMap(t *testing.T) {
 		}
 	}
 
-	// Test sanitize function
-	sanitizeFunc, ok := funcMap["sanitize"].(func(string) string)
-	if ok {
-		result := sanitizeFunc("test-file")
-		if result != "testfile" {
-			t.Errorf("Expected 'testfile', got %s", result)
-		}
-	}
-
 	// Test capitalize function
 	capitalizeFunc, ok := funcMap["capitalize"].(func(string) string)
 	if ok {
@@ -87,8 +78,13 @@ func TestRenderTemplate(t *testing.T) {
 		MaxLen: 10,
 	}
 
+	tmpl, err := parseTemplates()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// Try to render main template (may fail if templates not present)
-	_, err := renderTemplate("main", data)
+	_, err = renderTemplate(tmpl, "main", data)
 	if err != nil {
 		t.Skip("Template rendering failed (templates may not be present)")
 	}

@@ -1,9 +1,0 @@
-{{/* Server struct template */}}
-{{define "serverStruct"}}
-type Server struct {
-    Logger        *slog.Logger
-    DispatchHTTP  [{{.MaxLen}}+2]func(http.ResponseWriter, *http.Request)
-    DispatchHTTPS [{{.MaxLen}}+2]func(http.ResponseWriter, *http.Request)
-    TLSCfg        *tls.Config
-}
-{{end}}
