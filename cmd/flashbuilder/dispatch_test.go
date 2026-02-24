@@ -12,6 +12,8 @@ import (
 
 // TestBuildDispatch tests dispatch array generation.
 func TestBuildDispatch(t *testing.T) {
+	t.Parallel()
+
 	assets := []asset{
 		{RelPath: "index.html", Identifier: "AssetIndex", FrequencyScore: 1000, IsDuplicate: false},
 		{RelPath: "style.css", Identifier: "AssetStyle", FrequencyScore: 800, IsDuplicate: false},
@@ -71,6 +73,8 @@ func TestBuildDispatch(t *testing.T) {
 
 // TestComputeMaxLen tests max length calculation.
 func TestComputeMaxLen(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		paths    []string
@@ -83,6 +87,8 @@ func TestComputeMaxLen(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assets := make([]asset, len(tt.paths))
 			for i, p := range tt.paths {
 				assets[i] = asset{RelPath: p}

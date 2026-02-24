@@ -130,7 +130,8 @@ func generateAVIFVariant(asset asset, quality int, cacheDir string) (Variant, er
 		CachePath:   filepath.Join(cacheDir, asset.RelPath+".avif"),
 	}
 
-	if err := os.WriteFile(v.CachePath, buf.Bytes(), 0o644); err != nil {
+	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o644)
+	if err != nil {
 		return Variant{}, err
 	}
 
@@ -170,7 +171,8 @@ func generateWebPVariant(asset asset, quality int, cacheDir string) (Variant, er
 		CachePath:   filepath.Join(cacheDir, asset.RelPath+".webp"),
 	}
 
-	if err := os.WriteFile(v.CachePath, buf.Bytes(), 0o644); err != nil {
+	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o644)
+	if err != nil {
 		return Variant{}, err
 	}
 

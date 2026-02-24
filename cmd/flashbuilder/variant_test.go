@@ -10,6 +10,8 @@ import (
 
 // TestIsCompressible tests MIME type compression eligibility.
 func TestIsCompressible(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mime     string
@@ -26,6 +28,7 @@ func TestIsCompressible(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := isCompressible(tt.mime)
 			if result != tt.expected {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
@@ -36,6 +39,8 @@ func TestIsCompressible(t *testing.T) {
 
 // TestIsImage tests image MIME type detection.
 func TestIsImage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		mime     string
@@ -51,6 +56,7 @@ func TestIsImage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := isImage(tt.mime)
 			if result != tt.expected {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
@@ -61,6 +67,8 @@ func TestIsImage(t *testing.T) {
 
 // TestGenerateVariants_SkipNonEmbed tests that variants are skipped for non-embed assets.
 func TestGenerateVariants_SkipNonEmbed(t *testing.T) {
+	t.Parallel()
+
 	assets := []asset{
 		{RelPath: "large.png", Size: 1000000, EmbedEligible: false, MIME: "image/png"},
 		{RelPath: "small.png", Size: 100, EmbedEligible: true, MIME: "image/png"},

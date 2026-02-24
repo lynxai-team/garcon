@@ -12,6 +12,8 @@ import (
 
 // TestDiscover tests asset discovery.
 func TestDiscover(t *testing.T) {
+	t.Parallel()
+
 	// Create temporary directory
 	tmpDir := t.TempDir()
 
@@ -64,6 +66,8 @@ func TestDiscover(t *testing.T) {
 
 // TestDetectMIME tests MIME type detection.
 func TestDetectMIME(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		filename     string
@@ -78,11 +82,13 @@ func TestDetectMIME(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
+			t.Parallel()
 
+			tmpDir := t.TempDir()
 			path := filepath.Join(tmpDir, tt.filename)
+
 			err := os.WriteFile(path, []byte(tt.content), 0o644)
-			if ; err != nil {
+			if err != nil {
 				t.Fatalf("Failed to write file: %v", err)
 			}
 
@@ -96,6 +102,8 @@ func TestDetectMIME(t *testing.T) {
 
 // TestGenerateIdentifier tests identifier generation.
 func TestGenerateIdentifier(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		relPath  string
@@ -116,6 +124,7 @@ func TestGenerateIdentifier(t *testing.T) {
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := generateIdentifier(tt.relPath, existing)
 			// Basic validation: should start with "Asset"
 			if result[:5] != "Asset" {
@@ -133,6 +142,7 @@ func TestGenerateIdentifier(t *testing.T) {
 
 // TestEstimateFrequencyScore tests frequency score calculation.
 func TestEstimateFrequencyScore(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		path     string
@@ -150,6 +160,7 @@ func TestEstimateFrequencyScore(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := estimateFrequencyScore(tt.path, tt.isEmbed)
 			// Just verify it returns a positive value for high-priority files
 			// and negative for low-priority
@@ -162,6 +173,8 @@ func TestEstimateFrequencyScore(t *testing.T) {
 
 // TestGenerateShortcut tests shortcut generation.
 func TestGenerateShortcut(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		relPath  string
@@ -176,6 +189,7 @@ func TestGenerateShortcut(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := generateShortcut(tt.relPath)
 			if result != tt.expected {
 				t.Errorf("Expected %s, got %s", tt.expected, result)
@@ -186,6 +200,8 @@ func TestGenerateShortcut(t *testing.T) {
 
 // TestSanitizeIdentifier tests identifier sanitization.
 func TestSanitizeIdentifier(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -200,6 +216,7 @@ func TestSanitizeIdentifier(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := sanitizeIdentifier(tt.input)
 			if result != tt.expected {
 				t.Errorf("Expected %s, got %s", tt.expected, result)

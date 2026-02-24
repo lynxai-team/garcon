@@ -19,16 +19,16 @@ import (
 type cli struct {
 	Input       string           `env:"FLASHBUILDER_INPUT"        type:"path"                  arg:"input"  help:"Path to asset tree"`
 	Output      string           `env:"FLASHBUILDER_OUTPUT"       type:"path"                  arg:"output" help:"Destination for generated files"`
+	CSP         string           `env:"FLASHBUILDER_CSP"          default:"default-src 'self'"`
+	CacheDir    string           `env:"FLASHBUILDER_CACHE_DIR"`
 	EmbedBudget units.Base2Bytes `env:"FLASHBUILDER_EMBED_BUDGET" default:"200GB"`
 	Brotli      int              `env:"FLASHBUILDER_BROTLI"       default:"11"`
 	AVIF        int              `env:"FLASHBUILDER_AVIF"         default:"50"`
 	WebP        int              `env:"FLASHBUILDER_WEBP"         default:"50"`
-	CSP         string           `env:"FLASHBUILDER_CSP"          default:"default-src 'self'"`
 	Verbosity   int              `env:"FLASHBUILDER_LOG_LEVEL"    type:"counter"               short:"v"`
+	CacheMax    units.Base2Bytes `env:"FLASHBUILDER_CACHE_MAX"    default:"5GB"`
 	DryRun      bool             `env:"FLASHBUILDER_DRY_RUN"`
 	Tests       bool             `env:"FLASHBUILDER_TESTS"`
-	CacheMax    units.Base2Bytes `env:"FLASHBUILDER_CACHE_MAX"    default:"5GB"`
-	CacheDir    string           `env:"FLASHBUILDER_CACHE_DIR"`
 }
 
 func main() {
@@ -45,7 +45,8 @@ func main() {
 	}
 
 	// Validate compression flags
-	if err := validateCompressionFlags(&cli); err != nil {
+	err := validateCompressionFlags(&cli)
+	if err != nil {
 		log.Println(err.Error())
 		os.Exit(2)
 	}
@@ -118,7 +119,7 @@ func main() {
 
 	// Step 9: Create links
 	if !cli.DryRun {
-		err := createLinks(assets, cli.Input, cli.Output, cli.CacheDir)
+		err = createLinks(assets, cli.Input, cli.Output, cli.CacheDir)
 		if err != nil {
 			log.Printf("E087: Failed to create links: %v", err)
 			os.Exit(87)

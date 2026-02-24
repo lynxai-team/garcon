@@ -13,8 +13,9 @@ import (
 
 // TestEnsureCacheDir tests cache directory creation.
 func TestEnsureCacheDir(t *testing.T) {
-	tmpDir := t.TempDir()
+	t.Parallel()
 
+	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache")
 
 	err := ensureCacheDir(cachePath)
@@ -34,6 +35,8 @@ func TestEnsureCacheDir(t *testing.T) {
 
 // TestAllocateBudget tests embed budget allocation.
 func TestAllocateBudget(t *testing.T) {
+	t.Parallel()
+
 	assets := []asset{
 		{RelPath: "small.txt", Size: 100},
 		{RelPath: "medium.txt", Size: 500},
@@ -64,6 +67,8 @@ func TestAllocateBudget(t *testing.T) {
 
 // TestCleanCache tests cache cleaning.
 func TestCleanCache(t *testing.T) {
+	t.Parallel()
+
 	tmpDir := t.TempDir()
 
 	// Create test files with different ages
@@ -97,12 +102,14 @@ func TestCleanCache(t *testing.T) {
 	}
 
 	// Old file should be deleted
-	if _, err := os.Stat(filepath.Join(tmpDir, "old.txt")); err == nil {
+	_, err = os.Stat(filepath.Join(tmpDir, "old.txt"))
+	if err == nil {
 		t.Error("Old file should have been deleted")
 	}
 
 	// New file should still exist
-	if _, err := os.Stat(filepath.Join(tmpDir, "new.txt")); err != nil {
+	_, err = os.Stat(filepath.Join(tmpDir, "new.txt"))
+	if err != nil {
 		t.Error("New file should still exist")
 	}
 }

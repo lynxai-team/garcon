@@ -12,6 +12,8 @@ import (
 
 // TestIntegration_DiscoverToDispatch tests discovery to dispatch flow.
 func TestIntegration_DiscoverToDispatch(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -84,6 +86,8 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 
 // TestIntegration_BudgetAllocation tests budget allocation flow.
 func TestIntegration_BudgetAllocation(t *testing.T) {
+	t.Parallel()
+
 	assets := []asset{
 		{RelPath: "a.txt", Size: 100},
 		{RelPath: "b.txt", Size: 200},
@@ -108,6 +112,8 @@ func TestIntegration_BudgetAllocation(t *testing.T) {
 
 // TestIntegration_ShortcutGeneration tests shortcut generation.
 func TestIntegration_ShortcutGeneration(t *testing.T) {
+	t.Parallel()
+
 	assets := []asset{
 		{RelPath: "index.html", Identifier: "AssetIndex"},
 		{RelPath: "about/index.html", Identifier: "AssetAboutIndex"},

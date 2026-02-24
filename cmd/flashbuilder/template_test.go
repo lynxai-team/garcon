@@ -10,6 +10,8 @@ import (
 
 // TestFuncMap tests template function map.
 func TestFuncMap(t *testing.T) {
+	t.Parallel()
+
 	// Test quote function
 	quoteFunc, ok := funcMap["quote"].(func(string) string)
 	if !ok {
@@ -51,6 +53,8 @@ func TestFuncMap(t *testing.T) {
 
 // TestRenderTemplate tests template rendering (skip if no templates).
 func TestRenderTemplate(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip("Skipping template test in short mode")
 	}

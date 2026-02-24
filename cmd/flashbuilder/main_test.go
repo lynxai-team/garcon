@@ -12,6 +12,8 @@ import (
 
 // TestValidateCompressionFlags tests compression flag validation.
 func TestValidateCompressionFlags(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		brotli    int
@@ -32,6 +34,7 @@ func TestValidateCompressionFlags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cli := &cli{
 				Brotli: tt.brotli,
 				AVIF:   tt.avif,
@@ -50,6 +53,8 @@ func TestValidateCompressionFlags(t *testing.T) {
 
 // TestGetDefaultCacheDir tests cache directory resolution.
 func TestGetDefaultCacheDir(t *testing.T) {
+	t.Parallel()
+
 	// Test with XDG_CACHE_HOME
 	xdgCache := os.Getenv("XDG_CACHE_HOME")
 	home := os.Getenv("HOME")
@@ -79,14 +84,5 @@ func TestGetDefaultCacheDir(t *testing.T) {
 		if result != expected {
 			t.Errorf("expected %s, got %s", expected, result)
 		}
-	}
-}
-
-// TestCliParsing tests CLI argument parsing.
-func TestCliParsing(t *testing.T) {
-	// This test requires Kong to be properly initialized
-	// Skip if Kong is not available in test environment
-	if testing.Short() {
-		t.Skip("Skipping CLI test in short mode")
 	}
 }
