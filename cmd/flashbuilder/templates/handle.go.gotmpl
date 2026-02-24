@@ -1,0 +1,31 @@
+{{define "handle.go"}}
+package main
+
+import (
+	"net/http"
+)
+{{ $scheme := .Config.Scheme }}
+func newServer{{$scheme}}() *Server {
+	s := new(Server)
+
+	s.dispatch = [maxLen + 2]func(http.ResponseWriter, *http.Request){
+{{range .Dispatch}}		{{.Entry}}{{$scheme}}, // {{.HandlerName}}
+{{end}}	}
+
+	return s
+}
+
+{{range .Dispatch}}{{if .Routes}}
+func (s *Server) {{.HandlerName}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
+    const L = {{.Length}}
+    pathNoSlash := r.URL.Path[1:]
+    truncated := pathNoSlash[:L]
+    switch truncated {
+    {{range .Routes}}
+    case "{{.Path}}":
+        s.Serve{{.Identifier}}{{$scheme}}(w, r)
+    {{end}}
+    default:
+        {{.PrevEntry}}{{$scheme}}(w, r)
+    }
+}{{end}}{{end}}{{end}}

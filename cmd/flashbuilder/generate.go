@@ -1,10 +1,11 @@
-// Package: main
-// Purpose: Code generation, template parsing, data structures
-// File: generate.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"os"
@@ -17,65 +18,71 @@ import (
 //go:embed templates/*.go.gotmpl
 var templateFS embed.FS
 
-// TemplateData aggregates all data for template rendering
+// TemplateData aggregates all data for template rendering.
 type TemplateData struct {
 	Config   ConfigData
-	Assets   []AssetData
+	Assets   []asset
 	Dispatch []Handlers
 	MaxLen   int
 }
 
-// ConfigData holds configuration for template rendering
+// ConfigData holds configuration for template rendering.
 type ConfigData struct {
 	CSP       string
 	HTTPSPort string
 	Module    string
+	Scheme    string // "HTTP" or "HTTPS"
 }
 
-// AssetData represents an asset for template rendering
-type AssetData struct {
-	RelPath        string
-	Size           int64
-	MIME           string
-	ETag           string
-	Identifier     string
-	Filename       string
-	IsDuplicate    bool
-	CanonicalID    string
-	EmbedEligible  bool
-	IsIndex        bool
-	IsHTML         bool
-	FrequencyScore int
-	HeaderHTTP     string
-	HeaderHTTPS    string
-	Variants       []VariantData
-}
+// // AssetData represents an asset for template rendering.
+// type AssetData struct {
+// 	MIME           string
+// 	ETag           string
+// 	Identifier     string
+// 	Filename       string
+// 	RelPath        string
+// 	CanonicalID    string
+// 	HeaderHTTPS    string
+// 	HeaderHTTP     string
+// 	Variants       []VariantData
+// 	FrequencyScore int
+// 	Size           int64
+// 	IsDuplicate    bool
+// 	IsShortcut     bool
+// 	IsHTML         bool
+// 	IsIndex        bool
+// 	EmbedEligible  bool
+// }
 
-// VariantData represents a variant for template rendering
+// VariantData represents a variant for template rendering.
 type VariantData struct {
-	VariantType VariantType
-	Size        int64
 	HeaderHTTP  string
 	HeaderHTTPS string
 	Identifier  string
 	Extension   string
 	CachePath   string
+	VariantType VariantType
+	Size        int64
 }
 
-// HandlerData holds data for handler template rendering
+// HandlerData holds data for handler template rendering.
 type HandlerData struct {
-	Index    int
-	Routes   []RouteData
 	Protocol string
+	Routes   []RouteData
+	Index    int
 }
 
-// parseTemplates parses and caches templates
+// parseTemplates parses and caches templates.
 func parseTemplates() (*template.Template, error) {
 	tmpl := template.New("root").Funcs(funcMap)
-	return tmpl.ParseFS(templateFS, "templates/*.go.gotmpl")
+	tmpl, err := tmpl.ParseFS(templateFS, "templates/*.go.gotmpl")
+	if err != nil {
+		err = fmt.Errorf("E099: Failed to parse templates: %w", err)
+	}
+	return tmpl, err
 }
 
-// funcMap provides template helper functions
+// funcMap provides template helper functions.
 var funcMap = template.FuncMap{
 	"quote":        strconv.Quote,
 	"trim":         strings.TrimSpace,
@@ -100,141 +107,113 @@ var funcMap = template.FuncMap{
 	},
 }
 
-// renderTemplate renders a template with data
-func renderTemplate(tmpl *template.Template, name string, data any) (string, error) {
-	var buf strings.Builder
+// renderTemplate renders a template with data.
+func renderTemplate(tmpl *template.Template, name string, data any) ([]byte, error) {
+	var buf bytes.Buffer
 	err := tmpl.ExecuteTemplate(&buf, name, data)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("E099: Failed to render %q template: %w", name, err)
 	}
-	return buf.String(), nil
+	return buf.Bytes(), nil
 }
 
-// convertAssets converts asset structures to template data
-func convertAssets(assets []asset) []AssetData {
-	var result []AssetData
-	for _, asset := range assets {
-		if asset.IsDuplicate {
-			continue
-		}
-
-		var variants []VariantData
-		for _, v := range asset.Variants {
-			variants = append(variants, VariantData{
-				VariantType: v.VariantType,
-				Size:        v.Size,
-				HeaderHTTP:  string(v.HeaderHTTP),
-				HeaderHTTPS: string(v.HeaderHTTPS),
-				Identifier:  v.Identifier,
-				Extension:   v.Extension,
-				CachePath:   v.CachePath,
-			})
-		}
-
-		result = append(result, AssetData{
-			RelPath:        asset.RelPath,
-			Size:           asset.Size,
-			MIME:           asset.MIME,
-			ETag:           asset.ETag,
-			Identifier:     asset.Identifier,
-			Filename:       asset.Filename,
-			IsDuplicate:    asset.IsDuplicate,
-			CanonicalID:    asset.CanonicalID,
-			EmbedEligible:  asset.EmbedEligible,
-			IsIndex:        asset.IsIndex,
-			IsHTML:         asset.IsHTML,
-			FrequencyScore: asset.FrequencyScore,
-			HeaderHTTP:     string(asset.HeaderHTTP),
-			HeaderHTTPS:    string(asset.HeaderHTTPS),
-			Variants:       variants,
-		})
-	}
-	return result
-}
-
-// generate generates the Go code for the flash server
+// generate generates the Go code for the flash server.
 func generate(data TemplateData, output string, dryRun bool) error {
 	tmpl, err := parseTemplates()
 	if err != nil {
-		return fmt.Errorf("E099: Failed to parse templates: %v", err)
-	}
-
-	// Generate assets/embed.go
-	embedCode, err := renderTemplate(tmpl, "embed.go", data)
-	if err != nil {
-		return fmt.Errorf("E099: Failed to render embed template: %v", err)
-	}
-
-	assetsDir := filepath.Join(output, "assets")
-
-	if !dryRun {
-		err = os.MkdirAll(assetsDir, 0755)
-		if err != nil {
-			return fmt.Errorf("E099: Failed to create assets directory: %v", err)
-		}
-		err = os.WriteFile(filepath.Join(assetsDir, "embed.go"), []byte(embedCode), 0644)
-		if err != nil {
-			return fmt.Errorf("E099: Failed to write embed.go: %v", err)
-		}
+		return err
 	}
 
 	// Generate main.go
-	mainCode, err := renderTemplate(tmpl, "main.go", data)
+	err = renderWriteCode(dryRun, data, tmpl, output, "main.go")
 	if err != nil {
-		return fmt.Errorf("E099: Failed to render main template: %v", err)
+		return err
 	}
 
-	if !dryRun {
-		err := os.WriteFile(filepath.Join(output, "main.go"), []byte(mainCode), 0644)
-		if err != nil {
-			return fmt.Errorf("E099: Failed to write main.go: %v", err)
-		}
+	// Generate embed.go
+	err = renderWriteCode(dryRun, data, tmpl, output, "embed.go")
+	if err != nil {
+		return err
+	}
+
+	// Generate headers-http.go
+	err = renderWriteCode(dryRun, data, tmpl, output, "headers-http.go")
+	if err != nil {
+		return err
+	}
+
+	// Generate headers-https.go
+	err = renderWriteCode(dryRun, data, tmpl, output, "headers-https.go")
+	if err != nil {
+		return err
+	}
+
+	// Generate handle-http.go
+	data.Config.Scheme = "HTTP"
+	err = renderWriteCode(dryRun, data, tmpl, output, "handle.go", "handle-http.go")
+	if err != nil {
+		return err
+	}
+
+	// Generate handle-https.go
+	data.Config.Scheme = "HTTPS"
+	err = renderWriteCode(dryRun, data, tmpl, output, "handle.go", "handle-https.go")
+	if err != nil {
+		return err
+	}
+
+	// Generate serve-http.go
+	data.Config.Scheme = "HTTP"
+	err = renderWriteCode(dryRun, data, tmpl, output, "serve.go", "serve-http.go")
+	if err != nil {
+		return err
+	}
+
+	// Generate serve-https.go
+	data.Config.Scheme = "HTTPS"
+	err = renderWriteCode(dryRun, data, tmpl, output, "serve.go", "serve-https.go")
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// renderHeaderHTTP generates HTTP headers for an asset
-func renderHeaderHTTP(asset asset, csp string) []byte {
-	var headers strings.Builder
-
-	headers.WriteString(fmt.Sprintf("Content-Type: %s\r\n", asset.MIME))
-
-	if asset.IsIndex {
-		headers.WriteString("Cache-Control: public, max-age=31536000, immutable, must-revalidate\r\n")
-	} else {
-		headers.WriteString("Cache-Control: public, max-age=31536000, immutable\r\n")
+func renderWriteCode(dryRun bool, data any, tmpl *template.Template, output string, filename ...string) error {
+	// render source code
+	code, err := renderTemplate(tmpl, filename[0], data)
+	if err != nil {
+		return err
 	}
 
-	headers.WriteString(fmt.Sprintf("Content-Length: %d\r\n", asset.Size))
-
-	if asset.IsHTML && csp != "" {
-		headers.WriteString(fmt.Sprintf("Content-Security-Policy: %s\r\n", csp))
+	goFile := filename[0]
+	if len(filename) > 1 {
+		goFile = filename[1]
 	}
 
-	return []byte(headers.String())
+	// create Go file
+	err = writeCode(dryRun, code, output, goFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// renderHeaderHTTPS generates HTTPS headers for an asset
-func renderHeaderHTTPS(asset asset, csp string, httpsPort string) []byte {
-	var headers strings.Builder
-
-	headers.WriteString(fmt.Sprintf("Content-Type: %s\r\n", asset.MIME))
-
-	if asset.IsIndex {
-		headers.WriteString("Cache-Control: public, max-age=31536000, immutable, must-revalidate\r\n")
-	} else {
-		headers.WriteString("Cache-Control: public, max-age=31536000, immutable\r\n")
+func writeCode(dryRun bool, code []byte, output, filename string) error {
+	if dryRun {
+		return nil
 	}
 
-	headers.WriteString(fmt.Sprintf("Content-Length: %d\r\n", asset.Size))
-
-	if asset.IsHTML && csp != "" {
-		headers.WriteString(fmt.Sprintf("Content-Security-Policy: %s\r\n", csp))
+	err := os.MkdirAll(output, 0o755)
+	if err != nil {
+		return fmt.Errorf("E099: Failed os.MkdirAll(%s): %w", output, err)
 	}
 
-	headers.WriteString("Strict-Transport-Security: max-age=31536000\r\n")
-	headers.WriteString(fmt.Sprintf("Alt-Svc: h3=\":%s\"; ma=2592000\r\n", httpsPort))
+	err = os.WriteFile(filepath.Join(output, filename), code, 0o644)
+	if err != nil {
+		return fmt.Errorf("E099: Failed os.WriteFile(%s/%s): %w", output, filename, err)
+	}
 
-	return []byte(headers.String())
+	return nil
 }

@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: CLI, entry point, cli struct, orchestration
-// File: main.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -15,19 +15,19 @@ import (
 	"github.com/alecthomas/units"
 )
 
-// CLI structure
+// CLI structure.
 type cli struct {
-	Input       string           `env:"FLASHBUILDER_INPUT" type:"path" arg:"input"  help:"Path to asset tree"`
-	Output      string           `env:"FLASHBUILDER_OUTPUT" type:"path" arg:"output" help:"Destination for generated files"`
+	Input       string           `env:"FLASHBUILDER_INPUT"        type:"path"                  arg:"input"  help:"Path to asset tree"`
+	Output      string           `env:"FLASHBUILDER_OUTPUT"       type:"path"                  arg:"output" help:"Destination for generated files"`
 	EmbedBudget units.Base2Bytes `env:"FLASHBUILDER_EMBED_BUDGET" default:"200GB"`
-	Brotli      int              `env:"FLASHBUILDER_BROTLI" default:"11"`
-	AVIF        int              `env:"FLASHBUILDER_AVIF" default:"50"`
-	WebP        int              `env:"FLASHBUILDER_WEBP" default:"50"`
-	CSP         string           `env:"FLASHBUILDER_CSP" default:"default-src 'self'"`
-	Verbosity   int              `env:"FLASHBUILDER_LOG_LEVEL" type:"counter" short:"v"`
+	Brotli      int              `env:"FLASHBUILDER_BROTLI"       default:"11"`
+	AVIF        int              `env:"FLASHBUILDER_AVIF"         default:"50"`
+	WebP        int              `env:"FLASHBUILDER_WEBP"         default:"50"`
+	CSP         string           `env:"FLASHBUILDER_CSP"          default:"default-src 'self'"`
+	Verbosity   int              `env:"FLASHBUILDER_LOG_LEVEL"    type:"counter"               short:"v"`
 	DryRun      bool             `env:"FLASHBUILDER_DRY_RUN"`
 	Tests       bool             `env:"FLASHBUILDER_TESTS"`
-	CacheMax    units.Base2Bytes `env:"FLASHBUILDER_CACHE_MAX" default:"5GB"`
+	CacheMax    units.Base2Bytes `env:"FLASHBUILDER_CACHE_MAX"    default:"5GB"`
 	CacheDir    string           `env:"FLASHBUILDER_CACHE_DIR"`
 }
 
@@ -61,12 +61,14 @@ func main() {
 
 	// Ensure cache directory exists and clean cache if needed
 	if !cli.DryRun {
-		if err := ensureCacheDir(cli.CacheDir); err != nil {
+		err := ensureCacheDir(cli.CacheDir)
+		if err != nil {
 			log.Printf("E099: Failed to create cache directory: %v", err)
 			os.Exit(2)
 		}
 		// Clean cache to maintain size limit
-		if err := cleanCache(cli.CacheDir, cacheMax); err != nil {
+		err = cleanCache(cli.CacheDir, cacheMax)
+		if err != nil {
 			log.Printf("E099: Failed to clean cache: %v", err)
 			os.Exit(2)
 		}
@@ -74,9 +76,9 @@ func main() {
 
 	// Create output directories
 	if !cli.DryRun {
-		os.MkdirAll(cli.Output, 0755)
-		os.MkdirAll(filepath.Join(cli.Output, "assets"), 0755)
-		os.MkdirAll(filepath.Join(cli.Output, "www"), 0755)
+		os.MkdirAll(cli.Output, 0o755)
+		os.MkdirAll(filepath.Join(cli.Output, "assets"), 0o755)
+		os.MkdirAll(filepath.Join(cli.Output, "www"), 0o755)
 	}
 
 	// Step 1: Discover assets
@@ -114,17 +116,10 @@ func main() {
 		assets[i].FrequencyScore = estimateFrequencyScore(assets[i].RelPath, assets[i].EmbedEligible)
 	}
 
-	// Step 8: Pre-compute headers
-	for i := range assets {
-		if assets[i].EmbedEligible && !assets[i].IsDuplicate {
-			assets[i].HeaderHTTP = renderHeaderHTTP(assets[i], cli.CSP)
-			assets[i].HeaderHTTPS = renderHeaderHTTPS(assets[i], cli.CSP, "8443")
-		}
-	}
-
 	// Step 9: Create links
 	if !cli.DryRun {
-		if err := createLinks(assets, cli.Input, cli.Output, cli.CacheDir); err != nil {
+		err := createLinks(assets, cli.Input, cli.Output, cli.CacheDir)
+		if err != nil {
 			log.Printf("E087: Failed to create links: %v", err)
 			os.Exit(87)
 		}
@@ -146,7 +141,7 @@ func main() {
 			HTTPSPort: "8443",
 			Module:    "flash",
 		},
-		Assets:   convertAssets(assets),
+		Assets:   assets,
 		Dispatch: dispatch,
 		MaxLen:   maxLen,
 	}
@@ -160,19 +155,22 @@ func main() {
 
 	if !cli.DryRun {
 		// Step 15: Run go mod tidy
-		if err := runGoModTidy(cli.Output); err != nil {
+		err := runGoModTidy(cli.Output)
+		if err != nil {
 			log.Printf("E099: Failed to run go mod tidy: %v", err)
 			os.Exit(2)
 		}
 
 		// Step 16: Build binary
-		if err := runGoBuild(cli.Output); err != nil {
+		err = runGoBuild(cli.Output)
+		if err != nil {
 			log.Printf("E099: Failed to build binary: %v", err)
 			os.Exit(2)
 		}
 
 		// Step 17: Run tests
-		if err := runTests(cli.Output); err != nil {
+		err = runTests(cli.Output)
+		if err != nil {
 			log.Printf("E079: Test suite failed: %v", err)
 			os.Exit(3)
 		}
@@ -182,7 +180,7 @@ func main() {
 }
 
 // getDefaultCacheDir returns the default cache directory
-// Follows XDG Base Directory Specification
+// Follows XDG Base Directory Specification.
 func getDefaultCacheDir() string {
 	xdgCache := os.Getenv("XDG_CACHE_HOME")
 	if xdgCache != "" {
@@ -197,7 +195,7 @@ func getDefaultCacheDir() string {
 	return ".cache"
 }
 
-// validateCompressionFlags validates compression quality flags
+// validateCompressionFlags validates compression quality flags.
 func validateCompressionFlags(cli *cli) error {
 	// Brotli quality: 0-11
 	if cli.Brotli < 0 || cli.Brotli > 11 {
@@ -217,21 +215,21 @@ func validateCompressionFlags(cli *cli) error {
 	return nil
 }
 
-// runGoModTidy runs go mod tidy in the output directory
+// runGoModTidy runs go mod tidy in the output directory.
 func runGoModTidy(output string) error {
 	cmd := exec.Command("go", "mod", "tidy")
 	cmd.Dir = output
 	return cmd.Run()
 }
 
-// runGoBuild builds the flash binary
+// runGoBuild builds the flash binary.
 func runGoBuild(output string) error {
 	cmd := exec.Command("go", "build", "-o", "flash")
 	cmd.Dir = output
 	return cmd.Run()
 }
 
-// runTests runs the test suite
+// runTests runs the test suite.
 func runTests(output string) error {
 	cmd := exec.Command("go", "test", "-v", "-race", "-vet")
 	cmd.Dir = output

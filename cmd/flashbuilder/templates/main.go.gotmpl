@@ -1,8 +1,8 @@
-{{/* Template for main.go */}}
 {{define "main.go"}}
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -10,7 +10,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	"log/slog"
+	"log"
 	"math"
 	"math/big"
 	"net"
@@ -21,17 +21,21 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"golang.org/x/net/http2"
 	"github.com/quic-go/quic-go/http3"
 )
 
+// maxLen is the length of the largest asset path
+const maxLen = {{.MaxLen}}
+
+// Server implements http.Handler
 type Server struct {
-	Logger        *slog.Logger
-	DispatchHTTP  [{{.MaxLen}} + 2]func(http.ResponseWriter, *http.Request)
-	DispatchHTTPS [{{.MaxLen}} + 2]func(http.ResponseWriter, *http.Request)
-	TLSCfg        *tls.Config
+	dispatch [maxLen + 2]func(http.ResponseWriter, *http.Request)
 }
 
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	idx := min(len(r.URL.Path), len(s.dispatch)-1)
+	s.dispatch[idx](w, r)
+}
 
 func main() {
 	var cli struct {
@@ -65,73 +69,129 @@ func main() {
 	}
 
 	tlsCfg := generateTLSConfig()
-	// Start servers...
+
+	// Addresses (same host, different ports)
+	const tcpAddr = "0.0.0.0:443"
+	const udpAddr = "0.0.0.0:443" // QUIC also uses port 443; the OS distinguishes TCP vs UDP
+
+	// Shared handler
+	muxHTTPS := newServerHTTPS()
+
+	// Start both servers
+	tcpSrv := startTCPServer(tcpAddr, tlsCfg, muxHTTPS)
+	udpSrv := startUDPServer(udpAddr, tlsCfg, muxHTTPS)
+
+	// Wait for termination signal (Ctrl+C)
+	stop := make(chan struct{})
+	go func() {
+		// Simple block – replace with signal.Notify for real apps
+		<-stop
+	}()
+
+	// Graceful shutdown on exit
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	shutdownServers(ctx, tcpSrv, udpSrv)
 }
 
 func generateTLSConfig() *tls.Config {
+	// Generate an ECDSA P‑256 private key.
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		panic(err)
 	}
+
+	// Create a self‑signed certificate template.
 	serial, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
-	cert := &x509.Certificate{
+	certTemplate := &x509.Certificate{
 		SerialNumber: serial,
 		Subject:      pkix.Name{CommonName: "flash"},
 		NotBefore:    time.Now(),
 		NotAfter:     time.Now().Add(10 * 365 * 24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
-	certBytes, err := x509.CreateCertificate(rand.Reader, cert, cert, &key.Public(), key)
+
+	// Self‑sign the certificate.
+	certDER, err := x509.CreateCertificate(
+		rand.Reader,
+		certTemplate,
+		certTemplate,
+		&key.PublicKey, // use the concrete public key, not an interface
+		key,
+	)
 	if err != nil {
 		panic(err)
 	}
+
+	// Build the TLS config with the generated cert and key.
 	return &tls.Config{
 		MinVersion: tls.VersionTLS13,
 		NextProtos: []string{"h3", "h2", "http/1.1"},
 		Certificates: []tls.Certificate{
-			{Certificate: [][]byte{certBytes}, PrivateKey: key},
+			{
+				Certificate: [][]byte{certDER},
+				PrivateKey:  key,
+			},
 		},
 	}
 }
 
-func (s *Server) routerHTTP(w http.ResponseWriter, r *http.Request) {
-	idx := min(len(r.URL.Path), len(s.DispatchHTTP)-1)
-	s.DispatchHTTP[idx](w, r)
+func makeTLSConfig(certPEM, keyPEM []byte) *tls.Config {
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		log.Fatalf("failed to parse cert/key: %v", err)
+	}
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		NextProtos:   []string{"h3", "h2", "http/1.1"},
+		Certificates: []tls.Certificate{cert},
+	}
 }
 
-func (s *Server) routerHTTPS(w http.ResponseWriter, r *http.Request) {
-	idx := min(len(r.URL.Path), len(s.DispatchHTTP)-1)
-	s.DispatchHTTPS[idx](w, r)
+func startTCPServer(addr string, tlsCfg *tls.Config, h http.Handler) *http.Server {
+	srv := &http.Server{
+		Addr:      addr,
+		Handler:   h,
+		TLSConfig: tlsCfg,
+		// HTTP/2 is automatically enabled when TLSConfig.NextProtos contains "h2"
+	}
+	ln, err := tls.Listen("tcp", addr, tlsCfg)
+	if err != nil {
+		log.Fatalf("TCP listen error: %v", err)
+	}
+	go func() {
+		log.Printf("✅ TCP server listening on https://%s", addr)
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("TCP server error: %v", err)
+		}
+	}()
+	return srv
 }
 
-func (s *Server) notFound(w http.ResponseWriter, r *http.Request) {
-    http.NotFound(w, r)
+func startUDPServer(addr string, tlsCfg *tls.Config, h http.Handler) *http3.Server {
+	// http3.Server wraps a http.Handler and takes care of the QUIC listener.
+	srv := &http3.Server{
+		Addr:      addr,
+		Handler:   h,
+		TLSConfig: tlsCfg,
+		// QUIC‑specific options can be tuned here (e.g., MaxIncomingStreams)
+	}
+	// http3.Server internally creates a UDP listener, so we just call ListenAndServe.
+	go func() {
+		log.Printf("✅ UDP (QUIC) server listening on https://%s (HTTP/3)", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("UDP server error: %v", err)
+		}
+	}()
+	return srv
 }
 
-{{range .Dispatch}}{{if .Routes}}
-func (s *Server) {{.HandlerName}}HTTP(w http.ResponseWriter, r *http.Request) {
-    const L = {{.Length}}
-    pathNoSlash := r.URL.Path[1:]
-    truncated := pathNoSlash[:L]
-    switch truncated {
-    {{range .Routes}}
-    case "{{.Path}}":
-        s.Serve{{.Identifier}}HTTP(w, r)
-    {{end}}
-    default:
-        s.{{.PrevEntry}}HTTP(w, r)
-    }
-}
-
-func (s *Server) {{.HandlerName}}HTTPS(w http.ResponseWriter, r *http.Request) {
-    const L = {{.Length}}
-    pathNoSlash := r.URL.Path[1:]
-    truncated := pathNoSlash[:L]
-    switch truncated {
-    {{range .Routes}}
-    case "{{.Path}}":
-        s.Serve{{.Identifier}}HTTPS(w, r)
-    {{end}}
-    default:
-        s.{{.PrevEntry}}HTTPS(w, r)
-    }
-}{{end}}{{end}}{{end}}
+func shutdownServers(ctx context.Context, tcpSrv *http.Server, udpSrv *http3.Server) {
+	if err := tcpSrv.Shutdown(ctx); err != nil {
+		log.Printf("TCP shutdown error: %v", err)
+	}
+	if err := udpSrv.Close(); err != nil {
+		log.Printf("UDP shutdown error: %v", err)
+	}
+}{{end}}

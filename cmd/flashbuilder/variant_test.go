@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: Tests for variant generation (without actual compression)
-// File: variant_test.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// TestIsCompressible tests MIME type compression eligibility
+// TestIsCompressible tests MIME type compression eligibility.
 func TestIsCompressible(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -34,7 +34,7 @@ func TestIsCompressible(t *testing.T) {
 	}
 }
 
-// TestIsImage tests image MIME type detection
+// TestIsImage tests image MIME type detection.
 func TestIsImage(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -59,7 +59,7 @@ func TestIsImage(t *testing.T) {
 	}
 }
 
-// TestGenerateVariants_SkipNonEmbed tests that variants are skipped for non-embed assets
+// TestGenerateVariants_SkipNonEmbed tests that variants are skipped for non-embed assets.
 func TestGenerateVariants_SkipNonEmbed(t *testing.T) {
 	assets := []asset{
 		{RelPath: "large.png", Size: 1000000, EmbedEligible: false, MIME: "image/png"},

@@ -1,0 +1,27 @@
+{{define "serve.go"}}
+// This file contains all embed-eligible assets.
+
+package main
+
+import (
+    _ "embed"
+	"net/http"
+)
+{{ $scheme := .Config.Scheme }}
+func (s *Server) notFound{{$scheme}}(w http.ResponseWriter, r *http.Request) {
+    http.NotFound(w, r)
+}
+
+{{range .Assets}}{{if and (not .IsDuplicate)  (not .IsShortcut) (.EmbedEligible)}}
+func (s *Server) serve{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
+    if r.Header.Get("If-None-Match") == `{{.ETag}}` {
+        w.WriteHeader(http.StatusNotModified)
+        return
+    }
+    w.Write({{.Identifier}}Header{{$scheme}})
+    if r.Method != "" && r.Method[0] == 'H' {
+        return
+    }
+    w.Write({{.Identifier}})
+}
+{{end}}{{end}}{{end}}

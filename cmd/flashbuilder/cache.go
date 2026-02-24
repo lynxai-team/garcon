@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: Cache management, budget allocation, cache cleaning
-// File: cache.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -13,24 +13,24 @@ import (
 	"time"
 )
 
-// FileInfo holds file information for cache management
+// FileInfo holds file information for cache management.
 type FileInfo struct {
+	ModTime time.Time
 	Path    string
 	Size    int64
-	ModTime time.Time
 }
 
-// ensureCacheDir ensures cache directory exists
+// ensureCacheDir ensures cache directory exists.
 func ensureCacheDir(cacheDir string) error {
-	err := os.MkdirAll(cacheDir, 0755)
+	err := os.MkdirAll(cacheDir, 0o755)
 	if err != nil {
-		return fmt.Errorf("E099: Failed to create cache directory: %v", err)
+		return fmt.Errorf("E099: Failed to create cache directory: %w", err)
 	}
 	return nil
 }
 
 // cleanCache maintains cache size within configured limits
-// Removes oldest files when cache exceeds maxSize
+// Removes oldest files when cache exceeds maxSize.
 func cleanCache(cacheDir string, maxSize int64) error {
 	var totalSize int64
 	var files []FileInfo
@@ -52,7 +52,7 @@ func cleanCache(cacheDir string, maxSize int64) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("E099: Failed to walk cache directory: %v", err)
+		return fmt.Errorf("E099: Failed to walk cache directory: %w", err)
 	}
 
 	// If total size exceeds max, delete oldest files
@@ -76,7 +76,7 @@ func cleanCache(cacheDir string, maxSize int64) error {
 }
 
 // allocateBudget determines which assets are eligible for embedding
-// Assets are sorted by size (smallest first) and embedded until budget exhausted
+// Assets are sorted by size (smallest first) and embedded until budget exhausted.
 func allocateBudget(assets []asset, budget int64) []asset {
 	// Sort assets by size (smallest first for embedding priority)
 	sort.Slice(assets, func(i, j int) bool {

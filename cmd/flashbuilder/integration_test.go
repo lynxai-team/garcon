@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: Integration tests for end-to-end workflow
-// File: integration_test.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -10,18 +10,14 @@ import (
 	"testing"
 )
 
-// TestIntegration_DiscoverToDispatch tests discovery to dispatch flow
+// TestIntegration_DiscoverToDispatch tests discovery to dispatch flow.
 func TestIntegration_DiscoverToDispatch(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
 	// Create temp directory
-	tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create test files
 	files := []struct {
@@ -35,7 +31,8 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 
 	for _, f := range files {
 		path := filepath.Join(tmpDir, f.name)
-		if err := os.WriteFile(path, []byte(f.content), 0644); err != nil {
+		err := os.WriteFile(path, []byte(f.content), 0o644)
+		if err != nil {
 			t.Fatalf("Failed to write file: %v", err)
 		}
 	}
@@ -85,7 +82,7 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 	}
 }
 
-// TestIntegration_BudgetAllocation tests budget allocation flow
+// TestIntegration_BudgetAllocation tests budget allocation flow.
 func TestIntegration_BudgetAllocation(t *testing.T) {
 	assets := []asset{
 		{RelPath: "a.txt", Size: 100},
@@ -109,7 +106,7 @@ func TestIntegration_BudgetAllocation(t *testing.T) {
 	}
 }
 
-// TestIntegration_ShortcutGeneration tests shortcut generation
+// TestIntegration_ShortcutGeneration tests shortcut generation.
 func TestIntegration_ShortcutGeneration(t *testing.T) {
 	assets := []asset{
 		{RelPath: "index.html", Identifier: "AssetIndex"},

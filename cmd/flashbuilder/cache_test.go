@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: Tests for cache management, budget allocation
-// File: cache_test.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -11,17 +11,13 @@ import (
 	"time"
 )
 
-// TestEnsureCacheDir tests cache directory creation
+// TestEnsureCacheDir tests cache directory creation.
 func TestEnsureCacheDir(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	cachePath := filepath.Join(tmpDir, "cache")
 
-	err = ensureCacheDir(cachePath)
+	err := ensureCacheDir(cachePath)
 	if err != nil {
 		t.Fatalf("ensureCacheDir failed: %v", err)
 	}
@@ -36,7 +32,7 @@ func TestEnsureCacheDir(t *testing.T) {
 	}
 }
 
-// TestAllocateBudget tests embed budget allocation
+// TestAllocateBudget tests embed budget allocation.
 func TestAllocateBudget(t *testing.T) {
 	assets := []asset{
 		{RelPath: "small.txt", Size: 100},
@@ -66,39 +62,36 @@ func TestAllocateBudget(t *testing.T) {
 	}
 }
 
-// TestCleanCache tests cache cleaning
+// TestCleanCache tests cache cleaning.
 func TestCleanCache(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create test files with different ages
 	files := []struct {
 		name    string
-		content string
 		modTime time.Time
 	}{
-		{"old.txt", "old content", time.Now().Add(-time.Hour)},
-		{"new.txt", "new content", time.Now()},
+		{"old.txt", time.Now().Add(-time.Hour)},
+		{"new.txt", time.Now()},
 	}
 
 	var maxSize int64
 	for _, f := range files {
 		path := filepath.Join(tmpDir, f.name)
-		if err := os.WriteFile(path, []byte(f.content), 0644); err != nil {
+		err := os.WriteFile(path, []byte(f.name), 0o644)
+		if err != nil {
 			t.Fatalf("Failed to write file: %v", err)
 		}
 		// Set modification time
-		if err := os.Chtimes(path, f.modTime, f.modTime); err != nil {
+		err = os.Chtimes(path, f.modTime, f.modTime)
+		if err != nil {
 			t.Fatalf("Failed to set mod time: %v", err)
 		}
-		maxSize = max(maxSize, int64(len(f.content)))
+		maxSize = max(maxSize, int64(len(f.name)))
 	}
 
 	// Clean cache to remove oldest file (simulate small max size)
-	err = cleanCache(tmpDir, maxSize) // 0 bytes max = force deletion
+	err := cleanCache(tmpDir, maxSize) // 0 bytes max = force deletion
 	if err != nil {
 		t.Fatalf("cleanCache failed: %v", err)
 	}

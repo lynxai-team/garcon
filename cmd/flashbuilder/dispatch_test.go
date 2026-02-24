@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: Tests for dispatch array generation, routing, path sanitization
-// File: dispatch_test.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// TestBuildDispatch tests dispatch array generation
+// TestBuildDispatch tests dispatch array generation.
 func TestBuildDispatch(t *testing.T) {
 	assets := []asset{
 		{RelPath: "index.html", Identifier: "AssetIndex", FrequencyScore: 1000, IsDuplicate: false},
@@ -19,43 +19,44 @@ func TestBuildDispatch(t *testing.T) {
 	}
 
 	want := []Handlers{
-		{Length: 0, DispatchEntry: "s.ServeIndexHtml", Routes: []RouteData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
-		{Length: 0, DispatchEntry: "s.ServeIndexHtml", Routes: []RouteData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
-		{Length: 1, DispatchEntry: "s.ServeIndexHtml"},
-		{Length: 2, DispatchEntry: "s.ServeIndexHtml"},
-		{Length: 3, DispatchEntry: "s.ServeIndexHtml"},
-		{Length: 4, DispatchEntry: "s.ServeIndexHtml"},
+		{Length: 0, Entry: "s.ServeIndexHtml", Routes: []RouteData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
+		{Length: 0, Entry: "s.ServeIndexHtml", Routes: []RouteData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
+		{Length: 1, Entry: "s.ServeIndexHtml"},
+		{Length: 2, Entry: "s.ServeIndexHtml"},
+		{Length: 3, Entry: "s.ServeIndexHtml"},
+		{Length: 4, Entry: "s.ServeIndexHtml"},
 		{
-			Length:        5,
-			HandlerName:   "handleLen5",
-			PrevEntry:     "s.ServeIndexHtml",
-			DispatchEntry: "s.handleLen5",
-			Routes:        []RouteData{{Path: "style", Identifier: "AssetStyle", Frequency: 800}},
+			Length:      5,
+			HandlerName: "handleLen5",
+			PrevEntry:   "s.ServeIndexHtml",
+			Entry:       "s.handleLen5",
+			Routes:      []RouteData{{Path: "style", Identifier: "AssetStyle", Frequency: 800}},
 		},
 		{
-			Length:        6,
-			HandlerName:   "handleLen6",
-			PrevEntry:     "s.handleLen5",
-			DispatchEntry: "s.handleLen6",
-			Routes:        []RouteData{{Path: "script", Identifier: "AssetScript", Frequency: 600}},
+			Length:      6,
+			HandlerName: "handleLen6",
+			PrevEntry:   "s.handleLen5",
+			Entry:       "s.handleLen6",
+			Routes:      []RouteData{{Path: "script", Identifier: "AssetScript", Frequency: 600}},
 		},
-		{Length: 7, DispatchEntry: "s.handleLen6"},
-		{Length: 8, DispatchEntry: "s.handleLen6"},
+		{Length: 7, Entry: "s.handleLen6"},
+		{Length: 8, Entry: "s.handleLen6"},
 		{
-			Length:        9,
-			HandlerName:   "handleLen9",
-			PrevEntry:     "s.handleLen6",
-			DispatchEntry: "s.handleLen9",
+			Length:      9,
+			HandlerName: "handleLen9",
+			PrevEntry:   "s.handleLen6",
+			Entry:       "s.handleLen9",
 			Routes: []RouteData{
 				{Path: "style.css", Identifier: "AssetStyle", Frequency: 800},
-				{Path: "script.js", Identifier: "AssetScript", Frequency: 600}},
+				{Path: "script.js", Identifier: "AssetScript", Frequency: 600},
+			},
 		},
 		{
-			Length:        10,
-			HandlerName:   "handleLen10",
-			PrevEntry:     "s.handleLen9",
-			DispatchEntry: "s.handleLen10",
-			Routes:        []RouteData{{Path: "index.html", Identifier: "AssetIndex", Frequency: 1000}},
+			Length:      10,
+			HandlerName: "handleLen10",
+			PrevEntry:   "s.handleLen9",
+			Entry:       "s.handleLen10",
+			Routes:      []RouteData{{Path: "index.html", Identifier: "AssetIndex", Frequency: 1000}},
 		},
 	}
 
@@ -68,7 +69,7 @@ func TestBuildDispatch(t *testing.T) {
 	}
 }
 
-// TestComputeMaxLen tests max length calculation
+// TestComputeMaxLen tests max length calculation.
 func TestComputeMaxLen(t *testing.T) {
 	tests := []struct {
 		name     string

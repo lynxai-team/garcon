@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: Tests for code generation, template rendering
-// File: generate_test.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -8,25 +8,25 @@ import (
 	"testing"
 )
 
-// TestRenderHeaderHTTP tests HTTP header generation
+// TestRenderHeaderHTTP tests HTTP header generation.
 func TestRenderHeaderHTTP(t *testing.T) {
 	tests := []struct {
 		name     string
-		asset    asset
 		csp      string
 		contains []string
+		asset    asset
 	}{
 		{
 			"Simple asset",
-			asset{MIME: "text/css", Size: 100, IsIndex: false, IsHTML: false},
 			"",
 			[]string{"Content-Type: text/css", "Content-Length: 100", "Cache-Control: public, max-age=31536000, immutable"},
+			asset{MIME: "text/css", Size: 100, IsIndex: false, IsHTML: false},
 		},
 		{
 			"Index file",
-			asset{MIME: "text/html", Size: 500, IsIndex: true, IsHTML: true},
 			"default-src 'self'",
 			[]string{"Content-Type: text/html", "must-revalidate", "Content-Security-Policy: default-src 'self'"},
+			asset{MIME: "text/html", Size: 500, IsIndex: true, IsHTML: true},
 		},
 	}
 
@@ -42,28 +42,28 @@ func TestRenderHeaderHTTP(t *testing.T) {
 	}
 }
 
-// TestRenderHeaderHTTPS tests HTTPS header generation
+// TestRenderHeaderHTTPS tests HTTPS header generation.
 func TestRenderHeaderHTTPS(t *testing.T) {
 	tests := []struct {
 		name      string
-		asset     asset
 		csp       string
 		httpsPort string
 		contains  []string
+		asset     asset
 	}{
 		{
 			"Simple asset",
-			asset{MIME: "text/css", Size: 100, IsIndex: false, IsHTML: false},
 			"",
 			"8443",
 			[]string{"Content-Type: text/css", "Strict-Transport-Security", "Alt-Svc: h3"},
+			asset{MIME: "text/css", Size: 100, IsIndex: false, IsHTML: false},
 		},
 		{
 			"HTML with CSP",
-			asset{MIME: "text/html", Size: 500, IsIndex: true, IsHTML: true},
 			"default-src 'self'",
 			"8443",
 			[]string{"Content-Security-Policy", "Strict-Transport-Security"},
+			asset{MIME: "text/html", Size: 500, IsIndex: true, IsHTML: true},
 		},
 	}
 
@@ -79,26 +79,7 @@ func TestRenderHeaderHTTPS(t *testing.T) {
 	}
 }
 
-// TestConvertAssets tests asset data conversion
-func TestConvertAssets(t *testing.T) {
-	assets := []asset{
-		{RelPath: "style.css", Identifier: "AssetStyle", IsDuplicate: false, EmbedEligible: true},
-		{RelPath: "dup.css", Identifier: "AssetDup", IsDuplicate: true, CanonicalID: "AssetStyle"},
-	}
-
-	result := convertAssets(assets)
-
-	// Should only include non-duplicate assets
-	if len(result) != 1 {
-		t.Errorf("Expected 1 asset (duplicate excluded), got %d", len(result))
-	}
-
-	if result[0].RelPath != "style.css" {
-		t.Errorf("Expected style.css, got %s", result[0].RelPath)
-	}
-}
-
-// Helper function to check if string contains substring
+// Helper function to check if string contains substring.
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
 }

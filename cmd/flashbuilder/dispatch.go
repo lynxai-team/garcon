@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: Dispatch array generation, routing, path sanitization
-// File: dispatch.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -10,23 +10,23 @@ import (
 	"strconv"
 )
 
-// RouteData represents a route for switch statements
+// RouteData represents a route for switch statements.
 type RouteData struct {
 	Path       string // Sanitized path for switch case
 	Identifier string // Go identifier for handler function
 	Frequency  int    // Request frequency score (for ordering)
 }
 
-// Handlers is sed to render the handlers and dispatch array
+// Handlers is sed to render the handlers and dispatch array.
 type Handlers struct {
-	Routes        []RouteData
-	HandlerName   string
-	PrevEntry     string
-	DispatchEntry string
-	Length        int
+	HandlerName string
+	PrevEntry   string
+	Entry       string
+	Routes      []RouteData
+	Length      int
 }
 
-// buildRoutesByLength groups routes by length, sorted by frequency score
+// buildRoutesByLength groups routes by length, sorted by frequency score.
 func buildRoutesByLength(assets []asset, size int) [][]RouteData {
 	routesByLen := make([][]RouteData, size)
 
@@ -55,7 +55,7 @@ func buildRoutesByLength(assets []asset, size int) [][]RouteData {
 }
 
 // buildDispatch generates dispatch arrays for HTTP and HTTPS
-// Dispatch index = route length + 1 (eliminates runtime slash removal)
+// Dispatch index = route length + 1 (eliminates runtime slash removal).
 func buildDispatch(assets []asset, maxLen int) []Handlers {
 	assetRoutesByLen := buildRoutesByLength(assets, maxLen+1)
 	dispatch := make([]Handlers, maxLen+2)
@@ -79,11 +79,11 @@ func buildDispatch(assets []asset, maxLen int) []Handlers {
 		}
 
 		dispatch[i] = Handlers{
-			Length:        assetRouteLen,
-			HandlerName:   handlerName,
-			DispatchEntry: dispatchEntry,
-			PrevEntry:     prevEntry,
-			Routes:        assetRoutes,
+			Length:      assetRouteLen,
+			HandlerName: handlerName,
+			Entry:       dispatchEntry,
+			PrevEntry:   prevEntry,
+			Routes:      assetRoutes,
 		}
 	}
 
@@ -109,7 +109,7 @@ func addShortcuts(assets []asset) []asset {
 	return append(assets, shortcuts...)
 }
 
-// computeMaxLen calculates the maximum path length for dispatch array sizing
+// computeMaxLen calculates the maximum path length for dispatch array sizing.
 func computeMaxLen(assets []asset) int {
 	maxLen := 0
 	for _, asset := range assets {

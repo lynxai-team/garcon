@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: Tests for template rendering (requires template files)
-// File: template_test.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// TestFuncMap tests template function map
+// TestFuncMap tests template function map.
 func TestFuncMap(t *testing.T) {
 	// Test quote function
 	quoteFunc, ok := funcMap["quote"].(func(string) string)
@@ -49,7 +49,7 @@ func TestFuncMap(t *testing.T) {
 	}
 }
 
-// TestRenderTemplate tests template rendering (skip if no templates)
+// TestRenderTemplate tests template rendering (skip if no templates).
 func TestRenderTemplate(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping template test in short mode")
@@ -63,7 +63,7 @@ func TestRenderTemplate(t *testing.T) {
 			HTTPSPort: "8443",
 			Module:    "flash",
 		},
-		Assets: []AssetData{
+		Assets: []asset{
 			{
 				RelPath:       "style.css",
 				Size:          100,
@@ -71,8 +71,6 @@ func TestRenderTemplate(t *testing.T) {
 				ETag:          `"etag123"`,
 				Identifier:    "AssetStyle",
 				EmbedEligible: true,
-				HeaderHTTP:    "Content-Type: text/css\r\n",
-				HeaderHTTPS:   "Content-Type: text/css\r\n",
 			},
 		},
 		MaxLen: 10,

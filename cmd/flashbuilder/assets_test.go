@@ -1,6 +1,6 @@
-// Package: main
-// Purpose: Tests for asset discovery, MIME detection, deduplication
-// File: assets_test.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -10,14 +10,10 @@ import (
 	"testing"
 )
 
-// TestDiscover tests asset discovery
+// TestDiscover tests asset discovery.
 func TestDiscover(t *testing.T) {
 	// Create temporary directory
-	tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	// Create test files
 	files := []struct {
@@ -34,7 +30,8 @@ func TestDiscover(t *testing.T) {
 
 	for _, file := range files {
 		path := filepath.Join(tmpDir, file.name)
-		if err := os.WriteFile(path, []byte(file.content), 0644); err != nil {
+		err := os.WriteFile(path, []byte(file.content), 0o644)
+		if err != nil {
 			t.Fatalf("Failed to write file: %v", err)
 		}
 	}
@@ -65,7 +62,7 @@ func TestDiscover(t *testing.T) {
 	}
 }
 
-// TestDetectMIME tests MIME type detection
+// TestDetectMIME tests MIME type detection.
 func TestDetectMIME(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -81,14 +78,11 @@ func TestDetectMIME(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpDir, err := os.MkdirTemp("", "flashbuilder-*")
-			if err != nil {
-				t.Fatalf("Failed to create temp dir: %v", err)
-			}
-			defer os.RemoveAll(tmpDir)
+			tmpDir := t.TempDir()
 
 			path := filepath.Join(tmpDir, tt.filename)
-			if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil {
+			err := os.WriteFile(path, []byte(tt.content), 0o644)
+			if ; err != nil {
 				t.Fatalf("Failed to write file: %v", err)
 			}
 
@@ -100,7 +94,7 @@ func TestDetectMIME(t *testing.T) {
 	}
 }
 
-// TestGenerateIdentifier tests identifier generation
+// TestGenerateIdentifier tests identifier generation.
 func TestGenerateIdentifier(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -137,7 +131,7 @@ func TestGenerateIdentifier(t *testing.T) {
 	}
 }
 
-// TestEstimateFrequencyScore tests frequency score calculation
+// TestEstimateFrequencyScore tests frequency score calculation.
 func TestEstimateFrequencyScore(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -166,7 +160,7 @@ func TestEstimateFrequencyScore(t *testing.T) {
 	}
 }
 
-// TestGenerateShortcut tests shortcut generation
+// TestGenerateShortcut tests shortcut generation.
 func TestGenerateShortcut(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -190,7 +184,7 @@ func TestGenerateShortcut(t *testing.T) {
 	}
 }
 
-// TestSanitizeIdentifier tests identifier sanitization
+// TestSanitizeIdentifier tests identifier sanitization.
 func TestSanitizeIdentifier(t *testing.T) {
 	tests := []struct {
 		name     string

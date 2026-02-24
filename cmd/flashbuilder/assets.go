@@ -1,7 +1,6 @@
-// Package: main
-// Purpose: Asset discovery, MIME detection, deduplication, identifier generation,
-//          content hashing, ETag generation, linking
-// File: assets.go
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
 
 package main
 
@@ -20,40 +19,38 @@ import (
 	"github.com/mtraver/base91"
 )
 
-// asset represents a static asset with all pre-computed metadata
+// asset represents a static asset with all pre-computed metadata.
 type asset struct {
-	RelPath        string    // POSIX-style relative path (forward slashes)
-	AbsPath        string    // Absolute path to source file
-	Size           int64     // File size in bytes
-	MIME           string    // Detected MIME type
-	ImoHash        []byte    // Content hash (128 bits) from imohash
-	ETag           string    // base91 ETag for conditional GET (quoted)
-	IsDuplicate    bool      // Content matches another asset
-	IsShortcut     bool      // RelPath without file extension or ending "/index.html"
-	CanonicalID    string    // Canonical identifier if duplicate
-	EmbedEligible  bool      // Selected for embedding within budget
-	Variants       []Variant // Compression variants
-	HeaderHTTP     []byte    // Pre-computed HTTP headers
-	HeaderHTTPS    []byte    // Pre-computed HTTPS headers
-	Identifier     string    // Go identifier (e.g., "AssetCSS")
-	Filename       string    // Filename in assets/ directory
-	FrequencyScore int       // Request frequency score for switch ordering
-	IsIndex        bool      // Is index file (e.g., index.html)
-	IsHTML         bool      // Is HTML content (for CSP injection)
+	CanonicalID    string
+	AbsPath        string
+	Filename       string
+	MIME           string
+	RelPath        string
+	ETag           string
+	Identifier     string
+	ImoHash        []byte
+	Variants       []Variant
+	Size           int64
+	FrequencyScore int
+	EmbedEligible  bool
+	IsDuplicate    bool
+	IsShortcut     bool
+	IsIndex        bool
+	IsHTML         bool
 }
 
-// Variant represents a compression variant for an asset
+// Variant represents a compression variant for an asset.
 type Variant struct {
-	VariantType VariantType // Compression type
-	Size        int64       // Variant size in bytes
-	HeaderHTTP  []byte      // HTTP headers for this variant
-	HeaderHTTPS []byte      // HTTPS headers for this variant
-	Identifier  string      // Go identifier for this variant
-	Extension   string      // File extension (e.g., ".br", ".avif", ".webp")
-	CachePath   string      // Cache location for this variant
+	Identifier  string
+	Extension   string
+	CachePath   string
+	HeaderHTTP  []byte
+	HeaderHTTPS []byte
+	VariantType VariantType
+	Size        int64
 }
 
-// VariantType represents compression type
+// VariantType represents compression type.
 type VariantType int
 
 const (
@@ -63,13 +60,13 @@ const (
 )
 
 // discover walks the input directory and collects all files
-// Returns assets sorted by relative path for deterministic ordering
+// Returns assets sorted by relative path for deterministic ordering.
 func discover(input string) ([]asset, error) {
 	var assets []asset
 
 	err := filepath.WalkDir(input, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return fmt.Errorf("E001: Failed to access path %s: %v", path, err)
+			return fmt.Errorf("E001: Failed to access path %s: %w", path, err)
 		}
 
 		// Skip directories
@@ -152,7 +149,7 @@ func discover(input string) ([]asset, error) {
 // detectMIME determines the MIME type for a file
 // Step 1: Extension-based lookup
 // Step 2: Content sniffing
-// Step 3: Fallback to application/octet-stream
+// Step 3: Fallback to application/octet-stream.
 func detectMIME(path string) string {
 	// Step 1: Extension-based lookup
 	ext := filepath.Ext(path)
@@ -181,7 +178,7 @@ func detectMIME(path string) string {
 }
 
 // dedupe identifies duplicate assets based on content hash
-// First asset with identical hash is canonical, others are duplicates
+// First asset with identical hash is canonical, others are duplicates.
 func dedupe(assets []asset) []asset {
 	hashMap := make(map[string][]int) // Map hash -> slice of asset indices
 
@@ -220,7 +217,7 @@ func dedupe(assets []asset) []asset {
 }
 
 // generateIdentifier creates a valid Go identifier from a relative path
-// Deterministic sanitization ensures reproducibility
+// Deterministic sanitization ensures reproducibility.
 func generateIdentifier(relPath string, existing map[string]bool) string {
 	// Split path into segments
 	segments := strings.Split(relPath, "/")
@@ -262,7 +259,7 @@ func generateIdentifier(relPath string, existing map[string]bool) string {
 }
 
 // sanitizeIdentifier filters valid Go identifier characters
-// Exported for use in template functions
+// Exported for use in template functions.
 func sanitizeIdentifier(s string) string {
 	var result strings.Builder
 	for _, r := range s {
@@ -273,7 +270,7 @@ func sanitizeIdentifier(s string) string {
 	return result.String()
 }
 
-// capitalize uppercases the first character
+// capitalize uppercases the first character.
 func capitalize(s string) string {
 	if len(s) == 0 {
 		return ""
@@ -282,7 +279,7 @@ func capitalize(s string) string {
 }
 
 // estimateFrequencyScore estimates request frequency for switch case ordering
-// Higher frequency assets appear first in switch statements for better branch prediction
+// Higher frequency assets appear first in switch statements for better branch prediction.
 func estimateFrequencyScore(path string, isEmbed bool) int {
 	score := 0
 
@@ -325,7 +322,7 @@ func estimateFrequencyScore(path string, isEmbed bool) int {
 }
 
 // generateShortcut creates an extensionless shortcut for a path
-// Enables clean URLs like "/about" instead of "/about/index.html"
+// Enables clean URLs like "/about" instead of "/about/index.html".
 func generateShortcut(relPath string) string {
 	// Root index has no shortcut
 	if relPath == "index.html" {
@@ -346,22 +343,27 @@ func generateShortcut(relPath string) string {
 	return relPath
 }
 
-// createLinks creates symbolic links for assets in the output directory
-func createLinks(assets []asset, input string, output string, cacheDir string) error {
+// createLinks creates symbolic links for assets in the output directory.
+func createLinks(assets []asset, input, output, cacheDir string) error {
 	// Create assets directory
 	assetsDir := filepath.Join(output, "assets")
-	if err := os.MkdirAll(assetsDir, 0755); err != nil {
-		return fmt.Errorf("E087: Failed to create assets directory: %v", err)
+	err := os.MkdirAll(assetsDir, 0o755)
+	if err != nil {
+		return fmt.Errorf("E087: Failed to create assets directory: %w", err)
 	}
 
 	// Create www directory
 	wwwDir := filepath.Join(output, "www")
-	if err := os.MkdirAll(wwwDir, 0755); err != nil {
-		return fmt.Errorf("E087: Failed to create www directory: %v", err)
+	err = os.MkdirAll(wwwDir, 0o755)
+	if err != nil {
+		return fmt.Errorf("E087: Failed to create www directory: %w", err)
 	}
 
 	for _, asset := range assets {
 		if asset.IsDuplicate {
+			continue
+		}
+		if asset.IsShortcut {
 			continue
 		}
 
@@ -370,19 +372,22 @@ func createLinks(assets []asset, input string, output string, cacheDir string) e
 			target := filepath.Join(assetsDir, asset.Filename+filepath.Ext(asset.RelPath))
 			// Remove existing file/link if present
 			os.Remove(target)
-			if err := os.Symlink(asset.AbsPath, target); err != nil {
-				return fmt.Errorf("E087: Failed to create symlink: %v", err)
+			err := os.Symlink(asset.AbsPath, target)
+			if err != nil {
+				return fmt.Errorf("E087: Failed to create symlink: %w", err)
 			}
 		} else {
 			// Create symlink in www directory
 			target := filepath.Join(wwwDir, asset.RelPath)
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				return fmt.Errorf("E087: Failed to create www subdirectory: %v", err)
+			err := os.MkdirAll(filepath.Dir(target), 0o755)
+			if err != nil {
+				return fmt.Errorf("E087: Failed to create www subdirectory: %w", err)
 			}
 			// Remove existing file/link if present
 			os.Remove(target)
-			if err := os.Symlink(asset.AbsPath, target); err != nil {
-				return fmt.Errorf("E087: Failed to create symlink: %v", err)
+			err = os.Symlink(asset.AbsPath, target)
+			if err != nil {
+				return fmt.Errorf("E087: Failed to create symlink: %w", err)
 			}
 		}
 	}
@@ -391,7 +396,7 @@ func createLinks(assets []asset, input string, output string, cacheDir string) e
 }
 
 // computeImoHash computes the ImoHash for a file (128 bits)
-// Uses github.com/kalafut/imohash
+// Uses github.com/kalafut/imohash.
 func computeImoHash(path string) []byte {
 	sum, err := imohash.SumFile(path)
 	if err != nil {
@@ -401,7 +406,7 @@ func computeImoHash(path string) []byte {
 }
 
 // computeETag generates an ETag from ImoHash
-// Uses base91 encoding for compact representation
+// Uses base91 encoding for compact representation.
 func computeETag(hash []byte) string {
 	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_ {|}~'"
 	encoder := base91.NewEncoding(alphabet)
