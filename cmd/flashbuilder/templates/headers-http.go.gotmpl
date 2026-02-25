@@ -1,4 +1,8 @@
-{{ define "headers-http.go" }}// This file contains all the HTTP headers (one header per asset).
+{{ define "headers-http.go" }}// Copyright 2026 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
+
+// This file contains the HTTP headers (one header per asset).
 
 // Header Pre-computation
 // HTTP response headers only for embed-eligible assets (large assets served via `http.ServeFile` do not receive pre-computed headers).

@@ -1,10 +1,15 @@
-{{define "handle.go"}}
+{{define "handle.go"}}// Copyright 2026 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
+{{ $scheme := .Config.Scheme }}
+// This file contains the {{$scheme}} handlers.
+
 package main
 
 import (
 	"net/http"
 )
-{{ $scheme := .Config.Scheme }}
+
 func newServer{{$scheme}}() *Server {
 	s := new(Server)
 

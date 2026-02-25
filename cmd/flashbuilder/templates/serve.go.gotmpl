@@ -1,4 +1,8 @@
-{{define "serve.go"}}// This file contains all embed-eligible assets.
+{{define "serve.go"}}// Copyright 2026 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
+{{ $scheme := .Config.Scheme }}
+// This file contains the {{$scheme}} serveAssetXXXX() methods.
 
 package main
 
@@ -6,7 +10,7 @@ import (
 	_ "embed"
 	"net/http"
 )
-{{ $scheme := .Config.Scheme }}
+
 func (s *Server) notFound{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
