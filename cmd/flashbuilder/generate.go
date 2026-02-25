@@ -18,57 +18,37 @@ import (
 //go:embed templates/*.go.gotmpl
 var templateFS embed.FS
 
-// TemplateData aggregates all data for template rendering.
-type TemplateData struct {
-	Config   ConfigData
+// templateData aggregates all data for template rendering.
+type templateData struct {
+	Config   configData
 	Assets   []asset
-	Dispatch []Handlers
+	Dispatch []handlers
 	MaxLen   int
 }
 
-// ConfigData holds configuration for template rendering.
-type ConfigData struct {
+// configData holds configuration for template rendering.
+type configData struct {
 	CSP       string
 	HTTPSPort string
 	Module    string
 	Scheme    string // "HTTP" or "HTTPS"
 }
 
-// // AssetData represents an asset for template rendering.
-// type AssetData struct {
-// 	MIME           string
-// 	ETag           string
-// 	Identifier     string
-// 	Filename       string
-// 	RelPath        string
-// 	CanonicalID    string
-// 	HeaderHTTPS    string
-// 	HeaderHTTP     string
-// 	Variants       []VariantData
-// 	FrequencyScore int
-// 	Size           int64
-// 	IsDuplicate    bool
-// 	IsShortcut     bool
-// 	IsHTML         bool
-// 	IsIndex        bool
-// 	EmbedEligible  bool
-// }
-
-// VariantData represents a variant for template rendering.
-type VariantData struct {
+// variantData represents a variant for template rendering.
+type variantData struct {
 	HeaderHTTP  string
 	HeaderHTTPS string
 	Identifier  string
 	Extension   string
 	CachePath   string
-	VariantType VariantType
+	VariantType variantType
 	Size        int64
 }
 
-// HandlerData holds data for handler template rendering.
-type HandlerData struct {
+// handlerData holds data for handler template rendering.
+type handlerData struct {
 	Protocol string
-	Routes   []RouteData
+	Routes   []routeData
 	Index    int
 }
 
@@ -118,7 +98,7 @@ func renderTemplate(tmpl *template.Template, name string, data any) ([]byte, err
 }
 
 // generate generates the Go code for the flash server.
-func generate(data TemplateData, output string, dryRun bool) error {
+func generate(data templateData, output string, dryRun bool) error {
 	tmpl, err := parseTemplates()
 	if err != nil {
 		return err

@@ -61,8 +61,8 @@ func TestRenderTemplate(t *testing.T) {
 
 	// This test requires template files to be present
 	// Skip if templates are not available
-	data := TemplateData{
-		Config: ConfigData{
+	data := templateData{
+		Config: configData{
 			CSP:       "default-src 'self'",
 			HTTPSPort: "8443",
 			Module:    "flash",

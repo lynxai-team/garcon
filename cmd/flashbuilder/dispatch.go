@@ -10,29 +10,29 @@ import (
 	"strconv"
 )
 
-// RouteData represents a route for switch statements.
-type RouteData struct {
+// routeData represents a route for switch statements.
+type routeData struct {
 	Path       string // Sanitized path for switch case
 	Identifier string // Go identifier for handler function
 	Frequency  int    // Request frequency score (for ordering)
 }
 
-// Handlers is sed to render the handlers and dispatch array.
-type Handlers struct {
+// handlers is sed to render the handlers and dispatch array.
+type handlers struct {
 	HandlerName string
 	PrevEntry   string
 	Entry       string
-	Routes      []RouteData
+	Routes      []routeData
 	Length      int
 }
 
 // buildRoutesByLength groups routes by length, sorted by frequency score.
-func buildRoutesByLength(assets []asset, size int) [][]RouteData {
-	routesByLen := make([][]RouteData, size)
+func buildRoutesByLength(assets []asset, size int) [][]routeData {
+	routesByLen := make([][]routeData, size)
 
 	// 1. group routes by length
 	for _, asset := range assets {
-		route := RouteData{
+		route := routeData{
 			Path:       asset.RelPath,
 			Identifier: asset.Identifier,
 			Frequency:  asset.FrequencyScore,
@@ -56,9 +56,9 @@ func buildRoutesByLength(assets []asset, size int) [][]RouteData {
 
 // buildDispatch generates dispatch arrays for HTTP and HTTPS
 // Dispatch index = route length + 1 (eliminates runtime slash removal).
-func buildDispatch(assets []asset, maxLen int) []Handlers {
+func buildDispatch(assets []asset, maxLen int) []handlers {
 	assetRoutesByLen := buildRoutesByLength(assets, maxLen+1)
-	dispatch := make([]Handlers, maxLen+2)
+	dispatch := make([]handlers, maxLen+2)
 	dispatchEntry := "s.notFound"
 
 	for i := range dispatch {
@@ -78,7 +78,7 @@ func buildDispatch(assets []asset, maxLen int) []Handlers {
 			}
 		}
 
-		dispatch[i] = Handlers{
+		dispatch[i] = handlers{
 			Length:      assetRouteLen,
 			HandlerName: handlerName,
 			Entry:       dispatchEntry,

@@ -136,8 +136,8 @@ func main() {
 	dispatch := buildDispatch(assets, maxLen)
 
 	// Step 13: Convert to template data
-	data := TemplateData{
-		Config: ConfigData{
+	data := templateData{
+		Config: configData{
 			CSP:       cli.CSP,
 			HTTPSPort: "8443",
 			Module:    "flash",

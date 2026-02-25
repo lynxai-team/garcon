@@ -28,7 +28,7 @@ func generateVariants(assets []asset, brotliQuality, avifQuality, webPQuality in
 			continue
 		}
 
-		var variants []Variant
+		var variants []variant
 
 		// Generate Brotli variant for compressible MIME types
 		if isCompressible(assets[i].MIME) && brotliQuality > 0 {
@@ -36,7 +36,7 @@ func generateVariants(assets []asset, brotliQuality, avifQuality, webPQuality in
 			if err == nil {
 				compressed, err := compressBrotli(content, brotliQuality)
 				if err == nil && int64(len(compressed)) < assets[i].Size {
-					v := Variant{
+					v := variant{
 						VariantType: VariantBrotli,
 						Size:        int64(len(compressed)),
 						Identifier:  assets[i].Identifier + "_brotli",
@@ -104,10 +104,10 @@ func compressBrotli(content []byte, quality int) ([]byte, error) {
 
 // generateAVIFVariant generates AVIF variant for image assets
 // Uses github.com/vegidio/avif-go (CGO required).
-func generateAVIFVariant(asset asset, quality int, cacheDir string) (Variant, error) {
+func generateAVIFVariant(asset asset, quality int, cacheDir string) (variant, error) {
 	img, err := decodeImage(asset.AbsPath)
 	if err != nil {
-		return Variant{}, err
+		return variant{}, err
 	}
 
 	opts := &avif.Options{
@@ -119,10 +119,10 @@ func generateAVIFVariant(asset asset, quality int, cacheDir string) (Variant, er
 	var buf bytes.Buffer
 	err = avif.Encode(&buf, img, opts)
 	if err != nil {
-		return Variant{}, err
+		return variant{}, err
 	}
 
-	v := Variant{
+	v := variant{
 		VariantType: VariantAVIF,
 		Size:        int64(buf.Len()),
 		Identifier:  asset.Identifier + "_avif",
@@ -132,7 +132,7 @@ func generateAVIFVariant(asset asset, quality int, cacheDir string) (Variant, er
 
 	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o644)
 	if err != nil {
-		return Variant{}, err
+		return variant{}, err
 	}
 
 	return v, nil
@@ -140,30 +140,30 @@ func generateAVIFVariant(asset asset, quality int, cacheDir string) (Variant, er
 
 // generateWebPVariant generates WebP variant for image assets
 // Uses github.com/kolesa-team/go-webp/encoder (CGO required).
-func generateWebPVariant(asset asset, quality int, cacheDir string) (Variant, error) {
+func generateWebPVariant(asset asset, quality int, cacheDir string) (variant, error) {
 	img, err := decodeImage(asset.AbsPath)
 	if err != nil {
-		return Variant{}, err
+		return variant{}, err
 	}
 
 	// Configure WebP options (lossy)
 	opts, err := encoder.NewLossyEncoderOptions(encoder.PresetPhoto, float32(quality))
 	if err != nil {
-		return Variant{}, err
+		return variant{}, err
 	}
 
 	enc, err := encoder.NewEncoder(img, opts)
 	if err != nil {
-		return Variant{}, err
+		return variant{}, err
 	}
 
 	var buf bytes.Buffer
 	err = enc.Encode(&buf)
 	if err != nil {
-		return Variant{}, err
+		return variant{}, err
 	}
 
-	v := Variant{
+	v := variant{
 		VariantType: VariantWebP,
 		Size:        int64(buf.Len()),
 		Identifier:  asset.Identifier + "_webp",
@@ -173,7 +173,7 @@ func generateWebPVariant(asset asset, quality int, cacheDir string) (Variant, er
 
 	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o644)
 	if err != nil {
-		return Variant{}, err
+		return variant{}, err
 	}
 
 	return v, nil

@@ -29,7 +29,7 @@ type asset struct {
 	ETag           string
 	Identifier     string
 	ImoHash        []byte
-	Variants       []Variant
+	Variants       []variant
 	Size           int64
 	FrequencyScore int
 	EmbedEligible  bool
@@ -39,22 +39,22 @@ type asset struct {
 	IsHTML         bool
 }
 
-// Variant represents a compression variant for an asset.
-type Variant struct {
+// variant represents a compression variant for an asset.
+type variant struct {
 	Identifier  string
 	Extension   string
 	CachePath   string
 	HeaderHTTP  []byte
 	HeaderHTTPS []byte
-	VariantType VariantType
+	VariantType variantType
 	Size        int64
 }
 
-// VariantType represents compression type.
-type VariantType int
+// variantType represents compression type.
+type variantType int
 
 const (
-	VariantBrotli VariantType = iota
+	VariantBrotli variantType = iota
 	VariantAVIF
 	VariantWebP
 )

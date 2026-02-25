@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-// FileInfo holds file information for cache management.
-type FileInfo struct {
+// fileInfo holds file information for cache management.
+type fileInfo struct {
 	ModTime time.Time
 	Path    string
 	Size    int64
@@ -33,7 +33,7 @@ func ensureCacheDir(cacheDir string) error {
 // Removes oldest files when cache exceeds maxSize.
 func cleanCache(cacheDir string, maxSize int64) error {
 	var totalSize int64
-	var files []FileInfo
+	var files []fileInfo
 
 	err := filepath.WalkDir(cacheDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -43,7 +43,7 @@ func cleanCache(cacheDir string, maxSize int64) error {
 		if err != nil {
 			return nil
 		}
-		files = append(files, FileInfo{
+		files = append(files, fileInfo{
 			Path:    path,
 			Size:    info.Size(),
 			ModTime: info.ModTime(),

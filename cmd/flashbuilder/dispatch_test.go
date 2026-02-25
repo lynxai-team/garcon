@@ -20,9 +20,9 @@ func TestBuildDispatch(t *testing.T) {
 		{RelPath: "script.js", Identifier: "AssetScript", FrequencyScore: 600, IsDuplicate: false},
 	}
 
-	want := []Handlers{
-		{Length: 0, Entry: "s.ServeIndexHtml", Routes: []RouteData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
-		{Length: 0, Entry: "s.ServeIndexHtml", Routes: []RouteData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
+	want := []handlers{
+		{Length: 0, Entry: "s.ServeIndexHtml", Routes: []routeData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
+		{Length: 0, Entry: "s.ServeIndexHtml", Routes: []routeData{{Path: "", Identifier: "AssetIndex", Frequency: 1000}}},
 		{Length: 1, Entry: "s.ServeIndexHtml"},
 		{Length: 2, Entry: "s.ServeIndexHtml"},
 		{Length: 3, Entry: "s.ServeIndexHtml"},
@@ -32,14 +32,14 @@ func TestBuildDispatch(t *testing.T) {
 			HandlerName: "handleLen5",
 			PrevEntry:   "s.ServeIndexHtml",
 			Entry:       "s.handleLen5",
-			Routes:      []RouteData{{Path: "style", Identifier: "AssetStyle", Frequency: 800}},
+			Routes:      []routeData{{Path: "style", Identifier: "AssetStyle", Frequency: 800}},
 		},
 		{
 			Length:      6,
 			HandlerName: "handleLen6",
 			PrevEntry:   "s.handleLen5",
 			Entry:       "s.handleLen6",
-			Routes:      []RouteData{{Path: "script", Identifier: "AssetScript", Frequency: 600}},
+			Routes:      []routeData{{Path: "script", Identifier: "AssetScript", Frequency: 600}},
 		},
 		{Length: 7, Entry: "s.handleLen6"},
 		{Length: 8, Entry: "s.handleLen6"},
@@ -48,7 +48,7 @@ func TestBuildDispatch(t *testing.T) {
 			HandlerName: "handleLen9",
 			PrevEntry:   "s.handleLen6",
 			Entry:       "s.handleLen9",
-			Routes: []RouteData{
+			Routes: []routeData{
 				{Path: "style.css", Identifier: "AssetStyle", Frequency: 800},
 				{Path: "script.js", Identifier: "AssetScript", Frequency: 600},
 			},
@@ -58,7 +58,7 @@ func TestBuildDispatch(t *testing.T) {
 			HandlerName: "handleLen10",
 			PrevEntry:   "s.handleLen9",
 			Entry:       "s.handleLen10",
-			Routes:      []RouteData{{Path: "index.html", Identifier: "AssetIndex", Frequency: 1000}},
+			Routes:      []routeData{{Path: "index.html", Identifier: "AssetIndex", Frequency: 1000}},
 		},
 	}
 
