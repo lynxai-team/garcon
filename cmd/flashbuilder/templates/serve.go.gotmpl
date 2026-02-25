@@ -12,7 +12,7 @@ func (s *Server) notFound{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 }
 {{range .Assets}}{{if and .EmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
 func (s *Server) serve{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("If-None-Match") == `{{.ETag}}` {
+	if r.Header.Get("If-None-Match") == `"{{.ETag}}"` {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}

@@ -410,6 +410,6 @@ func computeImoHash(path string) []byte {
 func computeETag(hash []byte) string {
 	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_ {|}~'"
 	encoder := base91.NewEncoding(alphabet)
-	encoded := encoder.EncodeToString(hash)
-	return "\"" + encoded + "\""
+	b91 := encoder.EncodeToString(hash) // the base91-encoded hash is 20 bytes
+	return b91[:9]                      // truncate 9 bytes out of 20
 }
