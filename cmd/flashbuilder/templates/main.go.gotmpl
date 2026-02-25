@@ -95,13 +95,13 @@ func main() {
 }
 
 func generateTLSConfig() *tls.Config {
-	// Generate an ECDSA P‑256 private key.
+	// Generate an ECDSA P-256 private key.
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		panic(err)
 	}
 
-	// Create a self‑signed certificate template.
+	// Create a self-signed certificate template.
 	serial, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
 	certTemplate := &x509.Certificate{
 		SerialNumber: serial,
@@ -112,7 +112,7 @@ func generateTLSConfig() *tls.Config {
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
 
-	// Self‑sign the certificate.
+	// Self-sign the certificate.
 	certDER, err := x509.CreateCertificate(
 		rand.Reader,
 		certTemplate,
@@ -175,7 +175,7 @@ func startUDPServer(addr string, tlsCfg *tls.Config, h http.Handler) *http3.Serv
 		Addr:      addr,
 		Handler:   h,
 		TLSConfig: tlsCfg,
-		// QUIC‑specific options can be tuned here (e.g., MaxIncomingStreams)
+		// QUIC-specific options can be tuned here (e.g., MaxIncomingStreams)
 	}
 	// http3.Server internally creates a UDP listener, so we just call ListenAndServe.
 	go func() {

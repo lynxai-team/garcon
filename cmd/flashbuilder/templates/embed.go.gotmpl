@@ -1,16 +1,12 @@
-{{define "embed.go"}}
-// This file contains all embed-eligible assets.
+{{define "embed.go"}}// This file contains all embed-eligible assets.
 
 package main
 
 import (
-    _ "embed"
-    "net/http"
+	_ "embed"
 )
-
-{{range .Assets}}{{if and (.EmbedEligible) (not .IsDuplicate) (not .IsShortcut)}}
+{{range .Assets}}{{if and .EmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
 // {{.Identifier}} is a symlink to original {{.RelPath}}
 //go:embed assets/{{.Filename}}
 var {{.Identifier}} []byte
-
 {{end}}{{end}}{{end}}

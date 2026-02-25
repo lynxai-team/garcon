@@ -1,15 +1,12 @@
-{{ define "headers-https.go" }}
-// This file contains all the HTTPS headers (one header per asset).
+{{ define "headers-https.go" }}// This file contains all the HTTPS headers (one header per asset).
 
-package main
-{{ $port := .Config.HTTPSPort }}
-{{range .Assets}}{{if and (.EmbedEligible) (not .IsDuplicate) (not .IsShortcut)}}
+package main{{ $port := .Config.HTTPSPort }}
+{{range .Assets}}{{if and .EmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
 
-var {{.Identifier}}HeaderHTTPS []byte = []byte(
-{{if .IsHTML}}{{if .CSP}}"Content-Security-Policy: {{.CSP}}" + "\r\n" +
-{{end}}{{end}}
-"Content-Type: {{.MIME}}" + "\r\n" +
-"Cache-Control: public, max-age=31536000, immutable{{if .IsIndex}}, must-revalidate{{end}}" + "\r\n" +
-"Content-Length: {{.Size}}" + "\r\n" +
-"Strict-Transport-Security: max-age=31536000" + "\r\n" +
-`Alt-Svc: h3=":{{$port}}"; ma=2592000` + "\r\n"){{end}}{{end}}{{end}}
+var {{.Identifier}}HeaderHTTPS = []byte({{if .IsHTML}}{{if .CSP}}
+	"Content-Security-Policy: {{.CSP}}" + "\r\n" +{{end}}{{end}}
+	"Content-Type: {{.MIME}}" + "\r\n" +
+	"Cache-Control: public, max-age=31536000, immutable{{if .IsIndex}}, must-revalidate{{end}}" + "\r\n" +
+	"Content-Length: {{.Size}}" + "\r\n" +
+	"Strict-Transport-Security: max-age=31536000" + "\r\n" +
+	`Alt-Svc: h3=":{{$port}}"; ma=2592000` + "\r\n"){{end}}{{end}}{{end}}

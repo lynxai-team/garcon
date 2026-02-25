@@ -1,13 +1,10 @@
-{{ define "headers-http.go" }}
-// This file contains all the HTTP headers (one header per asset).
+{{ define "headers-http.go" }}// This file contains all the HTTP headers (one header per asset).
 
 package main
+{{range .Assets}}{{if and .EmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
 
-{{range .Assets}}{{if and (.EmbedEligible) (not .IsDuplicate) (not .IsShortcut)}}
-
-var {{.Identifier}}HeaderHTTP []byte = []byte(
-{{if .IsHTML}}{{if .CSP}}"Content-Security-Policy: {{.CSP}}" + "\r\n" +
-{{end}}{{end}}
-"Content-Type: {{.MIME}}" + "\r\n" +
-"Cache-Control: public, max-age=31536000, immutable{{if .IsIndex}}, must-revalidate{{end}}" + "\r\n" +
-"Content-Length: {{.Size}}" + "\r\n"){{end}}{{end}}{{end}}
+var {{.Identifier}}HeaderHTTP = []byte({{if .IsHTML}}{{if .CSP}}
+	"Content-Security-Policy: {{.CSP}}" + "\r\n" +{{end}}{{end}}
+	"Content-Type: {{.MIME}}" + "\r\n" +
+	"Cache-Control: public, max-age=31536000, immutable{{if .IsIndex}}, must-revalidate{{end}}" + "\r\n" +
+	"Content-Length: {{.Size}}" + "\r\n"){{end}}{{end}}{{end}}

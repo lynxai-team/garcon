@@ -17,15 +17,15 @@ func newServer{{$scheme}}() *Server {
 
 {{range .Dispatch}}{{if .Routes}}
 func (s *Server) {{.HandlerName}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
-    const L = {{.Length}}
-    pathNoSlash := r.URL.Path[1:]
-    truncated := pathNoSlash[:L]
-    switch truncated {
-    {{range .Routes}}
-    case "{{.Path}}":
-        s.Serve{{.Identifier}}{{$scheme}}(w, r)
-    {{end}}
-    default:
-        {{.PrevEntry}}{{$scheme}}(w, r)
-    }
+	const L = {{.Length}}
+	pathNoSlash := r.URL.Path[1:]
+	truncated := pathNoSlash[:L]
+	switch truncated {
+	{{range .Routes}}
+	case "{{.Path}}":
+		s.Serve{{.Identifier}}{{$scheme}}(w, r)
+	{{end}}
+	default:
+		{{.PrevEntry}}{{$scheme}}(w, r)
+	}
 }{{end}}{{end}}{{end}}
