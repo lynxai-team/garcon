@@ -10,7 +10,7 @@ import (
 	_ "embed"
 )
 {{range .Assets}}{{if and .EmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
-// {{.Identifier}} is a symlink to original {{.RelPath}}
+// asset{{.Identifier}} is a hard-link to original {{.RelPath}}
 //go:embed assets/{{.Filename}}
-var {{.Identifier}} []byte
+var asset{{.Identifier}} []byte
 {{end}}{{end}}{{end}}

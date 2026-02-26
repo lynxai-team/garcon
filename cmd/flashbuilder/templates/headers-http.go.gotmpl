@@ -14,8 +14,8 @@
 
 package main{{range .Assets}}{{if and .EmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
 
-var {{.Identifier}}HeaderHTTP = []byte({{if .IsHTML}}{{if .CSP}}
-	"Content-Security-Policy: {{.CSP}}" + "\r\n" +{{end}}{{end}}
+var header{{.Identifier}}HTTP = []byte({{if .CSP}}
+	"Content-Security-Policy: {{.CSP}}" + "\r\n" +{{end}}
 	`ETag: "{{.ETag}}"` + "\r\n" +
 	"Content-Type: {{.MIME}}" + "\r\n" +
 	"Cache-Control: public, max-age=31536000, immutable{{if .IsIndex}}, must-revalidate{{end}}" + "\r\n" +

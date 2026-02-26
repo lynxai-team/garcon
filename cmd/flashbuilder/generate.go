@@ -34,24 +34,6 @@ type configData struct {
 	Scheme    string // "HTTP" or "HTTPS"
 }
 
-// variantData represents a variant for template rendering.
-type variantData struct {
-	HeaderHTTP  string
-	HeaderHTTPS string
-	Identifier  string
-	Extension   string
-	CachePath   string
-	VariantType variantType
-	Size        int64
-}
-
-// handlerData holds data for handler template rendering.
-type handlerData struct {
-	Protocol string
-	Routes   []routeData
-	Index    int
-}
-
 // parseTemplates parses and caches templates.
 func parseTemplates() (*template.Template, error) {
 	tmpl := template.New("root").Funcs(funcMap)

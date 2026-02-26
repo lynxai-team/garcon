@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -29,10 +30,10 @@ import (
 	"github.com/quic-go/quic-go/http3"
 )
 
-// maxLen is the length of the largest asset path
+// maxLen is the length of the largest asset path.
 const maxLen = {{.MaxLen}}
 
-// Server implements http.Handler
+// Server implements http.Handler.
 type Server struct {
 	dispatch [maxLen + 2]func(http.ResponseWriter, *http.Request)
 }
@@ -172,7 +173,8 @@ func startTCPServer(addr string, tlsCfg *tls.Config, h http.Handler) *http.Serve
 	}
 	go func() {
 		log.Printf("✅ TCP server listening on https://%s", addr)
-		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+		err := srv.Serve(ln)
+		if err != nil && err != http.ErrServerClosed {
 			log.Fatalf("TCP server error: %v", err)
 		}
 	}()
@@ -190,7 +192,8 @@ func startUDPServer(addr string, tlsCfg *tls.Config, h http.Handler) *http3.Serv
 	// http3.Server internally creates a UDP listener, so we just call ListenAndServe.
 	go func() {
 		log.Printf("✅ UDP (QUIC) server listening on https://%s (HTTP/3)", addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		err := srv.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("UDP server error: %v", err)
 		}
 	}()
@@ -198,10 +201,12 @@ func startUDPServer(addr string, tlsCfg *tls.Config, h http.Handler) *http3.Serv
 }
 
 func shutdownServers(ctx context.Context, tcpSrv *http.Server, udpSrv *http3.Server) {
-	if err := tcpSrv.Shutdown(ctx); err != nil {
+	err := tcpSrv.Shutdown(ctx)
+	if err != nil {
 		log.Printf("TCP shutdown error: %v", err)
 	}
-	if err := udpSrv.Close(); err != nil {
+	err = udpSrv.Close()
+	if err != nil {
 		log.Printf("UDP shutdown error: %v", err)
 	}
 }{{end}}

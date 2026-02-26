@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"mime"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -21,13 +23,14 @@ import (
 
 // asset represents a static asset with all pre-computed metadata.
 type asset struct {
+	Identifier     string
 	CanonicalID    string
 	AbsPath        string
+	RelPath        string
 	Filename       string
 	MIME           string
-	RelPath        string
+	CSP            string
 	ETag           string
-	Identifier     string
 	ImoHash        []byte
 	Variants       []variant
 	Size           int64
@@ -61,7 +64,7 @@ const (
 
 // discover walks the input directory and collects all files
 // Returns assets sorted by relative path for deterministic ordering.
-func discover(input string) ([]asset, error) {
+func discover(input, csp string) ([]asset, error) {
 	var assets []asset
 
 	err := filepath.WalkDir(input, func(path string, d fs.DirEntry, err error) error {
@@ -123,11 +126,17 @@ func discover(input string) ([]asset, error) {
 		isHTML := strings.HasPrefix(mimeType, "text/html") ||
 			strings.HasPrefix(mimeType, "application/xhtml+xml")
 
+		c := ""
+		if isHTML {
+			c = extractCSP(absPath, csp)
+		}
+
 		a := asset{
-			RelPath: relPath,
 			AbsPath: absPath,
+			RelPath: relPath,
 			Size:    info.Size(),
 			MIME:    mimeType,
+			CSP:     c,
 			IsIndex: isIndex,
 			IsHTML:  isHTML,
 		}
@@ -144,6 +153,39 @@ func discover(input string) ([]asset, error) {
 	})
 
 	return assets, nil
+}
+
+// extractCSP extracts Content-Security-Policy from a HTML file. Priority:
+// 1. If HTML contains `<meta http-equiv="Content-Security-Policy" content="...">`, use extracted value
+// 2. Else if `--csp=""` is explicitly set, no CSP header
+// 3. Else use `--csp` default value (`"default-src 'self'"`).
+func extractCSP(filename, csp string) string {
+	f, err := os.Open(filename)
+	if err != nil {
+		return csp
+	}
+	defer f.Close()
+
+	first8KB := make([]byte, 0, 8*1024) // search CSP only in the first 8 KB
+	n, err := f.Read(first8KB)
+	html := first8KB[:n]
+
+	lowerHTML := bytes.ToLower(html)
+	idx := bytes.Index(lowerHTML, []byte(`meta http-equiv="content-security-policy"`))
+	if idx == -1 {
+		return csp
+	}
+	const content = `content="`
+	contentIdx := bytes.Index(lowerHTML[idx:], []byte(content))
+	if contentIdx == -1 {
+		return csp
+	}
+	start := idx + contentIdx + len(content)
+	end := bytes.IndexByte(lowerHTML[start:], '"')
+	if end == -1 {
+		return csp
+	}
+	return string(html[start : start+end])
 }
 
 // detectMIME determines the MIME type for a file
@@ -218,44 +260,40 @@ func dedupe(assets []asset) []asset {
 
 // generateIdentifier creates a valid Go identifier from a relative path
 // Deterministic sanitization ensures reproducibility.
-func generateIdentifier(relPath string, existing map[string]bool) string {
-	// Split path into segments
-	segments := strings.Split(relPath, "/")
-	filename := filepath.Base(relPath)
-	ext := filepath.Ext(filename)
-	filename = strings.TrimSuffix(filename, ext)
-
+func generateIdentifier(relPath string, identifiers, filenames map[string]struct{}) (id, fn string) {
 	// Filter and capitalize each segment
 	var parts []string
-	for _, seg := range segments {
-		seg = sanitizeIdentifier(seg)
-		if len(seg) > 0 {
-			parts = append(parts, capitalize(seg))
-		}
-	}
-
-	// Add filename if present
-	if filename != "" && filename != "." {
-		filename = sanitizeIdentifier(filename)
-		if len(filename) > 0 {
-			parts = append(parts, capitalize(filename))
-		}
-	}
-
-	identifier := "Asset" + strings.Join(parts, "")
-
-	// Resolve collisions with numeric suffix
-	if existing[identifier] {
-		for i := 2; i < 1000; i++ {
-			newID := fmt.Sprintf("%s_%03d", identifier, i)
-			if !existing[newID] {
-				identifier = newID
-				break
+	for seg := range strings.SplitSeq(relPath, "/") {
+		for chunk := range strings.SplitSeq(seg, ".") {
+			chunk = sanitizeIdentifier(chunk)
+			if len(chunk) > 0 {
+				parts = append(parts, capitalize(chunk))
 			}
 		}
 	}
 
-	return identifier
+	id = strings.Join(parts, "")
+	fn = strings.ReplaceAll(relPath, "/", "-")
+
+	// Resolve collisions with numeric suffix
+	newID := id
+	newFN := fn
+	for i := range 1000 {
+		_, found := identifiers[newID]
+		if !found {
+			break
+		}
+		newID = id + strconv.Itoa(i)
+	}
+	for i := range 1000 {
+		_, found := filenames[newFN]
+		if !found {
+			break
+		}
+		newFN = fn + strconv.Itoa(i)
+	}
+
+	return newID, newFN
 }
 
 // sanitizeIdentifier filters valid Go identifier characters
@@ -336,15 +374,11 @@ func generateShortcut(relPath string) string {
 
 	// Extensionless shortcuts
 	ext := filepath.Ext(relPath)
-	if ext != "" {
-		return strings.TrimSuffix(relPath, ext)
-	}
-
-	return relPath
+	return relPath[:len(relPath)-len(ext)]
 }
 
 // createLinks creates symbolic links for assets in the output directory.
-func createLinks(assets []asset, input, output, cacheDir string) error {
+func createLinks(assets []asset, output, cacheDir string) error {
 	// Create assets directory
 	assetsDir := filepath.Join(output, "assets")
 	err := os.MkdirAll(assetsDir, 0o755)
@@ -368,16 +402,16 @@ func createLinks(assets []asset, input, output, cacheDir string) error {
 		}
 
 		if asset.EmbedEligible {
-			// Create symlink in assets directory
-			target := filepath.Join(assetsDir, asset.Filename+filepath.Ext(asset.RelPath))
+			// Create hard-link in assets directory
+			target := filepath.Join(assetsDir, asset.Filename)
 			// Remove existing file/link if present
 			os.Remove(target)
-			err := os.Symlink(asset.AbsPath, target)
+			err := os.Link(asset.AbsPath, target)
 			if err != nil {
-				return fmt.Errorf("E087: Failed to create symlink: %w", err)
+				return fmt.Errorf("E087: Failed to create hard-link: %w", err)
 			}
 		} else {
-			// Create symlink in www directory
+			// Create hard-link in www directory
 			target := filepath.Join(wwwDir, asset.RelPath)
 			err := os.MkdirAll(filepath.Dir(target), 0o755)
 			if err != nil {
@@ -385,9 +419,9 @@ func createLinks(assets []asset, input, output, cacheDir string) error {
 			}
 			// Remove existing file/link if present
 			os.Remove(target)
-			err = os.Symlink(asset.AbsPath, target)
+			err = os.Link(asset.AbsPath, target)
 			if err != nil {
-				return fmt.Errorf("E087: Failed to create symlink: %w", err)
+				return fmt.Errorf("E087: Failed to create hard-link: %w", err)
 			}
 		}
 	}

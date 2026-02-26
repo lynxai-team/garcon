@@ -19,11 +19,10 @@ type routeData struct {
 
 // handlers is sed to render the handlers and dispatch array.
 type handlers struct {
-	HandlerName string
-	PrevEntry   string
-	Entry       string
-	Routes      []routeData
-	Length      int
+	PrevEntry string
+	Entry     string
+	Routes    []routeData
+	Length    int
 }
 
 // buildRoutesByLength groups routes by length, sorted by frequency score.
@@ -59,7 +58,7 @@ func buildRoutesByLength(assets []asset, size int) [][]routeData {
 func buildDispatch(assets []asset, maxLen int) []handlers {
 	assetRoutesByLen := buildRoutesByLength(assets, maxLen+1)
 	dispatch := make([]handlers, maxLen+2)
-	dispatchEntry := "s.notFound"
+	dispatchEntry := "notFound"
 
 	for i := range dispatch {
 		// dispatch index is the length of the request path (including leading slash)
@@ -67,23 +66,20 @@ func buildDispatch(assets []asset, maxLen int) []handlers {
 		assetRouteLen := max(0, i-1) // subtract the leading slash
 		assetRoutes := assetRoutesByLen[assetRouteLen]
 
-		var handlerName, prevEntry string
+		prevEntry := dispatchEntry
 		if len(assetRoutes) > 0 {
 			if assetRouteLen == 0 {
-				dispatchEntry = "s.ServeIndexHtml"
+				dispatchEntry = "serveIndexHtml"
 			} else {
-				handlerName = "handleLen" + strconv.Itoa(assetRouteLen)
-				prevEntry = dispatchEntry
-				dispatchEntry = "s." + handlerName
+				dispatchEntry = "handleLen" + strconv.Itoa(assetRouteLen)
 			}
 		}
 
 		dispatch[i] = handlers{
-			Length:      assetRouteLen,
-			HandlerName: handlerName,
-			Entry:       dispatchEntry,
-			PrevEntry:   prevEntry,
-			Routes:      assetRoutes,
+			Length:    assetRouteLen,
+			Entry:     dispatchEntry,
+			PrevEntry: prevEntry,
+			Routes:    assetRoutes,
 		}
 	}
 

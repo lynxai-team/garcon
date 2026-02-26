@@ -40,7 +40,7 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 	}
 
 	// Run discovery
-	assets, err := discover(tmpDir)
+	assets, err := discover(tmpDir, "")
 	if err != nil {
 		t.Fatalf("Discovery failed: %v", err)
 	}
@@ -57,11 +57,14 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 	}
 
 	// Generate identifiers
-	identifiers := make(map[string]bool)
+	identifiers := make(map[string]struct{}, len(assets))
+	filenames := make(map[string]struct{}, len(assets))
 	for i := range assets {
-		assets[i].Identifier = generateIdentifier(assets[i].RelPath, identifiers)
-		identifiers[assets[i].Identifier] = true
-		assets[i].Filename = assets[i].Identifier + filepath.Ext(assets[i].RelPath)
+		id, fn := generateIdentifier(assets[i].RelPath, identifiers, filenames)
+		identifiers[id] = struct{}{}
+		filenames[fn] = struct{}{}
+		assets[i].Identifier = id
+		assets[i].Filename = fn
 	}
 
 	// Compute frequency scores

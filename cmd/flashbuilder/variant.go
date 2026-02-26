@@ -39,7 +39,7 @@ func generateVariants(assets []asset, brotliQuality, avifQuality, webPQuality in
 					v := variant{
 						VariantType: VariantBrotli,
 						Size:        int64(len(compressed)),
-						Identifier:  assets[i].Identifier + "_brotli",
+						Identifier:  assets[i].Identifier + "Brotli",
 						Extension:   ".br",
 						CachePath:   filepath.Join(cacheDir, assets[i].RelPath+".br"),
 					}
@@ -125,7 +125,7 @@ func generateAVIFVariant(asset asset, quality int, cacheDir string) (variant, er
 	v := variant{
 		VariantType: VariantAVIF,
 		Size:        int64(buf.Len()),
-		Identifier:  asset.Identifier + "_avif",
+		Identifier:  asset.Identifier + "AVIF",
 		Extension:   ".avif",
 		CachePath:   filepath.Join(cacheDir, asset.RelPath+".avif"),
 	}
@@ -166,7 +166,7 @@ func generateWebPVariant(asset asset, quality int, cacheDir string) (variant, er
 	v := variant{
 		VariantType: VariantWebP,
 		Size:        int64(buf.Len()),
-		Identifier:  asset.Identifier + "_webp",
+		Identifier:  asset.Identifier + "WebP",
 		Extension:   ".webp",
 		CachePath:   filepath.Join(cacheDir, asset.RelPath+".webp"),
 	}

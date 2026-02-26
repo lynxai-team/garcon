@@ -39,7 +39,7 @@ func TestDiscover(t *testing.T) {
 	}
 
 	// Run discovery
-	assets, err := discover(tmpDir)
+	assets, err := discover(tmpDir, "")
 	if err != nil {
 		t.Fatalf("Discovery failed: %v", err)
 	}
@@ -109,29 +109,31 @@ func TestGenerateIdentifier(t *testing.T) {
 		relPath  string
 		expected string
 	}{
-		{"Simple file", "css/style.css", "AssetCssStyle"},
-		{"Index file", "index.html", "AssetIndex"},
-		{"Nested file", "assets/css/main.css", "AssetAssetsCssMain"},
-		{"Special chars", "assets/images/logo-1.png", "AssetAssetsImagesLogo1"},
-		{"Duplicate", "css/style.css", "AssetCssStyle_002"},
+		{"Simple file", "css/style.css", "CssStyleCss"},
+		{"Index file", "index.html", "IndexHtml"},
+		{"Nested file", "assets/css/main.css", "AssetsCssMainCss"},
+		{"Special chars", "assets/images/logo-1.png", "AssetsImagesLogo1Png"},
+		{"Duplicate", "css/style.css", "AssetCssStyleCss2"},
 	}
 
-	existing := make(map[string]bool)
+	identifiers := make(map[string]struct{})
+	filenames := make(map[string]struct{})
 	for i, tt := range tests {
 		if i > 0 && tt.name == "Duplicate" {
 			// Simulate existing identifier
-			existing["AssetCssStyle"] = true
+			identifiers["CssStyleCss"] = struct{}{}
+			filenames["css-Style.css"] = struct{}{}
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := generateIdentifier(tt.relPath, existing)
+			id, _ := generateIdentifier(tt.relPath, identifiers, filenames)
 			// Basic validation: should start with "Asset"
-			if result[:5] != "Asset" {
-				t.Errorf("Identifier should start with 'Asset', got %s", result)
+			if id[:5] != "Asset" {
+				t.Errorf("Identifier should start with 'Asset', got %s", id)
 			}
 			// Check for valid Go identifier chars
-			for _, r := range result {
+			for _, r := range id {
 				if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
 					t.Errorf("Invalid character in identifier: %c", r)
 				}
