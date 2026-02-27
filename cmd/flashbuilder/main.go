@@ -21,6 +21,7 @@ type cli struct {
 	Input  string `env:"FLASHBUILDER_INPUT"  type:"path" arg:"input"  help:"Path to asset tree"`
 	Output string `env:"FLASHBUILDER_OUTPUT" type:"path" arg:"output" help:"Destination for generated files"`
 
+	// Content-Security-Policy header value
 	CSP string `env:"FLASHBUILDER_CSP" default:"default-src 'self'"`
 
 	CacheDir    string           `env:"FLASHBUILDER_CACHE_DIR"`

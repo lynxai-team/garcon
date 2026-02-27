@@ -32,7 +32,7 @@ type asset struct {
 	Size       int64  // File size in bytes
 
 	// headers
-	CSP      string
+	CSP      string    // Content-Security-Policy header value
 	ETag     string    // Base91 ETag for conditional GET (quoted)
 	ImoHash  uint128   // Content hash from imohash
 	Variants []variant // Compression variants (Brotli, AVIF, WebP)
@@ -134,7 +134,11 @@ func discover(input, csp string) ([]asset, error) {
 
 		c := ""
 		if isHTML {
-			c = extractCSP(absPath, csp)
+			html := read(absPath, 100_000) // limit 100 KB
+			c = extractCSP(html)
+			if c == "" {
+				c = csp
+			}
 		}
 
 		a := asset{
@@ -142,9 +146,11 @@ func discover(input, csp string) ([]asset, error) {
 			RelPath: relPath,
 			Size:    info.Size(),
 			MIME:    mimeType,
+
+			// only HTML:
 			IsHTML:  isHTML,
 			IsIndex: isIndex,
-			CSP:     c,
+			CSP:     c,    // Content-Security-Policy (HTTP header)
 		}
 		assets = append(assets, a)
 		return nil
@@ -161,37 +167,49 @@ func discover(input, csp string) ([]asset, error) {
 	return assets, nil
 }
 
-// extractCSP extracts Content-Security-Policy from a HTML file. Priority:
-// 1. If HTML contains `<meta http-equiv="Content-Security-Policy" content="...">`, use extracted value
-// 2. Else if `--csp=""` is explicitly set, no CSP header
-// 3. Else use `--csp` default value (`"default-src 'self'"`).
-func extractCSP(filename, csp string) string {
+func read(filename string, limit int) []byte {
 	f, err := os.Open(filename)
 	if err != nil {
-		return csp
+		return nil
 	}
 	defer f.Close()
 
-	first8KB := make([]byte, 0, 8*1024) // search CSP only in the first 8 KB
-	n, err := f.Read(first8KB)
-	html := first8KB[:n]
+	firstBytes := make([]byte, 0, limit)
+	n, err := f.Read(firstBytes)
+	return firstBytes[:n]
+}
 
-	lowerHTML := bytes.ToLower(html)
-	idx := bytes.Index(lowerHTML, []byte(`meta http-equiv="content-security-policy"`))
-	if idx == -1 {
-		return csp
+// extractCSP extracts Content-Security-Policy from HTML. Priority:
+// 1. If HTML contains `<meta http-equiv="Content-Security-Policy" content="...">`, use extracted value
+// 2. Else if `--csp=""` is explicitly set, no CSP header
+// 3. Else use `--csp` default value (`"default-src 'self'"`).
+func extractCSP(html []byte) string {
+	csp := extract(html,
+		[]byte(`meta http-equiv="content-security-policy"`),
+		[]byte(` content="`))
+	return string(csp)
+}
+func extract(html, tag, field []byte) []byte {
+	lower := bytes.ToLower(html)
+	tagIdx := bytes.Index(lower, tag)
+	if tagIdx == -1 {
+		return nil
 	}
-	const content = `content="`
-	contentIdx := bytes.Index(lowerHTML[idx:], []byte(content))
-	if contentIdx == -1 {
-		return csp
+	tagIdx += len(tag)
+
+	fieldIdx := bytes.Index(lower[tagIdx:], field)
+	if fieldIdx == -1 {
+		return nil
 	}
-	start := idx + contentIdx + len(content)
-	end := bytes.IndexByte(lowerHTML[start:], '"')
+	fieldIdx += len(field)
+
+	start := tagIdx + fieldIdx
+	end := bytes.IndexByte(lower[start:], '"')
 	if end == -1 {
-		return csp
+		return nil
 	}
-	return string(html[start : start+end])
+
+	return html[start : start+end]
 }
 
 // detectMIME determines the MIME type for a file
