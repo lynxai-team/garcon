@@ -31,6 +31,9 @@ type asset struct {
 	MIME       string // Detected MIME type (e.g., "text/html")
 	Size       int64  // File size in bytes
 
+	// Contact form action (backend endpoint)
+	Form string
+
 	// headers
 	CSP      string    // Content-Security-Policy header value
 	ETag     string    // Base91 ETag for conditional GET (quoted)
@@ -133,12 +136,14 @@ func discover(input, csp string) ([]asset, error) {
 			strings.HasPrefix(mimeType, "application/xhtml+xml")
 
 		c := ""
+		form := ""
 		if isHTML {
 			html := read(absPath, 100_000) // limit 100 KB
 			c = extractCSP(html)
 			if c == "" {
 				c = csp
 			}
+			form = extractFormAction(html)
 		}
 
 		a := asset{
@@ -151,6 +156,7 @@ func discover(input, csp string) ([]asset, error) {
 			IsHTML:  isHTML,
 			IsIndex: isIndex,
 			CSP:     c,    // Content-Security-Policy (HTTP header)
+			Form:    form, // Contact form endpoint
 		}
 		assets = append(assets, a)
 		return nil
@@ -189,6 +195,12 @@ func extractCSP(html []byte) string {
 		[]byte(` content="`))
 	return string(csp)
 }
+
+func extractFormAction(html []byte) string {
+	action := extract(html, []byte(`<form `), []byte(`action="`))
+	return string(action)
+}
+
 func extract(html, tag, field []byte) []byte {
 	lower := bytes.ToLower(html)
 	tagIdx := bytes.Index(lower, tag)
