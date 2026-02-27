@@ -18,18 +18,22 @@ import (
 
 // CLI structure.
 type cli struct {
-	Input       string           `env:"FLASHBUILDER_INPUT"        type:"path"                  arg:"input"  help:"Path to asset tree"`
-	Output      string           `env:"FLASHBUILDER_OUTPUT"       type:"path"                  arg:"output" help:"Destination for generated files"`
-	CSP         string           `env:"FLASHBUILDER_CSP"          default:"default-src 'self'"`
+	Input  string `env:"FLASHBUILDER_INPUT"  type:"path" arg:"input"  help:"Path to asset tree"`
+	Output string `env:"FLASHBUILDER_OUTPUT" type:"path" arg:"output" help:"Destination for generated files"`
+
+	CSP string `env:"FLASHBUILDER_CSP" default:"default-src 'self'"`
+
 	CacheDir    string           `env:"FLASHBUILDER_CACHE_DIR"`
+	CacheMax    units.Base2Bytes `env:"FLASHBUILDER_CACHE_MAX"    default:"5GB"`
 	EmbedBudget units.Base2Bytes `env:"FLASHBUILDER_EMBED_BUDGET" default:"200GB"`
 	Brotli      int              `env:"FLASHBUILDER_BROTLI"       default:"11"`
 	AVIF        int              `env:"FLASHBUILDER_AVIF"         default:"50"`
 	WebP        int              `env:"FLASHBUILDER_WEBP"         default:"50"`
-	Verbosity   int              `env:"FLASHBUILDER_LOG_LEVEL"    type:"counter"               short:"v"`
-	CacheMax    units.Base2Bytes `env:"FLASHBUILDER_CACHE_MAX"    default:"5GB"`
-	DryRun      bool             `env:"FLASHBUILDER_DRY_RUN"`
-	Test        bool             `env:"FLASHBUILDER_TESTS"`
+
+	Verbosity int `env:"FLASHBUILDER_LOG_LEVEL" type:"counter" short:"v"`
+
+	DryRun bool `env:"FLASHBUILDER_DRY_RUN"`
+	Test   bool `env:"FLASHBUILDER_TESTS"`
 }
 
 func main() {
@@ -43,50 +47,67 @@ func main() {
 	}
 }
 
-func do(cli *cli) error {
-	// Validate inputs
-	absInput, _ := filepath.Abs(cli.Input)
-	absOutput, _ := filepath.Abs(cli.Output)
-	if absInput == absOutput {
-		return errors.New("E099: Input and output must differ")
-	}
-
+func setCacheDir(dir string) (string, error) {
 	// Set default cache directory
-	if cli.CacheDir == "" {
-		cli.CacheDir = getDefaultCacheDir()
+	if dir == "" {
+		dir = getDefaultCacheDir()
 	}
 
 	// Ensure cache directory exists
-	err := ensureCacheDir(cli.CacheDir)
+	err := ensureCacheDir(dir)
 	if err != nil {
-		return fmt.Errorf("E099: Failed to create cache directory: %w", err)
+		return "", fmt.Errorf("E099: Failed to create cache directory: %w", err)
+	}
+
+	return dir, nil
+}
+
+func validateInputs(cli *cli) (*cli, error) {
+	var err error
+
+	cli.CacheDir, err = setCacheDir(cli.CacheDir)
+	if err != nil {
+		return nil, fmt.Errorf("E099: Failed to create cache directory: %w", err)
+	}
+
+	absInput, err := filepath.Abs(cli.Input)
+	if err != nil {
+		return nil, fmt.Errorf("E099: filepath.Abs(input) %w", err)
+	}
+
+	absOutput, err := filepath.Abs(cli.Output)
+	if err != nil {
+		return nil, fmt.Errorf("E099: filepath.Abs(output) %w", err)
+	}
+
+	if absInput == absOutput {
+		return nil, errors.New("E099: Input and output must differ")
+	}
+
+	return cli, nil
+}
+
+func do(cli *cli) error {
+	cli, err := validateInputs(cli)
+	if err != nil {
+		return err
 	}
 
 	// Discover assets
 	assets, err := discover(cli.Input, cli.CSP)
 	if err != nil {
-		return fmt.Errorf("E001: Failed to discover assets: %w", err)
+		return err
 	}
 
-	// Compute hashes and ETags
-	for i := range assets {
-		assets[i].ImoHash = computeImoHash(assets[i].AbsPath)
-		assets[i].ETag = computeETag(assets[i].ImoHash)
+	// Set .Identifier and .Filename
+	assets = setIdentifiers(assets)
+
+	assets, err = computeHashesETags(assets)
+	if err != nil {
+		return err
 	}
 
-	// Deduplicate
-	assets = dedupe(assets)
-
-	// Generate identifiers
-	identifiers := make(map[string]struct{}, len(assets))
-	filenames := make(map[string]struct{}, len(assets))
-	for i := range assets {
-		id, fn := generateIdentifier(assets[i].RelPath, identifiers, filenames)
-		identifiers[id] = struct{}{}
-		filenames[fn] = struct{}{}
-		assets[i].Identifier = id
-		assets[i].Filename = fn
-	}
+	assets = deduplicate(assets)
 
 	// Generate variants
 	assets = generateVariants(assets, cli.Brotli, cli.AVIF, cli.WebP, cli.CacheDir)
@@ -94,15 +115,15 @@ func do(cli *cli) error {
 	// Clean cache to maintain size limit
 	err = cleanCache(cli.CacheDir, int64(cli.CacheMax))
 	if err != nil {
-		return fmt.Errorf("E099: Failed to clean cache: %w", err)
+		return err
 	}
 
 	// Allocate embed budget
 	assets = allocateBudget(assets, int64(cli.EmbedBudget))
 
-	// Update frequency scores
+	// Set frequency scores
 	for i := range assets {
-		assets[i].FrequencyScore = estimateFrequencyScore(assets[i].RelPath, assets[i].EmbedEligible)
+		assets[i].Frequency = estimateFrequencyScore(assets[i].RelPath, assets[i].EmbedEligible)
 	}
 
 	// Create links
@@ -114,7 +135,7 @@ func do(cli *cli) error {
 	}
 
 	// Add shortcuts
-	assets = addShortcuts(assets)
+	assets = addShortcutPaths(assets)
 
 	// Compute MaxLen
 	maxLen := computeMaxLen(assets)
@@ -137,11 +158,16 @@ func do(cli *cli) error {
 	// Generate Go code
 	err = generate(data, cli.Output, cli.DryRun)
 	if err != nil {
-		return fmt.Errorf("E099: Failed to generate code: %w", err)
+		return err
 	}
 
 	if !cli.DryRun {
-		err := runGoModTidy(cli.Output)
+		err = runGoModInit(cli.Output)
+		if err != nil {
+			return fmt.Errorf("E099: Failed to run go mod tidy: %w", err)
+		}
+
+		err = runGoModTidy(cli.Output)
 		if err != nil {
 			return fmt.Errorf("E099: Failed to run go mod tidy: %w", err)
 		}
@@ -177,6 +203,16 @@ func getDefaultCacheDir() string {
 	}
 
 	return ".cache"
+}
+
+// runGoModInit runs go mod tidy in the output directory.
+func runGoModInit(output string) error {
+	cmd := exec.Command("go", "mod", "init", "flash")
+	cmd.Dir = output
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // runGoModTidy runs go mod tidy in the output directory.

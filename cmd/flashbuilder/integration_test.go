@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // TestIntegration_DiscoverToDispatch tests discovery to dispatch flow.
@@ -29,6 +31,7 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 		{"index.html", "<html></html>"},
 		{"style.css", "body {}"},
 		{"script.js", "console.log"},
+		{"scrip2.js", "console.log"},
 	}
 
 	for _, f := range files {
@@ -39,51 +42,74 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 		}
 	}
 
-	// Run discovery
-	assets, err := discover(tmpDir, "")
+	cli := cli{
+		Input:  tmpDir,
+		Output: "/tmp/output",
+		DryRun: true,
+	}
+
+	// Discover assets
+	assets, err := discover(cli.Input, cli.CSP)
 	if err != nil {
-		t.Fatalf("Discovery failed: %v", err)
+		t.Fatal(err)
 	}
 
-	// Verify assets
-	if len(assets) != len(files) {
-		t.Errorf("Expected %d assets, got %d", len(files), len(assets))
+	// Set .Identifier and .Filename
+	assets = setIdentifiers(assets)
+
+	assets, err = computeHashesETags(assets)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	// Compute hashes
+	assets = deduplicate(assets)
+
+	// Allocate embed budget
+	assets = allocateBudget(assets, int64(cli.EmbedBudget))
+
+	// Set frequency scores
 	for i := range assets {
-		assets[i].ImoHash = computeImoHash(assets[i].AbsPath)
-		assets[i].ETag = computeETag(assets[i].ImoHash)
+		assets[i].Frequency = estimateFrequencyScore(assets[i].RelPath, assets[i].EmbedEligible)
 	}
 
-	// Generate identifiers
-	identifiers := make(map[string]struct{}, len(assets))
-	filenames := make(map[string]struct{}, len(assets))
-	for i := range assets {
-		id, fn := generateIdentifier(assets[i].RelPath, identifiers, filenames)
-		identifiers[id] = struct{}{}
-		filenames[fn] = struct{}{}
-		assets[i].Identifier = id
-		assets[i].Filename = fn
-	}
+	// Add shortcuts
+	assets = addShortcutPaths(assets)
 
-	// Compute frequency scores
-	for i := range assets {
-		assets[i].FrequencyScore = estimateFrequencyScore(assets[i].RelPath, assets[i].EmbedEligible)
-	}
-
-	// Compute max length
+	// Compute MaxLen
 	maxLen := computeMaxLen(assets)
-	if maxLen <= 0 {
-		t.Errorf("MaxLen should be positive, got %d", maxLen)
-	}
 
-	// Build dispatch
+	// Generate dispatch arrays
 	dispatch := buildDispatch(assets, maxLen)
 
 	// Verify dispatch arrays
 	if len(dispatch) != maxLen+2 {
 		t.Errorf("HTTP dispatch length: expected %d, got %d", maxLen+2, len(dispatch))
+	}
+
+	want := []handlers{{
+		PrevEntry: "",
+		Entry:     "",
+		Routes:    []asset{},
+		Length:    0,
+	}, {
+		PrevEntry: "",
+		Entry:     "",
+		Routes:    []asset{},
+		Length:    0,
+	}, {
+		PrevEntry: "",
+		Entry:     "",
+		Routes:    []asset{},
+		Length:    0,
+	}, {
+		PrevEntry: "",
+		Entry:     "",
+		Routes:    []asset{},
+		Length:    0,
+	}}
+
+	if cmp.Equal(dispatch, want) {
+		t.Errorf("HTTP dispatch: %v", cmp.Diff( want, dispatch,))
 	}
 }
 

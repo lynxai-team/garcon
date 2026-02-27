@@ -15,55 +15,55 @@ func TestBuildDispatch(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{RelPath: "index.html", Identifier: "IndexHtml", FrequencyScore: 1000, IsDuplicate: false},
-		{RelPath: "style.css", Identifier:  "StyleCss", FrequencyScore: 800, IsDuplicate: false},
-		{RelPath: "script.js", Identifier:  "ScriptJs", FrequencyScore: 600, IsDuplicate: false},
+		{RelPath: "index.html", Identifier: "IndexHtml", Frequency: 1000, IsDuplicate: false},
+		{RelPath: "style.css", Identifier: "StyleCss", Frequency: 800, IsDuplicate: false},
+		{RelPath: "script.js", Identifier: "ScriptJs", Frequency: 600, IsDuplicate: false},
 	}
 
 	want := []handlers{
-		{Length: 0, Entry: "serveIndexHtml", Routes: []routeData{{Path: "", Identifier: "IndexHtml", Frequency: 1000}}},
-		{Length: 0, Entry: "serveIndexHtml", Routes: []routeData{{Path: "", Identifier: "IndexHtml", Frequency: 1000}}},
-		{Length: 1, Entry: "serveIndexHtml"},
-		{Length: 2, Entry: "serveIndexHtml"},
-		{Length: 3, Entry: "serveIndexHtml"},
-		{Length: 4, Entry: "serveIndexHtml"},
+		{Length: 0, Entry: "serveIndexHtml", PrevEntry: "notFound", Routes: []asset{{Identifier: "IndexHtml", Frequency: 1000, IsShortcut: true}}},
+		{Length: 0, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml", Routes: []asset{{Identifier: "IndexHtml", Frequency: 1000, IsShortcut: true}}},
+		{Length: 1, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml"},
+		{Length: 2, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml"},
+		{Length: 3, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml"},
+		{Length: 4, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml"},
 		{
 			Length:    5,
 			PrevEntry: "serveIndexHtml",
 			Entry:     "handleLen5",
-			Routes:    []routeData{{Path: "style", Identifier: "StyleCss", Frequency: 800}},
+			Routes:    []asset{{RelPath: "style", Identifier: "StyleCss", Frequency: 800, IsShortcut: true}},
 		},
 		{
 			Length:    6,
 			PrevEntry: "handleLen5",
 			Entry:     "handleLen6",
-			Routes:    []routeData{{Path: "script", Identifier: "ScriptJs", Frequency: 600}},
+			Routes:    []asset{{RelPath: "script", Identifier: "ScriptJs", Frequency: 600, IsShortcut: true}},
 		},
-		{Length: 7, Entry: "handleLen6"},
-		{Length: 8, Entry: "handleLen6"},
+		{Length: 7, Entry: "handleLen6", PrevEntry: "handleLen6"},
+		{Length: 8, Entry: "handleLen6", PrevEntry: "handleLen6"},
 		{
 			Length:    9,
 			PrevEntry: "handleLen6",
 			Entry:     "handleLen9",
-			Routes: []routeData{
-				{Path: "style.css", Identifier: "StyleCss", Frequency: 800},
-				{Path: "script.js", Identifier: "ScriptJs", Frequency: 600},
+			Routes: []asset{
+				{RelPath: "style.css", Identifier: "StyleCss", Frequency: 800},
+				{RelPath: "script.js", Identifier: "ScriptJs", Frequency: 600},
 			},
 		},
 		{
 			Length:    10,
 			PrevEntry: "handleLen9",
 			Entry:     "handleLen10",
-			Routes:    []routeData{{Path: "index.html", Identifier: "IndexHtml", Frequency: 1000}},
+			Routes:    []asset{{RelPath: "index.html", Identifier: "IndexHtml", Frequency: 1000}},
 		},
 	}
 
-	assets = addShortcuts(assets)
+	assets = addShortcutPaths(assets)
 	maxLen := computeMaxLen(assets)
 	dispatch := buildDispatch(assets, maxLen)
 
 	if !cmp.Equal(dispatch, want) {
-		t.Errorf("Structs differ: %v", cmp.Diff(dispatch, want))
+		t.Errorf("Structs differ: %v", cmp.Diff(want, dispatch))
 	}
 }
 

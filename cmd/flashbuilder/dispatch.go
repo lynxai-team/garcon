@@ -10,35 +10,22 @@ import (
 	"strconv"
 )
 
-// routeData represents a route for switch statements.
-type routeData struct {
-	Path       string // Sanitized path for switch case
-	Identifier string // Go identifier for handler function
-	Frequency  int    // Request frequency score (for ordering)
-}
-
 // handlers is sed to render the handlers and dispatch array.
 type handlers struct {
 	PrevEntry string
 	Entry     string
-	Routes    []routeData
+	Routes    []asset
 	Length    int
 }
 
 // buildRoutesByLength groups routes by length, sorted by frequency score.
-func buildRoutesByLength(assets []asset, size int) [][]routeData {
-	routesByLen := make([][]routeData, size)
+func buildRoutesByLength(assets []asset, size int) [][]asset {
+	routesByLen := make([][]asset, size)
 
 	// 1. group routes by length
 	for _, asset := range assets {
-		route := routeData{
-			Path:       asset.RelPath,
-			Identifier: asset.Identifier,
-			Frequency:  asset.FrequencyScore,
-		}
-
-		routeLen := len(route.Path) // relative path without leading slash
-
+		route := asset
+		routeLen := len(route.RelPath) // relative path without leading slash
 		routesByLen[routeLen] = append(routesByLen[routeLen], route)
 	}
 
@@ -86,20 +73,22 @@ func buildDispatch(assets []asset, maxLen int) []handlers {
 	return dispatch
 }
 
-func addShortcuts(assets []asset) []asset {
-	canonicalPaths := make(map[string]struct{}, len(assets))
-	shortcuts := make([]asset, 0, len(assets))
+func addShortcutPaths(assets []asset) []asset {
+	paths := make(map[string]struct{}, len(assets))
 	for _, asset := range assets {
-		canonicalPaths[asset.RelPath] = struct{}{}
+		paths[asset.RelPath] = struct{}{}
 	}
+
+	shortcuts := make([]asset, 0, len(assets))
 	for a := range slices.Values(assets) {
-		shortRelPath := generateShortcut(a.RelPath)
-		_, found := canonicalPaths[shortRelPath]
+		shortPath := generateShortcut(a.RelPath)
+		_, found := paths[shortPath]
 		if !found {
 			a.IsShortcut = true
 			a.AbsPath = ""
-			a.RelPath = shortRelPath
+			a.RelPath = shortPath
 			shortcuts = append(shortcuts, a)
+			paths[shortPath] = struct{}{}
 		}
 	}
 	return append(assets, shortcuts...)

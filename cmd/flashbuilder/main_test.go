@@ -158,6 +158,7 @@ import (
 			os.WriteFile(filepath.Join(tt.cli.Input, "favicon.svg"), []byte(`<svg><rect x1="1" x1="2" y1="3" y1="4"/></svg>`), 0o600)
 
 			tt.cli.Output = t.TempDir()
+			t.Log("cli.Output = ", tt.cli.Output)
 
 			err := do(&tt.cli)
 			if err != nil {
@@ -170,7 +171,7 @@ import (
 				t.Fatalf("Miss embed.go error=%v", err)
 			}
 			if !bytes.Equal(got, want) {
-				t.Errorf("embed.go differ: %v", cmp.Diff(got, want))
+				t.Errorf("embed.go differ: %v", cmp.Diff(want, got))
 				t.Errorf("got:"+"\n"+"%s", got)
 			}
 		})

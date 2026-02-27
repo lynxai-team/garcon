@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io/fs"
 	"mime"
@@ -23,34 +24,39 @@ import (
 
 // asset represents a static asset with all pre-computed metadata.
 type asset struct {
-	Identifier     string
-	CanonicalID    string
-	AbsPath        string
-	RelPath        string
-	Filename       string
-	MIME           string
-	CSP            string
-	ETag           string
-	ImoHash        []byte
-	Variants       []variant
-	Size           int64
-	FrequencyScore int
-	EmbedEligible  bool
-	IsDuplicate    bool
-	IsShortcut     bool
-	IsIndex        bool
-	IsHTML         bool
+	Identifier string // Go identifier (e.g., "AssetCSS")
+	Filename   string // Filename in assets/ directory
+	RelPath    string // POSIX-style relative path (forward slashes)
+	AbsPath    string // Absolute path to source file
+	MIME       string // Detected MIME type (e.g., "text/html")
+	Size       int64  // File size in bytes
+
+	// headers
+	CSP      string
+	ETag     string    // Base91 ETag for conditional GET (quoted)
+	ImoHash  uint128   // Content hash from imohash
+	Variants []variant // Compression variants (Brotli, AVIF, WebP)
+
+	Frequency int // Request frequency score for switch ordering
+
+	EmbedEligible bool // Selected for embedding within budget
+	IsDuplicate   bool // Content matches another asset
+	IsShortcut    bool
+
+	// HTML
+	IsHTML  bool // Is HTML content (for CSP injection)
+	IsIndex bool // Is index file (e.g., index.html)
 }
 
 // variant represents a compression variant for an asset.
 type variant struct {
-	Identifier  string
-	Extension   string
-	CachePath   string
-	HeaderHTTP  []byte
-	HeaderHTTPS []byte
-	VariantType variantType
-	Size        int64
+	Identifier  string      // Go identifier for this variant
+	Extension   string      // File extension (e.g., ".br", ".avif", ".webp")
+	CachePath   string      // Cache location for this variant
+	HeaderHTTP  []byte      // HTTP headers for this variant
+	HeaderHTTPS []byte      // HTTPS headers for this variant
+	Size        int64       // Variant size in bytes
+	VariantType variantType // Compression type (Brotli, AVIF, WebP)
 }
 
 // variantType represents compression type.
@@ -136,9 +142,9 @@ func discover(input, csp string) ([]asset, error) {
 			RelPath: relPath,
 			Size:    info.Size(),
 			MIME:    mimeType,
-			CSP:     c,
-			IsIndex: isIndex,
 			IsHTML:  isHTML,
+			IsIndex: isIndex,
+			CSP:     c,
 		}
 		assets = append(assets, a)
 		return nil
@@ -219,14 +225,19 @@ func detectMIME(path string) string {
 	return "application/octet-stream"
 }
 
-// dedupe identifies duplicate assets based on content hash
-// First asset with identical hash is canonical, others are duplicates.
-func dedupe(assets []asset) []asset {
-	hashMap := make(map[string][]int) // Map hash -> slice of asset indices
+// deduplicate identifies duplicate assets based on content hash.
+func deduplicate(assets []asset) []asset {
+	hashMap := make(map[uint128][]int) // Map hash -> slice of asset indices
+
+	// Use the shorter path as the canonical asset: Sort by path length
+	// First asset with identical hash is canonical, others are duplicates.
+	sort.Slice(assets, func(i, j int) bool {
+		return len(assets[i].RelPath) < len(assets[j].RelPath)
+	})
 
 	// Group assets by hash
 	for i, a := range assets {
-		key := string(a.ImoHash)
+		key := a.ImoHash
 		hashMap[key] = append(hashMap[key], i)
 	}
 
@@ -249,12 +260,25 @@ func dedupe(assets []asset) []asset {
 				duplicateContent, err := os.ReadFile(assets[idx].AbsPath)
 				if err == nil && string(canonicalContent) == string(duplicateContent) {
 					assets[idx].IsDuplicate = true
-					assets[idx].CanonicalID = canonical.Identifier
+					assets[idx].Identifier = canonical.Identifier
 				}
 			}
 		}
 	}
 
+	return assets
+}
+
+func setIdentifiers(assets []asset) []asset {
+	identifiers := make(map[string]struct{}, len(assets))
+	filenames := make(map[string]struct{}, len(assets))
+	for i := range assets {
+		id, fn := generateIdentifier(assets[i].RelPath, identifiers, filenames)
+		identifiers[id] = struct{}{}
+		filenames[fn] = struct{}{}
+		assets[i].Identifier = id
+		assets[i].Filename = fn
+	}
 	return assets
 }
 
@@ -429,21 +453,49 @@ func createLinks(assets []asset, output, cacheDir string) error {
 	return nil
 }
 
+type uint128 struct {
+	Hi, Lo uint64
+}
+
+func uint128From16Bytes(b [16]byte) uint128 {
+	return uint128{
+		binary.LittleEndian.Uint64(b[8:]),
+		binary.LittleEndian.Uint64(b[:8]),
+	}
+}
+
 // computeImoHash computes the ImoHash for a file (128 bits)
 // Uses github.com/kalafut/imohash.
-func computeImoHash(path string) []byte {
+func computeImoHashEtag(path string) (uint128, string, error) {
 	sum, err := imohash.SumFile(path)
 	if err != nil {
-		return nil
+		return uint128{0, 0}, "", fmt.Errorf("imohash.SumFile: %w", err)
 	}
-	return sum[:] // 128 bits
+
+	u128 := uint128From16Bytes(sum)
+	etag := computeETag(sum)
+
+	return u128, etag, nil
 }
 
 // computeETag generates an ETag from ImoHash
 // Uses base91 encoding for compact representation.
-func computeETag(hash []byte) string {
+func computeETag(hash [16]byte) string {
 	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_ {|}~'"
 	encoder := base91.NewEncoding(alphabet)
-	b91 := encoder.EncodeToString(hash) // the base91-encoded hash is 20 bytes
-	return b91[:9]                      // truncate 9 bytes out of 20
+	b91 := encoder.EncodeToString(hash[:]) // the base91-encoded hash is 20 bytes
+	return b91[:9]                         // truncate 9 bytes out of 20
+}
+
+func computeHashesETags(assets []asset) ([]asset, error) {
+	// Compute hashes and ETags
+	for i := range assets {
+		hash, etag, err := computeImoHashEtag(assets[i].AbsPath)
+		if err != nil {
+			return nil, err
+		}
+		assets[i].ImoHash = hash
+		assets[i].ETag = etag
+	}
+	return assets, nil
 }

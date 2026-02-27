@@ -14,7 +14,7 @@ import (
 func (s *Server) notFound{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
-{{range .Assets}}{{if and .EmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
+{{range .Assets}}{{if and (not .IsDuplicate) (not .IsShortcut)}}{{if .EmbedEligible}}
 func (s *Server) serve{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("If-None-Match") == `"{{.ETag}}"` {
 		w.WriteHeader(http.StatusNotModified)
@@ -24,6 +24,10 @@ func (s *Server) serve{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.
 	if r.Method != "" && r.Method[0] == 'H' {
 		return
 	}
-	w.Write(asset{{.Identifier}})
+	w.Write(file{{.Identifier}})
 }
-{{end}}{{end}}{{end}}
+{{else}}
+func (s *Server) serve{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, {{.RelPath | quote}})
+}
+{{end}}{{end}}{{end}}{{end}}

@@ -128,10 +128,6 @@ func TestGenerateIdentifier(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			id, _ := generateIdentifier(tt.relPath, identifiers, filenames)
-			// Basic validation: should start with "Asset"
-			if id[:5] != "Asset" {
-				t.Errorf("Identifier should start with 'Asset', got %s", id)
-			}
 			// Check for valid Go identifier chars
 			for _, r := range id {
 				if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
