@@ -1,0 +1,569 @@
+// Copyright 2026 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
+
+// This file implements the anti-DDoS middleware to protect the contact-form API.
+
+package main
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/netip"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+// ---------------------------------------------------------------------
+// Configuration & defaults
+// ---------------------------------------------------------------------
+type Config struct {
+	DailyLimits          map[string]int // "ip", "zone", "global"
+	BurstLimits          map[string]int // short-term limits per scope
+	MaxBodyBytes         int64
+	RequiredFields       []string
+	DenyCIDRs            []string
+	ChallengeBits        int
+	ChallengeTTL         time.Duration
+	MaxChallengeAttempts int
+	ReloadSecret         string // used for Basic Auth (user:admin, pass:ReloadSecret)
+}
+
+// DefaultConfig matches the specification and adds modest burst caps.
+func DefaultConfig() Config {
+	return Config{
+		DailyLimits: map[string]int{
+			"ip":     10,
+			"zone":   30,
+			"global": 100,
+		},
+		BurstLimits: map[string]int{
+			"ip":     5,  // 5 req/s per IP
+			"zone":   10, // 10 req/s per zone
+			"global": 20, // 20 req/s globally
+		},
+		MaxBodyBytes:         2 * 1024,
+		RequiredFields:       []string{"name", "email", "message"},
+		DenyCIDRs:            nil,
+		ChallengeBits:        12,
+		ChallengeTTL:         3 * time.Second,
+		MaxChallengeAttempts: 3,
+		ReloadSecret:         "change-me-to-a-strong-secret",
+	}
+}
+
+// ---------------------------------------------------------------------
+// Sharded token bucket (daily + burst) for three scopes
+// ---------------------------------------------------------------------
+type bucket struct {
+	// daily counters
+	dailyTokens int64
+	lastDaily   int64 // unix nano of last daily refill
+
+	// burst counters
+	burstTokens int64
+	lastBurst   int64 // unix nano of last burst refill
+}
+
+// shardedBuckets holds a slice of sync.Map, each map[string]*bucket.
+type shardedBuckets struct {
+	shards []sync.Map // map[string]*bucket
+	// configuration (derived once)
+	dailyInterval int64 // nanoseconds per daily token (24h / limit)
+	burstInterval int64 // nanoseconds per burst token (1s / limit)
+	dailyBurst    int64 // max burst for daily bucket (usually 2)
+	burstBurst    int64 // max burst for burst bucket (configurable)
+}
+
+// newShardedBuckets creates the sharded structure and pre-computes intervals.
+func newShardedBuckets(dailyLimits, burstLimits map[string]int) *shardedBuckets {
+	const shardCount = 32
+	// daily token = 24h / limit (rounded down)
+	dailyInterval := int64(time.Hour*24) / int64(dailyLimits["ip"])
+	// burst token = 1s / limit
+	burstInterval := int64(time.Second) / int64(burstLimits["ip"])
+
+	return &shardedBuckets{
+		shards:        make([]sync.Map, shardCount),
+		dailyInterval: dailyInterval,
+		burstInterval: burstInterval,
+		dailyBurst:    2, // small extra capacity for daily bucket
+		burstBurst:    int64(burstLimits["ip"]),
+	}
+}
+
+// hashIP → shard index (FNV-1a)
+func (sb *shardedBuckets) shard(ip string) *sync.Map {
+	const (
+		prime64 = 1099511628211
+		offset  = 14695981039346656037
+	)
+	var h uint64 = offset
+	for i := 0; i < len(ip); i++ {
+		h ^= uint64(ip[i])
+		h *= prime64
+	}
+	return &sb.shards[h%uint64(len(sb.shards))]
+}
+
+// allow checks daily and burst limits for a given key (IP or zone or "global").
+func (sb *shardedBuckets) allow(key string, dailyLimit, burstLimit int) bool {
+	sh := sb.shard(key)
+
+	// Load or create bucket atomically.
+	val, _ := sh.LoadOrStore(key, &bucket{
+		dailyTokens: int64(dailyLimit),
+		lastDaily:   time.Now().UnixNano(),
+		burstTokens: int64(burstLimit),
+		lastBurst:   time.Now().UnixNano(),
+	})
+	b := val.(*bucket)
+
+	now := time.Now().UnixNano()
+
+	// ----- daily refill -----
+	elapsedDaily := now - atomic.LoadInt64(&b.lastDaily)
+	if elapsedDaily > 0 {
+		add := elapsedDaily / sb.dailyInterval
+		if add > 0 {
+			newTokens := atomic.LoadInt64(&b.dailyTokens) + add
+			if newTokens > int64(dailyLimit)+sb.dailyBurst {
+				newTokens = int64(dailyLimit) + sb.dailyBurst
+			}
+			atomic.StoreInt64(&b.dailyTokens, newTokens)
+			atomic.StoreInt64(&b.lastDaily, now)
+		}
+	}
+
+	// ----- burst refill -----
+	elapsedBurst := now - atomic.LoadInt64(&b.lastBurst)
+	if elapsedBurst > 0 {
+		add := elapsedBurst / sb.burstInterval
+		if add > 0 {
+			newTokens := atomic.LoadInt64(&b.burstTokens) + add
+			if newTokens > int64(burstLimit)+sb.burstBurst {
+				newTokens = int64(burstLimit) + sb.burstBurst
+			}
+			atomic.StoreInt64(&b.burstTokens, newTokens)
+			atomic.StoreInt64(&b.lastBurst, now)
+		}
+	}
+
+	// ----- consume one token from each bucket -----
+	for {
+		curDaily := atomic.LoadInt64(&b.dailyTokens)
+		if curDaily < 1 {
+			return false
+		}
+		curBurst := atomic.LoadInt64(&b.burstTokens)
+		if curBurst < 1 {
+			return false
+		}
+		if atomic.CompareAndSwapInt64(&b.dailyTokens, curDaily, curDaily-1) {
+			// daily token taken, now take burst token
+			if atomic.CompareAndSwapInt64(&b.burstTokens, curBurst, curBurst-1) {
+				return true
+			}
+			// burst failed - rollback daily token
+			atomic.AddInt64(&b.dailyTokens, 1)
+			return false
+		}
+	}
+}
+
+// ---------------------------------------------------------------------
+// IP reputation - immutable deny list
+// ---------------------------------------------------------------------
+type ipReputation struct {
+	value atomic.Value // []netip.Prefix
+}
+
+// newIPReputation parses CIDRs once and stores them atomically.
+func newIPReputation(cidrs []string) *ipReputation {
+	ir := &ipReputation{}
+	ir.update(cidrs)
+	return ir
+}
+
+// update replaces the whole deny list atomically.
+func (ir *ipReputation) update(cidrs []string) {
+	var prefixes []netip.Prefix
+	for _, c := range cidrs {
+		if p, err := netip.ParsePrefix(c); err == nil {
+			prefixes = append(prefixes, p)
+		}
+	}
+	ir.value.Store(prefixes)
+}
+
+// denied reports whether ip matches any deny CIDR.
+func (ir *ipReputation) denied(ip string) bool {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	prefixes := ir.value.Load().([]netip.Prefix)
+	for _, p := range prefixes {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// ---------------------------------------------------------------------
+// Cheap PoW challenge (optional - can be swapped for a CAPTCHA)
+// ---------------------------------------------------------------------
+type challengeState struct {
+	nonce    string
+	expiry   time.Time
+	attempts int
+}
+
+type challengeStore struct {
+	mu   sync.RWMutex
+	data map[string]*challengeState // key = IP
+	bits int
+	ttl  time.Duration
+	seed string // random per-process prefix
+}
+
+// newChallengeStore creates the store; challenges are cleaned up lazily.
+func newChallengeStore(bits int, ttl time.Duration) *challengeStore {
+	return &challengeStore{
+		data: make(map[string]*challengeState),
+		bits: bits,
+		ttl:  ttl,
+		seed: randomBase64(8),
+	}
+}
+
+// issue creates a new challenge and schedules its removal with time.After.
+func (cs *challengeStore) issue(ip string) string {
+	nonce := randomBase64(12)
+	cs.mu.Lock()
+	cs.data[ip] = &challengeState{
+		nonce:    nonce,
+		expiry:   time.Now().Add(cs.ttl),
+		attempts: 0,
+	}
+	cs.mu.Unlock()
+
+	// cleanup after ttl
+	go func() {
+		<-time.After(cs.ttl)
+		cs.mu.Lock()
+		delete(cs.data, ip)
+		cs.mu.Unlock()
+	}()
+	return nonce
+}
+
+// verify checks the client-provided nonce.
+func (cs *challengeStore) verify(ip, clientNonce string) bool {
+	cs.mu.RLock()
+	st, ok := cs.data[ip]
+	cs.mu.RUnlock()
+	if !ok || time.Now().After(st.expiry) || st.attempts >= 3 {
+		return false
+	}
+	hash := sha256.Sum256([]byte(cs.seed + clientNonce))
+	if !leadingZeroBits(hash[:], cs.bits) {
+		return false
+	}
+	// success - delete entry
+	cs.mu.Lock()
+	delete(cs.data, ip)
+	cs.mu.Unlock()
+	return true
+}
+
+// recordFailure increments the failure counter.
+func (cs *challengeStore) recordFailure(ip string) {
+	cs.mu.Lock()
+	if st, ok := cs.data[ip]; ok {
+		st.attempts++
+	}
+	cs.mu.Unlock()
+}
+
+// ---------------------------------------------------------------------
+// Payload validation
+// ---------------------------------------------------------------------
+type Contact struct {
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Message string `json:"message"`
+}
+
+// validatePayload enforces size, disallows unknown fields, and checks required fields.
+func validatePayload(r *http.Request, cfg Config) (*Contact, error) {
+	// Abort early on oversized bodies.
+	r.Body = http.MaxBytesReader(r.Response, r.Body, cfg.MaxBodyBytes)
+
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	var c Contact
+	if err := dec.Decode(&c); err != nil {
+		if err == io.EOF {
+			return nil, fmt.Errorf("empty body")
+		}
+		return nil, fmt.Errorf("malformed json")
+	}
+	if c.Name == "" || c.Email == "" || c.Message == "" {
+		return nil, fmt.Errorf("missing required fields")
+	}
+	return &c, nil
+}
+
+// ---------------------------------------------------------------------
+// Prometheus metrics
+// ---------------------------------------------------------------------
+var (
+	metricRateLimited = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "contact_form_rate_limited_total",
+			Help: "Requests rejected by rate limiting, labelled by scope",
+		},
+		[]string{"scope"},
+	)
+	metricChallengeFail = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "contact_form_challenge_failed_total",
+			Help: "Failed PoW challenge attempts",
+		},
+	)
+	metricPayloadReject = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "contact_form_payload_rejected_total",
+			Help: "Payload validation rejections",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(metricRateLimited, metricChallengeFail, metricPayloadReject)
+}
+
+// ---------------------------------------------------------------------
+// JSON error helper & error codes
+// ---------------------------------------------------------------------
+type jsonErrorResp struct {
+	Error string `json:"error"`
+	Code  int    `json:"code,omitempty"`
+}
+
+const (
+	ErrCodeForbidden         = 1001
+	ErrCodeInvalidChallenge  = 1002
+	ErrCodeChallengeRequired = 1003
+	ErrCodeMethodNotAllowed  = 1004
+	ErrCodeBadPayload        = 1005
+	ErrCodeAdminUnauthorized = 2001
+	ErrCodeAdminBadJSON      = 2002
+)
+
+func jsonError(w http.ResponseWriter, status int, msg string, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(jsonErrorResp{Error: msg, Code: code})
+}
+
+// ---------------------------------------------------------------------
+// Context key for the validated contact
+// ---------------------------------------------------------------------
+type contactKey struct{}
+
+func withContact(ctx context.Context, c *Contact) context.Context {
+	return context.WithValue(ctx, contactKey{}, c)
+}
+func getContact(ctx context.Context) *Contact {
+	if c, ok := ctx.Value(contactKey{}).(*Contact); ok {
+		return c
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------
+// Middleware composition
+// ---------------------------------------------------------------------
+func Protect(cfg Config) func(http.Handler) http.Handler {
+	if cfg.DailyLimits == nil {
+		cfg = DefaultConfig()
+	}
+	// one sharded bucket set for each scope (IP, zone, global)
+	ipBuckets := newShardedBuckets(cfg.DailyLimits, cfg.BurstLimits)
+	zoneBuckets := newShardedBuckets(cfg.DailyLimits, cfg.BurstLimits)
+	globalBuckets := newShardedBuckets(cfg.DailyLimits, cfg.BurstLimits)
+
+	ipRep := newIPReputation(cfg.DenyCIDRs)
+	chal := newChallengeStore(cfg.ChallengeBits, cfg.ChallengeTTL)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := clientIP(r)
+			zone := geoZone(ip) // replace with real GeoIP lookup
+
+			// 1️⃣ Deny-list
+			if ipRep.denied(ip) {
+				metricPayloadReject.Inc()
+				jsonError(w, http.StatusForbidden, "forbidden", ErrCodeForbidden)
+				return
+			}
+
+			// 2️⃣ Hierarchical rate limiting (daily + burst)
+			if !(ipBuckets.allow(ip, cfg.DailyLimits["ip"], cfg.BurstLimits["ip"]) &&
+				zoneBuckets.allow(zone, cfg.DailyLimits["zone"], cfg.BurstLimits["zone"]) &&
+				globalBuckets.allow("global", cfg.DailyLimits["global"], cfg.BurstLimits["global"])) {
+
+				metricRateLimited.WithLabelValues("global").Inc()
+
+				// Optional PoW challenge
+				if clientNonce := r.Header.Get("X-Challenge-Nonce"); clientNonce != "" {
+					if chal.verify(ip, clientNonce) {
+						// solved - continue
+					} else {
+						metricChallengeFail.Inc()
+						chal.recordFailure(ip)
+						jsonError(w, http.StatusTooManyRequests, "invalid challenge", ErrCodeInvalidChallenge)
+						return
+					}
+				} else {
+					nonce := chal.issue(ip)
+					w.Header().Set("X-Challenge-Seed", chal.seed)
+					w.Header().Set("X-Challenge-Nonce", nonce)
+					w.Header().Set("X-Challenge-Required", "true")
+					jsonError(w, http.StatusTooManyRequests, "solve challenge", ErrCodeChallengeRequired)
+					return
+				}
+			}
+
+			// 3️⃣ Method handling
+			if r.Method == http.MethodOptions {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+				w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Challenge-Nonce")
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			if r.Method != http.MethodPost {
+				jsonError(w, http.StatusMethodNotAllowed, "POST required", ErrCodeMethodNotAllowed)
+				return
+			}
+
+			// 4️⃣ Payload validation
+			contact, err := validatePayload(r, cfg)
+			if err != nil {
+				metricPayloadReject.Inc()
+				jsonError(w, http.StatusBadRequest, err.Error(), ErrCodeBadPayload)
+				return
+			}
+			ctx := withContact(r.Context(), contact)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// ---------------------------------------------------------------------
+// Helper utilities
+// ---------------------------------------------------------------------
+func clientIP(r *http.Request) string {
+	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+		parts := strings.Split(fwd, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return host
+}
+
+// geoZone is a placeholder - replace with a real GeoIP DB lookup.
+func geoZone(ip string) string {
+	return "default"
+}
+
+// leadingZeroBits checks that the first `bits` bits of b are zero.
+func leadingZeroBits(b []byte, bits int) bool {
+	full, rem := bits/8, bits%8
+	for i := 0; i < full; i++ {
+		if b[i] != 0 {
+			return false
+		}
+	}
+	if rem > 0 {
+		mask := byte(0xFF << (8 - rem))
+		return b[full]&mask == 0
+	}
+	return true
+}
+
+// randomBase64 returns a cryptographically-secure random string.
+func randomBase64(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+// ---------------------------------------------------------------------
+// Admin endpoint - reload deny list (Basic Auth)
+// ---------------------------------------------------------------------
+func reloadDenyListHandler(ipRep *ipReputation, secret string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "admin" || pass != secret {
+			jsonError(w, http.StatusUnauthorized, "unauthorized", ErrCodeAdminUnauthorized)
+			return
+		}
+		var payload struct {
+			CIDRs []string `json:"cidrs"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			jsonError(w, http.StatusBadRequest, "invalid json", ErrCodeAdminBadJSON)
+			return
+		}
+		ipRep.update(payload.CIDRs)
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// ---------------------------------------------------------------------
+// Example contact-form handler
+// ---------------------------------------------------------------------
+func contactHandler(w http.ResponseWriter, r *http.Request) {
+	contact := getContact(r.Context())
+	_ = contact // placeholder - use in real business logic
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "received"})
+}
+
+// ---------------------------------------------------------------------
+// Server bootstrap
+// ---------------------------------------------------------------------
+func main() {
+	cfg := DefaultConfig()
+	mux := http.NewServeMux()
+	mux.Handle("/contact", Protect(cfg)(http.HandlerFunc(contactHandler)))
+	mux.HandleFunc("/admin/reload-denylist", reloadDenyListHandler(newIPReputation(cfg.DenyCIDRs), cfg.ReloadSecret))
+
+	// Prometheus metrics endpoint
+	mux.Handle("/metrics", prometheus.Handler())
+
+	fmt.Println("Listening on :8080")
+	if err := http.ListenAndServe(":8080", mux); err != nil {
+		panic(err)
+	}
+}
