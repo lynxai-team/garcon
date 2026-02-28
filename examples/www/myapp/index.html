@@ -28,32 +28,36 @@ file "myapp/index.html" to be freely used without any restriction.
   <p>GET <a href="/myapp/api/v1/atlantis">/myapp/api/v1/atlantis</a> (not found)</p>
 
   <h1>Simple contact form</h1>
-  <form action="/myapp" method="post">
-    <input type="email" name="email" placeholder="Email" />
+  <form action="/contact" method="post">
+    <label for="email">Email</label>
+    <input id="email" type="email" name="email" placeholder="Email" required>
+    <br> <!-- Prefer CSS margins/padding instead of <br> -->
+    <label for="msg">Message</label>
+    <textarea id="msg" name="text" placeholder="Message..." required></textarea>
     <br>
-    <textarea name="text" placeholder="Message..."></textarea>
-    <br>
-    <input type="submit" value="Send" />
+    <input type="submit" value="Send">
   </form>
 
   <h1>Advanced contact form</h1>
-  <form name="contact-form" method="POST">
+  <form name="contact-form" method="POST" action="/contact">
     <p>
       <input name="name" type="text" placeholder="Name" aria-label="Fill out your name." title="Fill out your name."
-        minlength="2" maxlength="60">
+        minlength="2" maxlength="60" required>
     </p>
+
     <p>
-      <input type="email" name="email" placeholder="Email"
+      <input type="email" name="email[]" placeholder="Email"
         aria-label="Fill out your email address. You can also fill out multiple email addresses separated by commas."
-        title="Fill out your e-mail address. (required)
-        You can also fill out multiple email addresses separated by commas." multiple required minlength="7"
-        maxlength="50">
+        title="Fill out your e‑mail address. (required) You can also fill out multiple email addresses separated by commas."
+        multiple required minlength="7" maxlength="50">
     </p>
+
     <p>
-      <textarea name="text" placeholder="Message: Partnership opportunity"
+      <textarea name="message" placeholder="Message: Partnership opportunity"
         aria-label="Fill out your message. (required)" title="Fill out your message. (required)" required minlength="60"
         maxlength="900"></textarea>
     </p>
+
     <p>
       <select name="org-type" aria-label="Select your company type." title="Select your company type.">
         <option value="vc">Venture Capital</option>
@@ -62,24 +66,26 @@ file "myapp/index.html" to be freely used without any restriction.
         <option value="other">Other</option>
       </select>
     </p>
+
     <p>
       <input name="tel" type="tel" placeholder="Phone" aria-label="Fill out your phone number."
         title="Fill out your phone number." maxlength="30">
     </p>
+
     <p>
-      <label aria-label="Check the box to be called back. (please fill out your phone number)" title="Check the box to be called back.
-(please fill out your phone number)" for="checkbox-call">
-        <input type="checkbox" name="want-call">
+      <label for="checkbox-call" title="Check the box to be called back. (please fill out your phone number)">
+        <input type="checkbox" id="checkbox-call" name="want-call">
         Request a callback
       </label>
     </p>
+
     <p>
-      <label aria-label="Upload a file from your computer (or smartphone)."
-        title="Upload a file from your computer (or smartphone)." for="file-input">
+      <label for="file-input" title="Upload a file from your computer (or smartphone).">
         Attach a file:
-        <input type="file" name="file" maxlength="999000">
+        <input type="file" id="file-input" name="file">
       </label>
     </p>
+
     <p>
       <button type="submit">Send</button>
     </p>
