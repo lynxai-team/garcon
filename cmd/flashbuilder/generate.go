@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -46,27 +47,77 @@ func parseTemplates() (*template.Template, error) {
 
 // funcMap provides template helper functions.
 var funcMap = template.FuncMap{
-	"quote":        strconv.Quote,
-	"trim":         strings.TrimSpace,
-	"upper":        strings.ToUpper,
-	"lower":        strings.ToLower,
+	"add": func(a, b int) int { return a + b },
+	"div": func(a, b int) int { return a / b },
+	"mul": func(a, b int) int { return a * b },
+	"sub": func(a, b int) int { return a - b },
+
+	"lower": strings.ToLower,
+	"upper": strings.ToUpper,
+	"quote": strconv.Quote,
+	"trim":  strings.TrimSpace,
+
 	"escapeHeader": func(s string) string { return strings.ReplaceAll(s, "\n", "\\n") + "\r\n" },
-	"add":          func(a, b int) int { return a + b },
-	"sub":          func(a, b int) int { return a - b },
-	"mul":          func(a, b int) int { return a * b },
-	"div":          func(a, b int) int { return a / b },
-	"default": func(def, val string) string {
-		if val != "" {
-			return val
-		}
-		return def
-	},
+
+	"human": toHuman,
+
 	"capitalize": func(s string) string {
 		if len(s) > 0 {
 			return strings.ToUpper(s[:1]) + s[1:]
 		}
 		return s
 	},
+
+	"default": func(def, val string) string {
+		if val != "" {
+			return val
+		}
+		return def
+	},
+}
+
+// toHuman converts a size in bytes to a short, human-readable string.
+// It uses binary units (1024 B = 1 K, 1024 K = 1 M...) and formats the
+// mantissa with at most one decimal place. Small mantissas (< 8) keep a
+// decimal for better precision; larger values are shown as whole numbers.
+// If rounding would push the value to the next unit (e.g. 1023.9 K -> 1 M),
+// the function automatically promotes the unit.
+func toHuman(size int64) string {
+	if size < 0 {
+		return "0"
+	}
+
+	// Unit suffixes, starting with bytes.
+	units := []string{"B", "K", "M", "G", "T", "P", "E"}
+
+	// Work with a float so we can keep fractional parts while scaling.
+	value := float64(size)
+	idx := 0 // index into `units`
+
+	// Scale down until the value fits in the current unit (< 1024) or we
+	// have reached the largest defined unit.
+	for value >= 1024 && idx < len(units)-1 {
+		value /= 1024
+		idx++
+	}
+
+	// Determine rounding precision:
+	//   * For mantissas < 8 we keep one decimal place (e.g. 1.3K).
+	//   * Otherwise we round to a whole number.
+	precision := 1.0
+	if value < 8 {
+		precision = 10 // one-decimal precision
+	}
+	value = math.Round(value*precision) / precision
+
+	// If rounding caused the mantissa to reach 1024, promote to the next unit.
+	if value >= 1024 && idx < len(units)-1 {
+		value /= 1024
+		idx++
+	}
+
+	// `%g` prints the shortest representation, dropping trailing ".0".
+	return fmt.Sprintf("%g%s", value, units[idx])
 }
 
 // renderTemplate renders a template with data.

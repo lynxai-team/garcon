@@ -25,7 +25,7 @@ func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	pathNoSlash := r.URL.Path[1:]
 	truncated := pathNoSlash[:L]
 	switch truncated {
-{{range .Routes}}	// {{.Frequency}}{{if .IsDuplicate}} Duplicate{{end}}{{if .IsShortcut}} Shortcut{{end}} {{.AbsPath}}
+{{range .Routes}}	// freq={{.Frequency}} {{.Size|human}}{{if .IsDuplicate}} Duplicate{{end}}{{if .IsShortcut}} Shortcut{{end}} {{.AbsPath}}
 	case "{{.RelPath}}":
 		s.serve{{.Identifier}}{{$scheme}}(w, r)
 {{end}}
