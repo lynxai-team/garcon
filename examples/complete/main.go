@@ -108,8 +108,8 @@ func handler(g *gc.Garcon, addr string, ck gc.TokenChecker) http.Handler {
 	r.With(ck.Chk).Get("/myapp/version", vv.ServeVersion())
 
 	// Contact-form
-	wf := g.NewContactForm(addr)
-	r.With(ck.Set).Post("/myapp", wf.Notify(""))
+	wf := g.NewContactForm(addr, "https://matermost.com/or/telegram")
+	r.With(ck.Set).Post("/myapp", wf.NotifyHandler())
 
 	// API
 	r.With(ck.Vet).Get("/path/not/in/cookie", items)

@@ -241,6 +241,6 @@ func (g *Garcon) MiddlewareServerHeader(serverName ...string) gg.Middleware {
 	return vv.MiddlewareServerHeader(version)
 }
 
-func (g *Garcon) NewContactForm(redirectURL string) wf.WebForm {
-	return wf.NewContactForm(redirectURL)
+func (g *Garcon) NewContactForm(redirectURL, notifierURL string) wf.WebForm {
+	return wf.NewContactForm(redirectURL, notifierURL)
 }

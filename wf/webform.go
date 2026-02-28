@@ -55,9 +55,9 @@ const (
 
 var log = emo.NewZone("wf")
 
-func NewContactForm(redirectURL string) WebForm {
-	return WebForm{
-		Notifier:           nil,
+func NewContactForm(redirectURL, notifierURL string) WebForm {
+	wf := WebForm{
+		Notifier:           NewNotifier(notifierURL),
 		Redirect:           redirectURL,
 		TextLimits:         DefaultContactSettings(),
 		FileLimits:         DefaultFileSettings(),
@@ -65,6 +65,8 @@ func NewContactForm(redirectURL string) WebForm {
 		MaxMDBytes:         4000,
 		maxFieldNameLength: 0,
 	}
+	wf.init()
+	return wf
 }
 
 // DefaultContactSettings is compliant with standard names for web form input fields:
@@ -87,45 +89,45 @@ func DefaultFileSettings() map[string][2]int {
 	}
 }
 
-// Notify returns a handler that
+// NotifyHandler returns a handler that
 // converts the received web-form into markdown format
 // and sends it to the notifierURL.
-func (wf *WebForm) Notify(notifierURL string) func(w http.ResponseWriter, r *http.Request) {
-	wf.init()
+func (wf *WebForm) NotifyHandler() func(w http.ResponseWriter, r *http.Request) {
+	return wf.Notify
+}
 
-	notifier := NewNotifier(notifierURL)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		if wf.MaxBodyBytes > 0 {
-			r.Body = http.MaxBytesReader(w, r.Body, wf.MaxBodyBytes)
-		}
-
-		err := r.ParseForm()
-		if err != nil {
-			log.Warn("WebForm ParseForm:", err)
-			// TODO wf.Writer.WriteErr(w, r, http.StatusBadRequest, "cannot parse the webform", "reason", err.Error())
-			return
-		}
-
-		md := wf.toMarkdown(r)
-		err = notifier.Notify(md)
-		if err != nil {
-			log.Warn("WebForm Notify:", err)
-		}
-
-		http.Redirect(w, r, wf.Redirect, http.StatusFound)
+// Notify converts the received web-form into markdown format
+// and sends it to the notifierURL.
+func (wf *WebForm) Notify(w http.ResponseWriter, r *http.Request) {
+	if wf.MaxBodyBytes > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, wf.MaxBodyBytes)
 	}
+
+	err := r.ParseForm()
+	if err != nil {
+		log.Warn("WebForm ParseForm:", err)
+		// TODO wf.Writer.WriteErr(w, r, http.StatusBadRequest, "cannot parse the webform", "reason", err.Error())
+		return
+	}
+
+	md := wf.toMarkdown(r)
+	err = wf.Notifier.Notify(md)
+	if err != nil {
+		log.Warn("WebForm Notify:", err)
+	}
+
+	http.Redirect(w, r, wf.Redirect, http.StatusFound)
 }
 
 func (wf *WebForm) init() {
 	if wf.TextLimits == nil {
 		wf.TextLimits = DefaultContactSettings()
-		log.Info("Middleware WebForm: empty TextLimits => use", wf.TextLimits)
+		log.Info("WebForm: empty TextLimits => use", wf.TextLimits)
 	}
 
 	if wf.FileLimits == nil {
 		wf.FileLimits = DefaultFileSettings()
-		log.Info("Middleware WebForm: empty FileLimits => use", wf.FileLimits)
+		log.Info("WebForm: empty FileLimits => use", wf.FileLimits)
 	}
 
 	wf.maxFieldNameLength = 0
@@ -140,7 +142,7 @@ func (wf *WebForm) init() {
 		}
 	}
 
-	log.Info("Middleware WebForm redirects to", wf.Redirect)
+	log.Info("WebForm redirects to", wf.Redirect)
 }
 
 func (wf *WebForm) toMarkdown(r *http.Request) string {
