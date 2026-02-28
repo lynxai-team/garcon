@@ -35,12 +35,12 @@ const maxLen = {{.MaxLen}}
 
 // Server implements http.Handler.
 type Server struct {
-	dispatch [maxLen + 2]func(http.ResponseWriter, *http.Request)
+	get [maxLen + 2]func(http.ResponseWriter, *http.Request)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	idx := min(len(r.URL.Path), len(s.dispatch)-1)
-	s.dispatch[idx](w, r)
+	idx := min(len(r.URL.Path), len(s.get)-1)
+	s.get[idx](w, r)
 }
 
 func main() {

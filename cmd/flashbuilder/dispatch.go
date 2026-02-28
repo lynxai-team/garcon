@@ -10,7 +10,7 @@ import (
 	"strconv"
 )
 
-// handlers is sed to render the handlers and dispatch array.
+// handlers is sed to render the handlers and get array.
 type handlers struct {
 	PrevEntry string
 	Entry     string
@@ -19,58 +19,69 @@ type handlers struct {
 }
 
 // buildRoutesByLength groups routes by length, sorted by frequency score.
-func buildRoutesByLength(assets []asset, size int) [][]asset {
-	routesByLen := make([][]asset, size)
+func buildRoutesByLength(assets []asset, size int) []map[string][]asset {
+	routesByLen := make([]map[string][]asset, size)
 
 	// 1. group routes by length
-	for _, asset := range assets {
-		route := asset
-		routeLen := len(route.RelPath) // relative path without leading slash
-		routesByLen[routeLen] = append(routesByLen[routeLen], route)
+	for _, a := range assets {
+		routeLen := len(a.RelPath) // relative path without leading slash
+
+		method := "GET"
+		if a.Form != "" {
+			method = "POST"
+		}
+
+		if routesByLen[routeLen] == nil {
+			routesByLen[routeLen] = map[string][]asset{method: []asset{a}}
+		} else {
+			routesByLen[routeLen][method] = append(routesByLen[routeLen][method], a)
+		}
 	}
 
 	// 2. sort by frequency score within each length group
-	for i, routes := range routesByLen {
-		sort.Slice(routes, func(i, j int) bool {
-			return routes[i].Frequency > routes[j].Frequency
-		})
-		routesByLen[i] = routes
+	for routeLen, routes := range routesByLen {
+		for method, assets := range routes {
+			sort.Slice(assets, func(i, j int) bool {
+				return assets[i].Frequency > assets[j].Frequency
+			})
+			routesByLen[routeLen][method] = assets
+		}
 	}
 
 	return routesByLen
 }
 
-// buildDispatch generates dispatch arrays for HTTP and HTTPS
-// Dispatch index = route length + 1 (eliminates runtime slash removal).
-func buildDispatch(assets []asset, maxLen int) []handlers {
-	assetRoutesByLen := buildRoutesByLength(assets, maxLen+1)
-	dispatch := make([]handlers, maxLen+2)
-	dispatchEntry := "notFound"
+// buildGet generates get arrays for HTTP and HTTPS
+// We use `index = assetRouteLen + 1` to eliminate the runtime slash removal.
+func buildGet(assets []asset, maxLen int) []handlers {
+	routesByLen := buildRoutesByLength(assets, maxLen+1)
+	get := make([]handlers, maxLen+2)
+	getEntry := "notFound"
 
-	for i := range dispatch {
-		// dispatch index is the length of the request path (including leading slash)
+	for i := range get {
+		// index (of the get array) is the length of the request path (including leading slash)
 		// the asset routes are relative paths (no leading slash)
-		assetRouteLen := max(0, i-1) // subtract the leading slash
-		assetRoutes := assetRoutesByLen[assetRouteLen]
+		routeLen := max(0, i-1) // subtract the leading slash
+		assets := routesByLen[routeLen]["GET"]
 
-		prevEntry := dispatchEntry
-		if len(assetRoutes) > 0 {
-			if assetRouteLen == 0 {
-				dispatchEntry = "serveIndexHtml"
+		prevEntry := getEntry
+		if len(assets) > 0 {
+			if routeLen == 0 {
+				getEntry = "serveIndexHtml"
 			} else {
-				dispatchEntry = "handleLen" + strconv.Itoa(assetRouteLen)
+				getEntry = "getLen" + strconv.Itoa(routeLen)
 			}
 		}
 
-		dispatch[i] = handlers{
-			Length:    assetRouteLen,
-			Entry:     dispatchEntry,
+		get[i] = handlers{
+			Length:    routeLen,
+			Entry:     getEntry,
 			PrevEntry: prevEntry,
-			Routes:    assetRoutes,
+			Routes:    assets,
 		}
 	}
 
-	return dispatch
+	return get
 }
 
 func addShortcutPaths(assets []asset) []asset {
@@ -94,7 +105,7 @@ func addShortcutPaths(assets []asset) []asset {
 	return append(assets, shortcuts...)
 }
 
-// computeMaxLen calculates the maximum path length for dispatch array sizing.
+// computeMaxLen calculates the maximum path length for get array sizing.
 func computeMaxLen(assets []asset) int {
 	maxLen := 0
 	for _, asset := range assets {

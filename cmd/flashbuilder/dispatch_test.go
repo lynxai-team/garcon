@@ -10,8 +10,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// TestBuildDispatch tests dispatch array generation.
-func TestBuildDispatch(t *testing.T) {
+// TestBuildGet tests get array generation.
+func TestBuildGet(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
@@ -30,21 +30,21 @@ func TestBuildDispatch(t *testing.T) {
 		{
 			Length:    5,
 			PrevEntry: "serveIndexHtml",
-			Entry:     "handleLen5",
+			Entry:     "getLen5",
 			Routes:    []asset{{RelPath: "style", Identifier: "StyleCss", Frequency: 800, IsShortcut: true}},
 		},
 		{
 			Length:    6,
-			PrevEntry: "handleLen5",
-			Entry:     "handleLen6",
+			PrevEntry: "getLen5",
+			Entry:     "getLen6",
 			Routes:    []asset{{RelPath: "script", Identifier: "ScriptJs", Frequency: 600, IsShortcut: true}},
 		},
-		{Length: 7, Entry: "handleLen6", PrevEntry: "handleLen6"},
-		{Length: 8, Entry: "handleLen6", PrevEntry: "handleLen6"},
+		{Length: 7, Entry: "getLen6", PrevEntry: "getLen6"},
+		{Length: 8, Entry: "getLen6", PrevEntry: "getLen6"},
 		{
 			Length:    9,
-			PrevEntry: "handleLen6",
-			Entry:     "handleLen9",
+			PrevEntry: "getLen6",
+			Entry:     "getLen9",
 			Routes: []asset{
 				{RelPath: "style.css", Identifier: "StyleCss", Frequency: 800},
 				{RelPath: "script.js", Identifier: "ScriptJs", Frequency: 600},
@@ -52,18 +52,18 @@ func TestBuildDispatch(t *testing.T) {
 		},
 		{
 			Length:    10,
-			PrevEntry: "handleLen9",
-			Entry:     "handleLen10",
+			PrevEntry: "getLen9",
+			Entry:     "getLen10",
 			Routes:    []asset{{RelPath: "index.html", Identifier: "IndexHtml", Frequency: 1000}},
 		},
 	}
 
 	assets = addShortcutPaths(assets)
 	maxLen := computeMaxLen(assets)
-	dispatch := buildDispatch(assets, maxLen)
+	get := buildGet(assets, maxLen)
 
-	if !cmp.Equal(dispatch, want) {
-		t.Errorf("Structs differ: %v", cmp.Diff(want, dispatch))
+	if !cmp.Equal(get, want) {
+		t.Errorf("Structs differ: %v", cmp.Diff(want, get))
 	}
 }
 

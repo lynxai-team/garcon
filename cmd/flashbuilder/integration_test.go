@@ -12,8 +12,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// TestIntegration_DiscoverToDispatch tests discovery to dispatch flow.
-func TestIntegration_DiscoverToDispatch(t *testing.T) {
+// TestIntegration_DiscoverToGet tests discovery to get flow.
+func TestIntegration_DiscoverToGet(t *testing.T) {
 	t.Parallel()
 
 	if testing.Short() {
@@ -78,12 +78,12 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 	// Compute MaxLen
 	maxLen := computeMaxLen(assets)
 
-	// Generate dispatch arrays
-	dispatch := buildDispatch(assets, maxLen)
+	// Generate get arrays
+	get := buildGet(assets, maxLen)
 
-	// Verify dispatch arrays
-	if len(dispatch) != maxLen+2 {
-		t.Errorf("HTTP dispatch length: expected %d, got %d", maxLen+2, len(dispatch))
+	// Verify get arrays
+	if len(get) != maxLen+2 {
+		t.Errorf("HTTP get length: expected %d, got %d", maxLen+2, len(get))
 	}
 
 	want := []handlers{{
@@ -108,8 +108,8 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
 		Length:    0,
 	}}
 
-	if cmp.Equal(dispatch, want) {
-		t.Errorf("HTTP dispatch: %v", cmp.Diff( want, dispatch,))
+	if cmp.Equal(get, want) {
+		t.Errorf("HTTP get: %v", cmp.Diff(want, get))
 	}
 }
 

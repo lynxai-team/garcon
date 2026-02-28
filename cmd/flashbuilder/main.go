@@ -141,8 +141,8 @@ func do(cli *cli) error {
 	// Compute MaxLen
 	maxLen := computeMaxLen(assets)
 
-	// Generate dispatch arrays
-	dispatch := buildDispatch(assets, maxLen)
+	// Generate get array
+	get := buildGet(assets, maxLen)
 
 	// Convert to template data
 	data := templateData{
@@ -151,9 +151,9 @@ func do(cli *cli) error {
 			HTTPSPort: "8443",
 			Module:    "flash",
 		},
-		Assets:   assets,
-		Dispatch: dispatch,
-		MaxLen:   maxLen,
+		Assets: assets,
+		Get:    get,
+		MaxLen: maxLen,
 	}
 
 	// Generate Go code

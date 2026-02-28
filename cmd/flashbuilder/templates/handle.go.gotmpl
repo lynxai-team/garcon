@@ -13,13 +13,13 @@ import (
 func newServer{{$scheme}}() *Server {
 	s := new(Server)
 
-	s.dispatch = [maxLen + 2]func(http.ResponseWriter, *http.Request){
-{{range .Dispatch}}		s.{{.Entry}}{{$scheme}},
+	s.get = [maxLen + 2]func(http.ResponseWriter, *http.Request){
+{{range .Get}}		s.{{.Entry}}{{$scheme}},
 {{end}}	}
 
 	return s
 }
-{{range .Dispatch}}{{ if and .Routes .Length }}
+{{range .Get}}{{ if and .Routes .Length }}
 func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	const L = {{.Length}}
 	pathNoSlash := r.URL.Path[1:]
