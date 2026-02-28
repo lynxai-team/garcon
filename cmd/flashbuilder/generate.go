@@ -164,28 +164,28 @@ func generate(data templateData, output string, dryRun bool) error {
 
 	// Generate handle-http.go
 	data.Config.Scheme = "HTTP"
-	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "handle-http.go")
+	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "server-http.go")
 	if err != nil {
 		return err
 	}
 
 	// Generate handle-https.go
 	data.Config.Scheme = "HTTPS"
-	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "handle-https.go")
+	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "server-https.go")
 	if err != nil {
 		return err
 	}
 
 	// Generate serve-http.go
 	data.Config.Scheme = "HTTP"
-	err = renderWriteCode(dryRun, data, tmpl, output, "endpoints.go", "serve-http.go")
+	err = renderWriteCode(dryRun, data, tmpl, output, "endpoints.go", "endpoints-http.go")
 	if err != nil {
 		return err
 	}
 
 	// Generate serve-https.go
 	data.Config.Scheme = "HTTPS"
-	err = renderWriteCode(dryRun, data, tmpl, output, "endpoints.go", "serve-https.go")
+	err = renderWriteCode(dryRun, data, tmpl, output, "endpoints.go", "endpoints-https.go")
 	if err != nil {
 		return err
 	}
