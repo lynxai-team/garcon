@@ -7,7 +7,9 @@
 package main
 
 import (
-	"net/http"
+	"net/http"{{if .Post}}
+
+	"github.com/lynxai-team/garcon/wf"{{end}}
 )
 
 func newServer{{$scheme}}() *Server {
@@ -20,7 +22,11 @@ func newServer{{$scheme}}() *Server {
 	s.post = [maxLen + 2]func(http.ResponseWriter, *http.Request){
 {{range .Post}}		s.{{.Entry}}{{$scheme}},
 {{end}}	}
-{{end}}
+
+	redirectURL := "#"
+	notifierURL := "https://example.com"
+	s.webForm = wf.NewContactForm(redirectURL, notifierURL){{end}}
+
 	return s
 }
 {{range .Get}}{{ if and .Routes .Length }}

@@ -32,5 +32,6 @@ func (s *Server) get{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Re
 }
 {{end}}{{end}}{{end}}{{range .Post}}{{range .Routes}}
 func (s *Server) post{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
-	// ???
-}{{end}}{{end}}{{end}}
+	s.webForm.Notify(w, r)
+}
+{{end}}{{end}}{{end}}

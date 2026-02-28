@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
-	"github.com/quic-go/quic-go/http3"
+	"github.com/quic-go/quic-go/http3"{{if .Post}}
+
+	"github.com/lynxai-team/garcon/wf"{{end}}
 )
 
 // maxLen is the length of the largest asset path.
@@ -36,7 +38,9 @@ const maxLen = {{.MaxLen}}
 // Server implements http.Handler.
 type Server struct {
 	get  [maxLen + 2]func(http.ResponseWriter, *http.Request){{if .Post}}
-	post [maxLen + 2]func(http.ResponseWriter, *http.Request){{end}}
+	post [maxLen + 2]func(http.ResponseWriter, *http.Request)
+
+	webForm wf.WebForm{{end}}
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
