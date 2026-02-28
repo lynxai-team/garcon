@@ -634,11 +634,11 @@ type Server struct {
     tlsCfg   *tls.Config
 }
 
-func handleLen0(w http.ResponseWriter, r *http.Request) {
+func getLen0(w http.ResponseWriter, r *http.Request) {
     // Generated switch for length 0
 }
 
-// ... up to handleLen<MaxLen> ...
+// ... up to getLen<MaxLen> ...
 
 func serveAssetDownloadsFile(w http.ResponseWriter, r *http.Request) {
     http.ServeFile(w, r, "www/downloads/file.zip")
@@ -669,7 +669,7 @@ func main() {
 ### 7.4 Per-Length Handler Template
 
 ```go
-func handleLen<LENGTH>(w http.ResponseWriter, r *http.Request) {
+func getLen<LENGTH>(w http.ResponseWriter, r *http.Request) {
     const L = <LENGTH>
     pathNoLeadingSlash := r.URL.Path[1:]
     truncatedPath := pathNoLeadingSlash[:L]
@@ -982,7 +982,7 @@ func ServeAssetMainCss(w http.ResponseWriter, r *http.Request) {
 
 **Generated Code:**
 ```go
-func handleLen12(w http.ResponseWriter, r *http.Request) {
+func getLen12(w http.ResponseWriter, r *http.Request) {
     // Path length 12, check first 12 characters
     path := r.URL.Path[1:13]  // Skip leading /
     
@@ -994,7 +994,7 @@ func handleLen12(w http.ResponseWriter, r *http.Request) {
     // ... all paths of length 12 ...
     default:
         // Fallback to length 11
-        handleLen11(w, r)
+        getLen11(w, r)
     }
 }
 ```
@@ -1072,7 +1072,7 @@ fallback(w, r)
 
 **Per-Length Handler Hot Path:**
 ```go
-func handleLen12(w http.ResponseWriter, r *http.Request) {
+func getLen12(w http.ResponseWriter, r *http.Request) {
     // Single switch statement - compile-time known cases
     switch r.URL.Path[1:13] {
     case "css/main.css":
@@ -1083,7 +1083,7 @@ func handleLen12(w http.ResponseWriter, r *http.Request) {
     // ... all paths of length 12 ...
     default:
         // Single fallback call
-        handleLen11(w, r)
+        getLen11(w, r)
     }
 }
 ```

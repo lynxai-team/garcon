@@ -677,7 +677,7 @@ ALGORITHM BuildDispatch(assets):
 ### 5.3 Per-Length Handler Template
 
 ```go
-func handleLen<L>(w http.ResponseWriter, r *http.Request) {
+func getLen<L>(w http.ResponseWriter, r *http.Request) {
     const L = <L>
     // Safety: dispatch array ensures len(r.URL.Path) >= L when this is called
     pathNoSlash = r.URL.Path[1:]    // Remove leading '/'

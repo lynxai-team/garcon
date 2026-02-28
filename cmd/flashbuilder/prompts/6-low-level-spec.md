@@ -258,17 +258,17 @@ The `go.mod` and `go.sum` files are not part of this implementation.
 flashbuilder/
 ├── main.go           # CLI, entry point, cli struct, orchestration
 ├── assets.go         # Asset discovery, dedupe, identifier, link, asset/variant types
-├── dispatch.go       # Dispatch generation, routing, computeMaxLen
+├── endpoints.go       # Dispatch generation, routing, computeMaxLen
 ├── generate.go       # Code generation, templates, data structures
 ├── cache.go          # Cache management, budget allocation, fileInfo
 ├── variant.go        # Variant generation, compression, hashing
 └── templates/
-    ├── embed.gotmpl          # Template for assets/embed.go
-    ├── main.gotmpl           # Template for main.go
-    ├── handlers.gotmpl       # Template for per-length handlers
-    ├── headers.gotmpl        # Template for header literals
-    ├── shared-imports.gotmpl # Shared import declarations
-    └── shared-struct.gotmpl  # Server struct template
+    ├── embed.go.gotmpl          # Template for assets/embed.go
+    ├── main.go.gotmpl           # Template for main.go
+    ├── handlers.go.gotmpl       # Template for per-length handlers
+    ├── headers.http.gotmpl      # Template for header literals
+    ├── shared-imports.go.gotmpl # Shared import declarations
+    └── shared-struct.go.gotmpl  # Server struct template
 ```
 
 **Intent**: Simplify project structure with flat package organization.
@@ -520,7 +520,7 @@ type FileInfo struct {
 ### 5.1 Cache Directory Initialization
 ```go
 func ensureCacheDir(cacheDir string) error {
-    err := os.MkdirAll(cacheDir, 0755)
+    err := os.MkdirAll(cacheDir, 0700)
     if err != nil {
         return fmt.Errorf("E099: Failed to create cache directory: %v", err)
     }
@@ -661,7 +661,7 @@ func generateAVIFVariant(asset asset, quality int, cacheDir string) (variant, er
     }
     
     // Write compressed content to cache
-    err = os.WriteFile(v.CachePath, buf.Bytes(), 0644)
+    err = os.WriteFile(v.CachePath, buf.Bytes(), 0600)
     if err != nil {
         return variant{}, err
     }
@@ -713,7 +713,7 @@ func generateWebPVariant(asset asset, quality int, cacheDir string) (variant, er
     }
     
     // Write compressed content to cache
-    err = os.WriteFile(v.CachePath, buf.Bytes(), 0644)
+    err = os.WriteFile(v.CachePath, buf.Bytes(), 0600)
     if err != nil {
         return variant{}, err
     }
@@ -820,7 +820,7 @@ func validate(input, output string) error {
 All templates are embedded using `//go:embed`:
 
 ```go
-//go:embed templates/*.gotmpl
+//go:embed templates/*.go.gotmpl
 var templateFS embed.FS
 ```
 
@@ -830,7 +830,7 @@ var templateFS embed.FS
 
 **Rationale**: Embedded templates enable single-binary distribution.
 
-**Template Files Requirement**: The template files (`embed.gotmpl`, `main.gotmpl`, `handlers.gotmpl`, `headers.gotmpl`, `shared-imports.gotmpl`, `shared-struct.gotmpl`) must exist as physical files in the `templates/` directory before the `//go:embed` directive can embed them. Create these files with the content specified in Section 16.
+**Template Files Requirement**: The template files (`embed.go.gotmpl`, `main.go.gotmpl`, `handlers.go.gotmpl`, `headers.http.gotmpl`, `shared-imports.go.gotmpl`, `shared-struct.go.gotmpl`) must exist as physical files in the `templates/` directory before the `//go:embed` directive can embed them. Create these files with the content specified in Section 16.
 
 ### 8.2 Template Functions
 
@@ -875,7 +875,7 @@ func parseTemplates() (*template.Template, error) {
     }
     
     tmpl := template.New("root").Funcs(funcMap)
-    cachedTemplates, cachedTemplatesErr = tmpl.ParseFS(templateFS, "templates/*.gotmpl")
+    cachedTemplates, cachedTemplatesErr = tmpl.ParseFS(templateFS, "templates/*.go.gotmpl")
     return cachedTemplates, cachedTemplatesErr
 }
 ```
@@ -1017,7 +1017,7 @@ func buildDispatch(assets []asset, maxLen int) (httpDispatch, httpsDispatch []Di
         }
         
         // Store the routes and the handler names
-        handlerName := fmt.Sprintf("handleLen%d", index)
+        handlerName := fmt.Sprintf("getLen%d", index)
         httpDispatch[index] = DispatchEntry{
             Index:   index,
             Handler: handlerName + "HTTP",
@@ -1543,7 +1543,7 @@ func generateVariants(assets []asset, brotliQuality, avifQuality, webPQuality in
                         Extension:     ".br",
                         CachePath:     filepath.Join(cacheDir, assets[i].RelPath + ".br"),
                     }
-                    err = os.WriteFile(v.CachePath, compressed, 0644)
+                    err = os.WriteFile(v.CachePath, compressed, 0600)
                     if err == nil {
                         variants = append(variants, v)
                     }
@@ -1679,13 +1679,13 @@ func renderHeaderHTTPS(asset asset, csp string, httpsPort string) []byte {
 func createLinks(assets []asset, input string, output string, cacheDir string) error {
     // Create assets directory
     assetsDir := filepath.Join(output, "assets")
-    if err := os.MkdirAll(assetsDir, 0755); err != nil {
+    if err := os.MkdirAll(assetsDir, 0700); err != nil {
         return fmt.Errorf("E087: Failed to create assets directory: %v", err)
     }
     
     // Create www directory
     wwwDir := filepath.Join(output, "www")
-    if err := os.MkdirAll(wwwDir, 0755); err != nil {
+    if err := os.MkdirAll(wwwDir, 0700); err != nil {
         return fmt.Errorf("E087: Failed to create www directory: %v", err)
     }
     
@@ -1703,7 +1703,7 @@ func createLinks(assets []asset, input string, output string, cacheDir string) e
         } else {
             // Create symlink in www directory
             target := filepath.Join(wwwDir, asset.RelPath)
-            if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+            if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
                 return fmt.Errorf("E087: Failed to create www subdirectory: %v", err)
             }
             if err := os.Symlink(asset.AbsPath, target); err != nil {
@@ -1778,7 +1778,7 @@ func convertAssets(assets []asset) []AssetData {
 // generate generates the Go code for the flash server
 func generate(data TemplateData, output string) error {
     // Ensure output directory exists
-    if err := os.MkdirAll(output, 0755); err != nil {
+    if err := os.MkdirAll(output, 0700); err != nil {
         return fmt.Errorf("E099: Failed to create output directory: %v", err)
     }
     
@@ -1787,7 +1787,7 @@ func generate(data TemplateData, output string) error {
     if err != nil {
         return fmt.Errorf("E099: Failed to render embed template: %v", err)
     }
-    if err := os.WriteFile(filepath.Join(output, "assets", "embed.go"), []byte(embedCode), 0644); err != nil {
+    if err := os.WriteFile(filepath.Join(output, "assets", "embed.go"), []byte(embedCode), 0600); err != nil {
         return fmt.Errorf("E099: Failed to write embed.go: %v", err)
     }
     
@@ -1796,7 +1796,7 @@ func generate(data TemplateData, output string) error {
     if err != nil {
         return fmt.Errorf("E099: Failed to render main template: %v", err)
     }
-    if err := os.WriteFile(filepath.Join(output, "main.go"), []byte(mainCode), 0644); err != nil {
+    if err := os.WriteFile(filepath.Join(output, "main.go"), []byte(mainCode), 0600); err != nil {
         return fmt.Errorf("E099: Failed to write main.go: %v", err)
     }
     
@@ -1808,7 +1808,7 @@ func generate(data TemplateData, output string) error {
 
 ## 16. Template Definitions
 
-### 16.1 `templates/embed.gotmpl`
+### 16.1 `templates/embed.go.gotmpl`
 
 ```go
 // Package assets contains all embed-eligible assets.
@@ -1861,7 +1861,7 @@ import (
 
 **Rationale**: `{{.ETag}}` adds surrounding quotes for HTTP ETag format. Handlers are methods on `*Server` to access dispatch arrays.
 
-### 16.2 `templates/main.gotmpl`
+### 16.2 `templates/main.go.gotmpl`
 
 ```go
 package main
@@ -1920,10 +1920,10 @@ func (s *Server) routerHTTPS(w http.ResponseWriter, r *http.Request) {
 
 {{range .Dispatch.HTTP}}
     {{if .Handler}}
-        // handleLen{{.Index}}HTTP handles paths of length {{.Index}}.
+        // getLen{{.Index}}HTTP handles paths of length {{.Index}}.
         // Dispatch array index = {{.Index}} corresponds to asset route length = {{.Index}}-1.
         // Asset routes are relative paths without leading slash.
-        func (s *Server) handleLen{{.Index}}HTTP(w http.ResponseWriter, r *http.Request) {
+        func (s *Server) getLen{{.Index}}HTTP(w http.ResponseWriter, r *http.Request) {
             const L = {{.Index}}
             pathNoSlash := r.URL.Path[1:] // asset routes are relative (no leading slash)iii
             truncated := pathNoSlash[:L-1] // Match against asset routes of length L-1
@@ -1941,7 +1941,7 @@ func (s *Server) routerHTTPS(w http.ResponseWriter, r *http.Request) {
 
 {{range .Dispatch.HTTPS}}
     {{if .Handler}}
-        func (s *Server) handleLen{{.Index}}HTTPS(w http.ResponseWriter, r *http.Request) {
+        func (s *Server) getLen{{.Index}}HTTPS(w http.ResponseWriter, r *http.Request) {
             const L = {{.Index}}
             pathNoSlash := r.URL.Path[1:] // asset routes are relative (no leading slash)iii
             truncated := pathNoSlash[:L-1] // Match against asset routes of length L-1
@@ -2024,17 +2024,17 @@ func generateTLSConfig() *tls.Config {
 
 **Rationale**: Array sizes are written as literal constants during code generation, not as template variables. Dispatch array indexing is explained in comments to clarify the relationship between request path length and asset route length. Uses Go 1.26 `min` builtin and `slices.BinarySearch`.
 
-### 16.3 `templates/handlers.gotmpl`
+### 16.3 `templates/handlers.go.gotmpl`
 
 ```go
 {{/* Per-length handler template for HTTP */}}
 {{define "httpHandler"}}
-// handleLen{{.Index}}HTTP handles HTTP requests for paths of length {{.Index}}.
+// getLen{{.Index}}HTTP handles HTTP requests for paths of length {{.Index}}.
 // Dispatch array index = {{.Index}} corresponds to asset routes of length {{.Index}}-1.
 // Request paths include leading slash: "/example" -> pathNoSlash = "example" (length 7)
 // Asset routes are relative paths without leading slash: "example" (length 7)
 // This design eliminates runtime slash removal and byte subtraction.
-func (s *Server) handleLen{{.Index}}HTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getLen{{.Index}}HTTP(w http.ResponseWriter, r *http.Request) {
     const L = {{.Index}}
     pathNoSlash := r.URL.Path[1:]
     if len(pathNoSlash) < L-1 {
@@ -2055,9 +2055,9 @@ func (s *Server) handleLen{{.Index}}HTTP(w http.ResponseWriter, r *http.Request)
 
 {{/* Per-length handler template for HTTPS */}}
 {{define "httpsHandler"}}
-// handleLen{{.Index}}HTTPS handles HTTPS requests for paths of length {{.Index}}.
+// getLen{{.Index}}HTTPS handles HTTPS requests for paths of length {{.Index}}.
 // Dispatch array index = {{.Index}} corresponds to asset routes of length {{.Index}}-1.
-func (s *Server) handleLen{{.Index}}HTTPS(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getLen{{.Index}}HTTPS(w http.ResponseWriter, r *http.Request) {
     const L = {{.Index}}
     pathNoSlash := r.URL.Path[1:]
     if len(pathNoSlash) < L-1 {
@@ -2083,7 +2083,7 @@ func (s *Server) handleLen{{.Index}}HTTPS(w http.ResponseWriter, r *http.Request
 
 **Rationale**: Modifying handlers only requires template changes, not code changes. Comments explain the relationship between dispatch index and asset route length.
 
-### 16.4 `templates/headers.gotmpl`
+### 16.4 `templates/headers.http.gotmpl`
 
 ```go
 {{/* Header literals template */}}
@@ -2125,7 +2125,7 @@ var {{.Identifier}}HeaderHTTPS = []byte("{{.HeaderHTTPS}}")
 
 **Rationale**: Modifying headers only requires template changes.
 
-### 16.5 `templates/shared-imports.gotmpl`
+### 16.5 `templates/shared-imports.go.gotmpl`
 
 ```go
 {{/* Shared imports for generated files */}}
@@ -2162,7 +2162,7 @@ import (
 
 **Rationale**: Shared imports reduce duplication across generated files.
 
-### 16.6 `templates/shared-struct.gotmpl`
+### 16.6 `templates/shared-struct.go.gotmpl`
 
 ```go
 {{/* Server struct template */}}
@@ -2217,10 +2217,10 @@ func main() {
     
     // Create output directories
     if !cli.DryRun {
-        os.MkdirAll(cli.Output, 0755)
-        os.MkdirAll(filepath.Join(cli.Output, "assets"), 0755)
-        os.MkdirAll(filepath.Join(cli.Output, "www"), 0755)
-        os.MkdirAll(cli.CacheDir, 0755)
+        os.MkdirAll(cli.Output, 0700)
+        os.MkdirAll(filepath.Join(cli.Output, "assets"), 0700)
+        os.MkdirAll(filepath.Join(cli.Output, "www"), 0700)
+        os.MkdirAll(cli.CacheDir, 0700)
     }
     
     // Step 1: Discover assets
@@ -2452,16 +2452,16 @@ Implement all files:
 
 - `assets.go` - Asset discovery, dedupe, identifier, link, asset/variant types
 - `cache.go` - Cache management, budget allocation, fileInfo
-- `dispatch.go` - Dispatch generation, routing, computeMaxLen
+- `endpoints.go` - Dispatch generation, routing, computeMaxLen
 - `generate.go` - Code generation, templates, data structures
 - `main.go` - CLI, entry point, cli struct, orchestration
 - `variant.go` - Variant generation, compression, hashing
-- `templates/embed.gotmpl` - Embed template
-- `templates/handlers.gotmpl` - Handlers template
-- `templates/headers.gotmpl` - Template for header literals
-- `templates/main.gotmpl` - Main template
-- `templates/shared-imports.gotmpl` - Shared import declarations
-- `templates/shared-struct.gotmpl` - Shared server struct template
+- `templates/embed.go.gotmpl` - Embed template
+- `templates/handlers.go.gotmpl` - Handlers template
+- `templates/headers.http.gotmpl` - Template for header literals
+- `templates/main.go.gotmpl` - Main template
+- `templates/shared-imports.go.gotmpl` - Shared import declarations
+- `templates/shared-struct.go.gotmpl` - Shared server struct template
 
 Each file should be implemented exactly as specified in this document, with all algorithms, data structures, and templates matching the specification.
 
@@ -2640,7 +2640,7 @@ func TestDiscover(t *testing.T) {
     
     for _, file := range files {
         path := filepath.Join(tmpDir, file.name)
-        if err := os.WriteFile(path, []byte(file.content), 0644); err != nil {
+        if err := os.WriteFile(path, []byte(file.content), 0600); err != nil {
             t.Fatalf("Failed to write file: %v", err)
         }
     }
@@ -2707,7 +2707,7 @@ func TestDetectMIME(t *testing.T) {
             defer os.RemoveAll(tmpDir)
             
             path := filepath.Join(tmpDir, tt.filename)
-            if err := os.WriteFile(path, []byte(tt.content), 0644); err != nil {
+            if err := os.WriteFile(path, []byte(tt.content), 0600); err != nil {
                 t.Fatalf("Failed to write file: %v", err)
             }
             
@@ -2883,10 +2883,10 @@ func TestDedupe(t *testing.T) {
     file1 := filepath.Join(tmpDir, "file1.txt")
     file2 := filepath.Join(tmpDir, "file2.txt")
     
-    if err := os.WriteFile(file1, []byte(content), 0644); err != nil {
+    if err := os.WriteFile(file1, []byte(content), 0600); err != nil {
         t.Fatalf("Failed to write file: %v", err)
     }
-    if err := os.WriteFile(file2, []byte(content), 0644); err != nil {
+    if err := os.WriteFile(file2, []byte(content), 0600); err != nil {
         t.Fatalf("Failed to write file: %v", err)
     }
     
@@ -3078,9 +3078,9 @@ func TestEnsureCacheDir(t *testing.T) {
         t.Error("Cache path is not a directory")
     }
     
-    // Verify permissions (0755)
-    if stat.Mode()&0755 != 0755 {
-        t.Errorf("Expected permissions 0755, got %v", stat.Mode())
+    // Verify permissions (0700)
+    if stat.Mode()&0700 != 0700 {
+        t.Errorf("Expected permissions 0700, got %v", stat.Mode())
     }
 }
 ```
@@ -3144,7 +3144,7 @@ func TestCleanCache(t *testing.T) {
     
     for _, f := range files {
         path := filepath.Join(tmpDir, f.name)
-        if err := os.WriteFile(path, []byte(f.content), 0644); err != nil {
+        if err := os.WriteFile(path, []byte(f.content), 0600); err != nil {
             t.Fatalf("Failed to write file: %v", err)
         }
         // Set modification time
@@ -3366,7 +3366,7 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
     
     for _, f := range files {
         path := filepath.Join(tmpDir, f.name)
-        if err := os.WriteFile(path, []byte(f.content), 0644); err != nil {
+        if err := os.WriteFile(path, []byte(f.content), 0600); err != nil {
             t.Fatalf("Failed to write file: %v", err)
         }
     }

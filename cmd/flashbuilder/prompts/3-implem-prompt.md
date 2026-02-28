@@ -530,11 +530,11 @@ type Server struct {
     tlsCfg   *tls.Config
 }
 
-func handleLen0(w http.ResponseWriter, r *http.Request) {
+func getLen0(w http.ResponseWriter, r *http.Request) {
     // Generated switch for length 0
 }
 
-// ... up to handleLen<MaxLen> ...
+// ... up to getLen<MaxLen> ...
 
 func serveAssetDownloadsFile(w http.ResponseWriter, r *http.Request) {
     http.ServeFile(w, r, "www/downloads/file.zip")
@@ -565,7 +565,7 @@ func main() {
 ### 6.4 Per-Length Handler Template
 
 ```go
-func handleLen<LENGTH>(w http.ResponseWriter, r *http.Request) {
+func getLen<LENGTH>(w http.ResponseWriter, r *http.Request) {
     const L = <LENGTH>
     pathNoLeadingSlash := r.URL.Path[1:]
     truncatedPath := pathNoLeadingSlash[:L]

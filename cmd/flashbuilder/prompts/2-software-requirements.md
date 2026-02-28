@@ -165,7 +165,7 @@ At server start‑up, generate a self‑signed RSA 2048‑bit certificate with
 
 Build a compile‑time `dispatch` array of size `MaxLen+1`. Each entry points to a per‑length handler. Router extracts raw request path via `r.URL.Path[1:]` (no leading `/`). **Exact‑length matching first**: if request path length matches a registered path length, invoke per‑length handler. If no exact match, search backwards for the largest route path that is a prefix of the request path. Dispatch array fully populated – no `nil` entries. Path matching uses raw byte comparison; URL-encoded characters are not decoded before matching. Both canonical and duplicate paths are included in the router's switch statements, both calling the canonical handler from the `assets` package.
 
-**Switch case ordering optimization**: For each per‑length handler `handleLenL`, the generator estimates the relative access frequency of each route and orders `case` statements by descending estimated frequency to minimize average comparison count. The ordering is performed independently for each length value `L`, considering only routes of that exact byte length. Routes with higher estimated frequency appear earlier in the switch statement, reducing the average number of string comparisons for frequently accessed assets.
+**Switch case ordering optimization**: For each per‑length handler `getLenL`, the generator estimates the relative access frequency of each route and orders `case` statements by descending estimated frequency to minimize average comparison count. The ordering is performed independently for each length value `L`, considering only routes of that exact byte length. Routes with higher estimated frequency appear earlier in the switch statement, reducing the average number of string comparisons for frequently accessed assets.
 
 ### FR‑11: Admin Server
 
@@ -629,7 +629,7 @@ If embed‑eligible assets exist, generate single `embed.go` in `assets/` packag
 
 ### 8.13: Router Generation with Frequency‑Ordered Switch Cases
 
-Compute MaxLen (byte length of longest path without leading `/`). Generate dispatch array and per‑length handlers. For each per‑length handler `handleLenL`, estimate the relative access frequency of each route and order `case` statements by descending frequency to minimize average comparison count. (See **Section 9: Router Implementation** for details).
+Compute MaxLen (byte length of longest path without leading `/`). Generate dispatch array and per‑length handlers. For each per‑length handler `getLenL`, estimate the relative access frequency of each route and order `case` statements by descending frequency to minimize average comparison count. (See **Section 9: Router Implementation** for details).
 
 ### 8.14: TLS Configuration
 
@@ -699,7 +699,7 @@ Generator builds three `map[string]string` maps:
 
 **Motivation:** For a switch with N cases, average comparisons range from 1 (first case matches) to N (default). If the top K cases cover the majority of traffic, average comparisons approach K rather than N/2. For example, if 5 cases cover 80% of traffic, average comparisons drop from N/2 to approximately 1-3 for most requests.
 
-**Algorithm:** For each per‑length handler `handleLenL`, the generator:
+**Algorithm:** For each per‑length handler `getLenL`, the generator:
 
 1. **Collects all routes** of byte length `L` (canonical paths, shortcut paths, duplicate paths).
 2. **Computes a frequency score** for each route using deterministic heuristics.
@@ -771,7 +771,7 @@ func estimateFrequencyScore(path string, isEmbedEligible bool) int {
 For `L = 12` (12‑byte paths), all routes are 12 bytes long. The generator computes scores and orders cases accordingly:
 
 ```go
-func handleLen12(w http.ResponseWriter, r *http.Request) {
+func getLen12(w http.ResponseWriter, r *http.Request) {
     const L = 12
     pathNoLeadingSlash := r.URL.Path[1:] // raw path without leading '/'
     truncatedPath := pathNoLeadingSlash[:L] // 12-byte truncated path
@@ -795,7 +795,7 @@ func handleLen12(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-**Safety guarantee:** The dispatch array logic ensures that `handleLenL` is only invoked for paths where `len(pathNoLeadingSlash) >= L`, so the truncation `pathNoLeadingSlash[:L]` is always safe.
+**Safety guarantee:** The dispatch array logic ensures that `getLenL` is only invoked for paths where `len(pathNoLeadingSlash) >= L`, so the truncation `pathNoLeadingSlash[:L]` is always safe.
 
 **Performance Impact:** For a typical web application with 50 routes at length 12:
 - Without frequency ordering: average comparisons = 25 (random distribution)
