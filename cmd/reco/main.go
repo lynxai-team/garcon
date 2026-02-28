@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/lynxai-team/garcon/gg"
+	"github.com/lynxai-team/garcon/hh"
 	"github.com/lynxai-team/garcon/timex"
 
 	"github.com/lynxai-team/emo"
@@ -44,10 +45,10 @@ func main() {
 	out := flag.Arg(1)
 	if out == "" {
 		dot := len(in) - len(ext)
-		out = in[:dot] + gg.BrotliExt
+		out = in[:dot] + hh.BrotliExt
 	}
 
-	buf := gg.Decompress(in, ext)
+	buf := hh.Decompress(in, ext)
 	log.Printf("Decompressed %v => %v", in, gg.ConvertSize(len(buf)))
 
 	ext = filepath.Ext(out)
@@ -85,7 +86,7 @@ func compress(loops int, buf []byte, fn, ext string, level int) (durations []tim
 	var count int
 
 	for i := range loops {
-		d := gg.Compress(buf, fn, ext, level)
+		d := hh.Compress(buf, fn, ext, level)
 		if d <= 0 {
 			log.Fatalf("Duration=%v must be > 0", d)
 		}

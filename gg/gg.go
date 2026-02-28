@@ -20,10 +20,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 	"unsafe"
 
 	md "github.com/JohannesKaufmann/html-to-markdown"
-	"github.com/go-chi/chi/v5"
 
 	"github.com/lynxai-team/emo"
 )
@@ -42,11 +43,7 @@ type (
 	}
 )
 
-var (
-	log = emo.NewZone("garcon")
-
-	ErrNonPrintable = errors.New("non-printable")
-)
+var log = emo.NewZone("gg")
 
 func (e *sizeError) Error() string {
 	return fmt.Sprintf("got %d bytes but want %d hexadecimal digits or %d unpadded Base64 characters (RFC 4648 §5)", e.inLen, e.hexLen, e.b64Len)
@@ -207,44 +204,6 @@ func KeepSchemeHostOnly(urls []*url.URL) []string {
 		sh = append(sh, o)
 	}
 	return sh
-}
-
-// Value returns the /endpoint/{key} (URL path)
-// else the "key" form (HTTP body)
-// else the "key" query string (URL)
-// else the HTTP header.
-// Value requires chi.URLParam().
-func Value(r *http.Request, key, header string) (string, error) {
-	value := chi.URLParam(r, key)
-	if value == "" {
-		value = r.FormValue(key)
-		if value == "" && header != "" {
-			// Check only the first Header,
-			// because we do not know how to manage several ones.
-			value = r.Header.Get(header)
-		}
-	}
-
-	if i := printable(value); i >= 0 {
-		return value, fmt.Errorf("%s %w at %d", key, ErrNonPrintable, i)
-	}
-	return value, nil
-}
-
-// Values requires chi.URLParam().
-func Values(r *http.Request, key string) ([]string, error) {
-	form := r.Form[key]
-
-	if i := Printable(form...); i >= 0 {
-		return form, fmt.Errorf("%s %w at %d", key, ErrNonPrintable, i)
-	}
-
-	// no need to test v because Garcon already verifies the URI
-	if v := chi.URLParam(r, key); v != "" {
-		return append(form, v), nil
-	}
-
-	return form, nil
 }
 
 func ReadRequest(w http.ResponseWriter, r *http.Request, maxBytes ...int) ([]byte, error) {
@@ -628,4 +587,227 @@ func Namify(str string) string {
 	str = re.ReplaceAllLiteralString(str, "")
 
 	return strings.Trim(str, "_-")
+}
+
+// Sanitize replaces control codes by the tofu symbol
+// and invalid UTF-8 codes by the replacement character.
+// Sanitize can be used to prevent log injection.
+//
+// Inspired from:
+// - https://wikiless.org/wiki/Replacement_character#Replacement_character
+// - https://graphicdesign.stackexchange.com/q/108297
+func Sanitize(slice ...string) string {
+	// most common case: one single string
+	if len(slice) == 1 {
+		return sanitize(slice[0])
+	}
+
+	// other cases: zero or multiple strings => use the slice representation
+	str := strings.Join(slice, ", ")
+	return "[" + sanitize(str) + "]"
+}
+
+// The code points in the surrogate range are not valid for UTF-8.
+const (
+	SurrogateMin = 0xD800
+	SurrogateMax = 0xDFFF
+)
+
+func sanitize(str string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\t':
+			return ' '
+		case SurrogateMin <= r && r <= SurrogateMax, r > utf8.MaxRune:
+			// The replacement character U+FFFD indicates an invalid UTF-8 character.
+			return '�'
+		case unicode.IsPrint(r):
+			return r
+		default: // r < 32, r == 127
+			// The empty box (tofu) symbolizes the .notdef character
+			// indicating a valid but not rendered character.
+			return '􏿮'
+		}
+	}, str)
+}
+
+// FastSanitize is an alternative of the Sanitize function using an optimized implementation.
+func FastSanitize(str string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r < 32, r == 127: // The .notdef character is often represented by the empty box (tofu)
+			return '􏿮' // to indicate a valid but not rendered character.
+		case SurrogateMin <= r && r <= SurrogateMax, utf8.MaxRune < r:
+			return '�' // The replacement character U+FFFD indicates an invalid UTF-8 character.
+		}
+		return r
+	}, str)
+}
+
+// SplitCleanedLines splits on linefeed,
+// replaces the non-printable runes by spaces,
+// trims leading/trailing/redundant spaces,
+// and drops redundant blank lines.
+func SplitCleanedLines(str string) []string {
+	// count number of lines in the returned txt
+	count, length, maxi := 1, 0, 0
+	r1, r2 := '\n', '\n'
+	for _, r0 := range str {
+		if r0 == '\r' {
+			continue
+		}
+		if r0 == '\n' {
+			if (r1 == '\n') && (r2 == '\n') {
+				continue // skip redundant line feeds
+			}
+			count++
+			if maxi < length {
+				maxi = length // max line length
+			}
+			length = 0
+		}
+		r1, r2 = r0, r1
+		length++
+	}
+
+	txt := make([]string, 0, count)
+	line := make([]rune, 0, maxi)
+
+	r1, r2 = '\n', '\n'
+	wasSpace := true
+	blank := false
+	for _, r0 := range str {
+		if r0 == '\r' {
+			continue
+		}
+		if r0 == '\n' {
+			if (r1 == '\n') && (r2 == '\n') {
+				continue
+			}
+			if len(txt) > 0 || len(line) > 0 {
+				if len(line) == 0 {
+					blank = true
+				} else {
+					txt = append(txt, string(line))
+					line = line[:0]
+				}
+			}
+			wasSpace = true
+			r1, r2 = r0, r1
+			continue
+		}
+		r1, r2 = r0, r1
+
+		// also replace non-printable characters by spaces
+		isSpace := !unicode.IsPrint(r0) || unicode.IsSpace(r0)
+		if isSpace {
+			if wasSpace {
+				continue // skip redundant whitespaces
+			}
+		} else {
+			if wasSpace && len(line) > 0 {
+				line = append(line, ' ')
+			}
+			line = append(line, r0)
+			if blank {
+				blank = false
+				txt = append(txt, "")
+			}
+		}
+		wasSpace = isSpace
+	}
+
+	if len(line) > 0 {
+		txt = append(txt, string(line))
+	}
+	if len(txt) == 0 {
+		return nil
+	}
+	return txt
+}
+
+// SafeHeader stringifies a safe list of HTTP header values.
+func SafeHeader(r *http.Request, header string) string {
+	values := r.Header.Values(header)
+
+	if len(values) == 0 {
+		return ""
+	}
+
+	if len(values) == 1 {
+		return Sanitize(values[0])
+	}
+
+	var str strings.Builder
+	str.WriteString("[")
+	for i := range values {
+		if i > 0 {
+			str.WriteString(" ")
+		}
+		str.WriteString(Sanitize(values[i]))
+	}
+	str.WriteString("]")
+
+	return str.String()
+}
+
+// Printable returns -1 when all the strings are safely printable
+// else returns the position of the rejected character.
+//
+// The non printable characters are:
+//
+//   - Carriage Return "\r"
+//   - Line Feed "\n"
+//   - other ASCII control codes (except space)
+//   - invalid UTF-8 codes
+//
+// Printable can be used to preventing log injection.
+//
+// When multiple strings are passed,
+// the returned position is sum with the string index multiplied by 1000.
+func Printable(array ...string) int {
+	if len(array) == 1 {
+		return printable(array[0])
+	}
+
+	for i, s := range array {
+		if p := printable(s); p >= 0 {
+			return i*1000 + p
+		}
+	}
+	return -1
+}
+
+// printable returns the position of
+// a Carriage Return "\r", or a Line Feed "\n",
+// or any other ASCII control code (except space),
+// or, as well as, an invalid UTF-8 code.
+// Printable returns -1 if the string
+// is safely printable preventing log injection.
+func printable(s string) int {
+	for p, r := range s {
+		if !PrintableRune(r) {
+			return p
+		}
+	}
+	return -1
+}
+
+// PrintableRune returns false if rune is
+// a Carriage Return "\r", a Line Feed "\n",
+// another ASCII control code (except space),
+// or an invalid UTF-8 code.
+// PrintableRune can be used to prevent log injection.
+func PrintableRune(r rune) bool {
+	switch {
+	case r < 32:
+		return false
+	case r == 127:
+		return false
+	case SurrogateMin <= r && r <= SurrogateMax:
+		return false
+	case r >= utf8.MaxRune:
+		return false
+	}
+	return true
 }

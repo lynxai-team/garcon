@@ -23,6 +23,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/lynxai-team/garcon/gg"
+	"github.com/lynxai-team/garcon/hh"
 	"github.com/lynxai-team/garcon/timex"
 )
 
@@ -271,7 +272,7 @@ func GenerateKeyHMAC(bits int) []byte {
 		check = true
 	}
 
-	randomBytes := gg.RandomBytes(bits / 8)
+	randomBytes := hh.RandomBytes(bits / 8)
 
 	if check {
 		var digest hash.Hash

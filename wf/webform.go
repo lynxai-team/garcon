@@ -2,7 +2,7 @@
 // This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
-package gc
+package wf
 
 import (
 	"fmt"
@@ -10,12 +10,12 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/lynxai-team/emo"
 	"github.com/lynxai-team/garcon/gg"
 )
 
 type WebForm struct {
-	Writer   gg.Writer
-	Notifier gg.Notifier
+	Notifier Notifier
 
 	// TextLimits are used as security limits
 	// to avoid being flooded by large web forms
@@ -53,14 +53,10 @@ const (
 	bulletIndent = " "  // leading spaces -> bullet indent
 )
 
-func (g *Garcon) NewContactForm(redirectURL string) WebForm {
-	return NewContactForm(g.Writer, redirectURL)
-}
+var log = emo.NewZone("wf")
 
-// NewContactForm initializes a new WebForm with the default contact-form settings.
-func NewContactForm(gw gg.Writer, redirectURL string) WebForm {
+func NewContactForm(redirectURL string) WebForm {
 	return WebForm{
-		Writer:             gw,
 		Notifier:           nil,
 		Redirect:           redirectURL,
 		TextLimits:         DefaultContactSettings(),
@@ -97,7 +93,7 @@ func DefaultFileSettings() map[string][2]int {
 func (wf *WebForm) Notify(notifierURL string) func(w http.ResponseWriter, r *http.Request) {
 	wf.init()
 
-	notifier := gg.NewNotifier(notifierURL)
+	notifier := NewNotifier(notifierURL)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if wf.MaxBodyBytes > 0 {
@@ -107,7 +103,7 @@ func (wf *WebForm) Notify(notifierURL string) func(w http.ResponseWriter, r *htt
 		err := r.ParseForm()
 		if err != nil {
 			log.Warn("WebForm ParseForm:", err)
-			wf.Writer.WriteErr(w, r, http.StatusBadRequest, "cannot parse the webform", "reason", err.Error())
+			// TODO wf.Writer.WriteErr(w, r, http.StatusBadRequest, "cannot parse the webform", "reason", err.Error())
 			return
 		}
 
@@ -149,7 +145,7 @@ func (wf *WebForm) init() {
 
 func (wf *WebForm) toMarkdown(r *http.Request) string {
 	log.Infof("WebForm with %d input fields", len(r.Form))
-	md := wf.formMD(r.Form) + FingerprintMD(r)
+	md := wf.formMD(r.Form) + gg.FingerprintMD(r)
 	if extra := overflow25(len(md), wf.MaxMDBytes); extra > 0 {
 		md = md[:wf.MaxMDBytes] + "\n\n" +
 			"(trimmed last " + strconv.Itoa(extra) + " characters)"

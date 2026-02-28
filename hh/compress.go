@@ -2,7 +2,7 @@
 // This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
-package gg
+package hh
 
 import (
 	"compress/bzip2"
