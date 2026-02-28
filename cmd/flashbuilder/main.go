@@ -141,8 +141,9 @@ func do(cli *cli) error {
 	// Compute MaxLen
 	maxLen := computeMaxLen(assets)
 
-	// Generate get array
+	// Generate get and post arrays
 	get := buildGet(assets, maxLen)
+	post := buildPost(assets, maxLen)
 
 	// Convert to template data
 	data := templateData{
@@ -153,6 +154,7 @@ func do(cli *cli) error {
 		},
 		Assets: assets,
 		Get:    get,
+		Post:   post,
 		MaxLen: maxLen,
 	}
 

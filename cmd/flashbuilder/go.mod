@@ -11,6 +11,7 @@ require (
 	github.com/kolesa-team/go-webp v1.0.5
 	github.com/mtraver/base91 v1.0.0
 	github.com/vegidio/avif-go v0.0.0-20260201182506-481b88104109
+	golang.org/x/net v0.51.0
 )
 
 require github.com/twmb/murmur3 v1.1.5 // indirect

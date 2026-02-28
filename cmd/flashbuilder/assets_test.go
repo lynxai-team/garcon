@@ -32,7 +32,7 @@ func TestDiscover(t *testing.T) {
 
 	for _, file := range files {
 		path := filepath.Join(tmpDir, file.name)
-		err := os.WriteFile(path, []byte(file.content), 0o644)
+		err := os.WriteFile(path, []byte(file.content), 0o600)
 		if err != nil {
 			t.Fatalf("Failed to write file: %v", err)
 		}
@@ -87,7 +87,7 @@ func TestDetectMIME(t *testing.T) {
 			tmpDir := t.TempDir()
 			path := filepath.Join(tmpDir, tt.filename)
 
-			err := os.WriteFile(path, []byte(tt.content), 0o644)
+			err := os.WriteFile(path, []byte(tt.content), 0o600)
 			if err != nil {
 				t.Fatalf("Failed to write file: %v", err)
 			}
@@ -116,18 +116,16 @@ func TestGenerateIdentifier(t *testing.T) {
 		{"Duplicate", "css/style.css", "AssetCssStyleCss2"},
 	}
 
-	identifiers := make(map[string]struct{})
-	filenames := make(map[string]struct{})
+	identifiers := existing{}
 	for i, tt := range tests {
 		if i > 0 && tt.name == "Duplicate" {
 			// Simulate existing identifier
 			identifiers["CssStyleCss"] = struct{}{}
-			filenames["css-Style.css"] = struct{}{}
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			id, _ := generateIdentifier(tt.relPath, identifiers, filenames)
+			id := identifiers.generateIdentifier(tt.relPath)
 			// Check for valid Go identifier chars
 			for _, r := range id {
 				if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {

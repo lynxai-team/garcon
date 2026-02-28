@@ -5,9 +5,9 @@
 package main
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"io/fs"
 	"mime"
 	"net/http"
@@ -20,6 +20,7 @@ import (
 
 	"github.com/kalafut/imohash"
 	"github.com/mtraver/base91"
+	"golang.org/x/net/html"
 )
 
 // asset represents a static asset with all pre-computed metadata.
@@ -31,8 +32,8 @@ type asset struct {
 	MIME       string // Detected MIME type (e.g., "text/html")
 	Size       int64  // File size in bytes
 
-	// Contact form action (backend endpoint)
-	Form string
+	// backend endpoint API of the contact-form found within the page
+	Form map[string]struct{}
 
 	// headers
 	CSP      string    // Content-Security-Policy header value
@@ -136,14 +137,17 @@ func discover(input, csp string) ([]asset, error) {
 			strings.HasPrefix(mimeType, "application/xhtml+xml")
 
 		c := ""
-		form := ""
+		var form map[string]struct{}
 		if isHTML {
-			html := read(absPath, 100_000) // limit 100 KB
-			c = extractCSP(html)
+			html, err := os.Open(absPath)
+			if err != nil {
+				fmt.Println("WARN open html file", err)
+			}
+			defer html.Close()
+			c, form = extractFromHTML(html)
 			if c == "" {
 				c = csp
 			}
-			form = extractFormAction(html)
 		}
 
 		a := asset{
@@ -185,43 +189,54 @@ func read(filename string, limit int) []byte {
 	return firstBytes[:n]
 }
 
-// extractCSP extracts Content-Security-Policy from HTML. Priority:
-// 1. If HTML contains `<meta http-equiv="Content-Security-Policy" content="...">`, use extracted value
-// 2. Else if `--csp=""` is explicitly set, no CSP header
-// 3. Else use `--csp` default value (`"default-src 'self'"`).
-func extractCSP(html []byte) string {
-	csp := extract(html,
-		[]byte(`meta http-equiv="content-security-policy"`),
-		[]byte(` content="`))
-	return string(csp)
-}
-
-func extractFormAction(html []byte) string {
-	action := extract(html, []byte(`<form `), []byte(`action="`))
-	return string(action)
-}
-
-func extract(html, tag, field []byte) []byte {
-	lower := bytes.ToLower(html)
-	tagIdx := bytes.Index(lower, tag)
-	if tagIdx == -1 {
-		return nil
+// extractFromHTML parses HTML and returns:
+//   - csp: the value of the first <meta http-equiv="Content-Security-Policy" content="..."> tag (empty if none)
+//   - actions: unique <form> action attributes.
+func extractFromHTML(r io.Reader) (csp string, actions map[string]struct{}) {
+	z := html.NewTokenizer(r)
+	for {
+		tt := z.Next()
+		switch tt {
+		case html.ErrorToken:
+			if err := z.Err(); err != io.EOF {
+				fmt.Println("HTML parse error:", err)
+			}
+			return csp, actions // EOF reached
+		case html.StartTagToken, html.SelfClosingTagToken:
+			t := z.Token()
+			switch strings.ToLower(t.Data) {
+			case "meta":
+				// Look for CSP meta tag.
+				var httpEquiv, content string
+				for _, a := range t.Attr {
+					switch strings.ToLower(a.Key) {
+					case "http-equiv":
+						httpEquiv = a.Val
+					case "content":
+						content = a.Val
+					}
+				}
+				if csp == "" && strings.EqualFold(httpEquiv, "Content-Security-Policy") && content != "" {
+					csp = html.UnescapeString(content)
+				}
+			case "form":
+				// Collect unique action attributes.
+				for _, a := range t.Attr {
+					if strings.EqualFold(a.Key, "action") {
+						act := html.UnescapeString(a.Val)
+						if _, ok := actions[act]; !ok {
+							if actions == nil {
+								actions = map[string]struct{}{act: {}}
+								break
+							}
+							actions[act] = struct{}{}
+						}
+						break
+					}
+				}
+			}
+		}
 	}
-	tagIdx += len(tag)
-
-	fieldIdx := bytes.Index(lower[tagIdx:], field)
-	if fieldIdx == -1 {
-		return nil
-	}
-	fieldIdx += len(field)
-
-	start := tagIdx + fieldIdx
-	end := bytes.IndexByte(lower[start:], '"')
-	if end == -1 {
-		return nil
-	}
-
-	return html[start : start+end]
 }
 
 // detectMIME determines the MIME type for a file
@@ -300,54 +315,63 @@ func deduplicate(assets []asset) []asset {
 }
 
 func setIdentifiers(assets []asset) []asset {
-	identifiers := make(map[string]struct{}, len(assets))
-	filenames := make(map[string]struct{}, len(assets))
+	identifiers := make(existing, len(assets))
+	filenames := make(existing, len(assets))
 	for i := range assets {
-		id, fn := generateIdentifier(assets[i].RelPath, identifiers, filenames)
-		identifiers[id] = struct{}{}
-		filenames[fn] = struct{}{}
-		assets[i].Identifier = id
-		assets[i].Filename = fn
+		assets[i].Identifier = identifiers.generateIdentifier(assets[i].RelPath)
+		assets[i].Filename = filenames.generateLocalFilename(assets[i].RelPath)
 	}
 	return assets
 }
 
+type existing map[string]struct{}
+
 // generateIdentifier creates a valid Go identifier from a relative path
 // Deterministic sanitization ensures reproducibility.
-func generateIdentifier(relPath string, identifiers, filenames map[string]struct{}) (id, fn string) {
-	// Filter and capitalize each segment
-	var parts []string
-	for seg := range strings.SplitSeq(relPath, "/") {
-		for chunk := range strings.SplitSeq(seg, ".") {
-			chunk = sanitizeIdentifier(chunk)
-			if len(chunk) > 0 {
-				parts = append(parts, capitalize(chunk))
+func (e existing) generateIdentifier(relPath string) string {
+	var result strings.Builder
+	capitalize := true
+	for _, r := range relPath {
+		if unicode.IsLetter(r) {
+			if capitalize {
+				r = unicode.ToUpper(r)
+				capitalize = false
 			}
+			result.WriteRune(r)
+		} else if unicode.IsDigit(r) {
+			result.WriteRune(r)
+		} else {
+			capitalize = true
 		}
 	}
 
-	id = strings.Join(parts, "")
-	fn = strings.ReplaceAll(relPath, "/", "-")
+	id := result.String()
+	id = e.resolveCollision(id)
+	return id
+}
 
-	// Resolve collisions with numeric suffix
-	newID := id
-	newFN := fn
-	for i := range 1000 {
-		_, found := identifiers[newID]
+// generateLocalFilename creates a valid Go identifier from a relative path
+// Deterministic sanitization ensures reproducibility.
+func (e existing) generateLocalFilename(relPath string) string {
+	fn := strings.ReplaceAll(relPath, "/", "-")
+	fn = e.resolveCollision(fn)
+	return fn
+}
+
+// resolveCollision resolves collisions with numeric suffix
+func (e existing) resolveCollision(original string) string {
+	value := original
+	const N = 100_000
+	for i := range N {
+		_, found := e[value]
 		if !found {
-			break
+			e[value] = struct{}{}
+			return value
 		}
-		newID = id + strconv.Itoa(i)
+		value = original + strconv.Itoa(i)
 	}
-	for i := range 1000 {
-		_, found := filenames[newFN]
-		if !found {
-			break
-		}
-		newFN = fn + strconv.Itoa(i)
-	}
-
-	return newID, newFN
+	fmt.Println("ERROR still collision ", value, N)
+	return value
 }
 
 // sanitizeIdentifier filters valid Go identifier characters
@@ -360,14 +384,6 @@ func sanitizeIdentifier(s string) string {
 		}
 	}
 	return result.String()
-}
-
-// capitalize uppercases the first character.
-func capitalize(s string) string {
-	if len(s) == 0 {
-		return ""
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // estimateFrequencyScore estimates request frequency for switch case ordering
@@ -435,14 +451,14 @@ func generateShortcut(relPath string) string {
 func createLinks(assets []asset, output, cacheDir string) error {
 	// Create assets directory
 	assetsDir := filepath.Join(output, "assets")
-	err := os.MkdirAll(assetsDir, 0o755)
+	err := os.MkdirAll(assetsDir, 0o700)
 	if err != nil {
 		return fmt.Errorf("E087: Failed to create assets directory: %w", err)
 	}
 
 	// Create www directory
 	wwwDir := filepath.Join(output, "www")
-	err = os.MkdirAll(wwwDir, 0o755)
+	err = os.MkdirAll(wwwDir, 0o700)
 	if err != nil {
 		return fmt.Errorf("E087: Failed to create www directory: %w", err)
 	}
@@ -467,7 +483,7 @@ func createLinks(assets []asset, output, cacheDir string) error {
 		} else {
 			// Create hard-link in www directory
 			target := filepath.Join(wwwDir, asset.RelPath)
-			err := os.MkdirAll(filepath.Dir(target), 0o755)
+			err := os.MkdirAll(filepath.Dir(target), 0o700)
 			if err != nil {
 				return fmt.Errorf("E087: Failed to create www subdirectory: %w", err)
 			}

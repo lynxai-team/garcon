@@ -22,7 +22,7 @@ type fileInfo struct {
 
 // ensureCacheDir ensures cache directory exists.
 func ensureCacheDir(cacheDir string) error {
-	err := os.MkdirAll(cacheDir, 0o755)
+	err := os.MkdirAll(cacheDir, 0o700)
 	if err != nil {
 		return fmt.Errorf("E099: Failed to create cache directory: %w", err)
 	}

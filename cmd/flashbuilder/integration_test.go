@@ -36,7 +36,7 @@ func TestIntegration_DiscoverToGet(t *testing.T) {
 
 	for _, f := range files {
 		path := filepath.Join(tmpDir, f.name)
-		err := os.WriteFile(path, []byte(f.content), 0o644)
+		err := os.WriteFile(path, []byte(f.content), 0o600)
 		if err != nil {
 			t.Fatalf("Failed to write file: %v", err)
 		}

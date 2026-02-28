@@ -43,7 +43,7 @@ func generateVariants(assets []asset, brotliQuality, avifQuality, webPQuality in
 						Extension:   ".br",
 						CachePath:   filepath.Join(cacheDir, assets[i].RelPath+".br"),
 					}
-					err := os.WriteFile(v.CachePath, compressed, 0o644)
+					err := os.WriteFile(v.CachePath, compressed, 0o600)
 					if err == nil {
 						variants = append(variants, v)
 					}
@@ -130,7 +130,7 @@ func generateAVIFVariant(asset asset, quality int, cacheDir string) (variant, er
 		CachePath:   filepath.Join(cacheDir, asset.RelPath+".avif"),
 	}
 
-	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o644)
+	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o600)
 	if err != nil {
 		return variant{}, err
 	}
@@ -171,7 +171,7 @@ func generateWebPVariant(asset asset, quality int, cacheDir string) (variant, er
 		CachePath:   filepath.Join(cacheDir, asset.RelPath+".webp"),
 	}
 
-	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o644)
+	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o600)
 	if err != nil {
 		return variant{}, err
 	}

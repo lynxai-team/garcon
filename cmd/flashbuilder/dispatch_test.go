@@ -21,15 +21,15 @@ func TestBuildGet(t *testing.T) {
 	}
 
 	want := []handlers{
-		{Length: 0, Entry: "serveIndexHtml", PrevEntry: "notFound", Routes: []asset{{Identifier: "IndexHtml", Frequency: 1000, IsShortcut: true}}},
-		{Length: 0, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml", Routes: []asset{{Identifier: "IndexHtml", Frequency: 1000, IsShortcut: true}}},
-		{Length: 1, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml"},
-		{Length: 2, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml"},
-		{Length: 3, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml"},
-		{Length: 4, Entry: "serveIndexHtml", PrevEntry: "serveIndexHtml"},
+		{Length: 0, Entry: "getIndexHtml", PrevEntry: "notFound", Routes: []asset{{Identifier: "IndexHtml", Frequency: 1000, IsShortcut: true}}},
+		{Length: 0, Entry: "getIndexHtml", PrevEntry: "getIndexHtml", Routes: []asset{{Identifier: "IndexHtml", Frequency: 1000, IsShortcut: true}}},
+		{Length: 1, Entry: "getIndexHtml", PrevEntry: "getIndexHtml"},
+		{Length: 2, Entry: "getIndexHtml", PrevEntry: "getIndexHtml"},
+		{Length: 3, Entry: "getIndexHtml", PrevEntry: "getIndexHtml"},
+		{Length: 4, Entry: "getIndexHtml", PrevEntry: "getIndexHtml"},
 		{
 			Length:    5,
-			PrevEntry: "serveIndexHtml",
+			PrevEntry: "getIndexHtml",
 			Entry:     "getLen5",
 			Routes:    []asset{{RelPath: "style", Identifier: "StyleCss", Frequency: 800, IsShortcut: true}},
 		},

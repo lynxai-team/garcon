@@ -5,6 +5,8 @@
 package main
 
 import (
+	"fmt"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -18,70 +20,130 @@ type handlers struct {
 	Length    int
 }
 
-// buildRoutesByLength groups routes by length, sorted by frequency score.
-func buildRoutesByLength(assets []asset, size int) []map[string][]asset {
-	routesByLen := make([]map[string][]asset, size)
+// buildGetRoutesByLength groups routes by length, sorted by frequency score.
+func buildGetRoutesByLength(assets []asset, size int) [][]asset {
+	routesByLen := make([][]asset, size)
 
 	// 1. group routes by length
 	for _, a := range assets {
 		routeLen := len(a.RelPath) // relative path without leading slash
-
-		method := "GET"
-		if a.Form != "" {
-			method = "POST"
-		}
-
-		if routesByLen[routeLen] == nil {
-			routesByLen[routeLen] = map[string][]asset{method: []asset{a}}
-		} else {
-			routesByLen[routeLen][method] = append(routesByLen[routeLen][method], a)
-		}
+		routesByLen[routeLen] = append(routesByLen[routeLen], a)
 	}
 
 	// 2. sort by frequency score within each length group
-	for routeLen, routes := range routesByLen {
-		for method, assets := range routes {
-			sort.Slice(assets, func(i, j int) bool {
-				return assets[i].Frequency > assets[j].Frequency
-			})
-			routesByLen[routeLen][method] = assets
-		}
+	for routeLen, assets := range routesByLen {
+		sort.Slice(assets, func(i, j int) bool {
+			return assets[i].Frequency > assets[j].Frequency
+		})
+		routesByLen[routeLen] = assets
 	}
 
 	return routesByLen
 }
 
-// buildGet generates get arrays for HTTP and HTTPS
+// buildRoutesByLength groups routes by length, sorted by frequency score.
+func buildPostRoutesByLength(assets []asset, size int) [][]asset {
+	routesByLen := make([][]asset, size)
+
+	// group routes by length
+	existing := existing{}
+	for _, a := range assets {
+		for route := range a.Form {
+			if route != "" && route[0] == '/' {
+				route = route[1:] // drop leading slash
+			} else {
+				// sanitize relative path
+				dir := filepath.Dir(a.RelPath)
+				route, err := filepath.Rel(dir, route)
+				if err != nil {
+					fmt.Println("WARN cannot deduce relative path ", dir, route, err)
+				}
+			}
+
+			routeLen := len(route)
+
+			if slices.ContainsFunc(routesByLen[routeLen], func(a asset) bool { return a.RelPath == route }) {
+				continue
+			}
+
+			modifiedAsset := a
+			modifiedAsset.Identifier = existing.generateIdentifier(route)
+			modifiedAsset.RelPath = route
+			routesByLen[routeLen] = append(routesByLen[routeLen], modifiedAsset)
+		}
+	}
+	// no idea how to sort the POST endpoints
+	return routesByLen
+}
+
+// buildGet generates the dispatch array for the GET handlers.
 // We use `index = assetRouteLen + 1` to eliminate the runtime slash removal.
 func buildGet(assets []asset, maxLen int) []handlers {
-	routesByLen := buildRoutesByLength(assets, maxLen+1)
+	routesByLen := buildGetRoutesByLength(assets, maxLen+1)
 	get := make([]handlers, maxLen+2)
-	getEntry := "notFound"
+	function := "notFound"
 
 	for i := range get {
 		// index (of the get array) is the length of the request path (including leading slash)
 		// the asset routes are relative paths (no leading slash)
 		routeLen := max(0, i-1) // subtract the leading slash
-		assets := routesByLen[routeLen]["GET"]
+		assets := routesByLen[routeLen]
 
-		prevEntry := getEntry
+		prevEntry := function
 		if len(assets) > 0 {
 			if routeLen == 0 {
-				getEntry = "serveIndexHtml"
+				function = "getIndexHtml"
 			} else {
-				getEntry = "getLen" + strconv.Itoa(routeLen)
+				function = "getLen" + strconv.Itoa(routeLen)
 			}
 		}
 
 		get[i] = handlers{
 			Length:    routeLen,
-			Entry:     getEntry,
+			Entry:     function,
 			PrevEntry: prevEntry,
 			Routes:    assets,
 		}
 	}
 
 	return get
+}
+
+// buildPost generates the dispatch array for the POST handlers.
+// We use `index = assetRouteLen + 1` to eliminate the runtime slash removal.
+func buildPost(assets []asset, maxLen int) []handlers {
+	routesByLen := buildPostRoutesByLength(assets, maxLen+1)
+	post := make([]handlers, maxLen+2)
+	atLeastOnePost := false
+
+	for i := range post {
+		// index (of the get array) is the length of the request path (including leading slash)
+		// the asset routes are relative paths (no leading slash)
+		routeLen := max(0, i-1) // subtract the leading slash
+		assets := routesByLen[routeLen]
+
+		function := "notFound"
+		if len(assets) > 0 {
+			if routeLen == 0 {
+				function = "notFound"
+			} else {
+				function = "postLen" + strconv.Itoa(routeLen)
+				atLeastOnePost = true
+			}
+		}
+
+		post[i] = handlers{
+			Length:    routeLen,
+			Entry:     function,
+			PrevEntry: "notFound",
+			Routes:    assets,
+		}
+	}
+
+	if atLeastOnePost {
+		return post
+	}
+	return nil
 }
 
 func addShortcutPaths(assets []asset) []asset {

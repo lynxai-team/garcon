@@ -83,7 +83,7 @@ func TestCleanCache(t *testing.T) {
 	var maxSize int64
 	for _, f := range files {
 		path := filepath.Join(tmpDir, f.name)
-		err := os.WriteFile(path, []byte(f.name), 0o644)
+		err := os.WriteFile(path, []byte(f.name), 0o600)
 		if err != nil {
 			t.Fatalf("Failed to write file: %v", err)
 		}

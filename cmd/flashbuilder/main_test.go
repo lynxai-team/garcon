@@ -47,10 +47,7 @@ func TestValidateCompressionFlags(t *testing.T) {
 				WebP:   tt.webp,
 			}
 			err := do(cli)
-			// if tt.expectErr && err == nil {
-			// 	t.Errorf("expected error but got nil")
-			// }
-			if /*!tt.expectErr &&*/ err != nil {
+			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
 		})

@@ -24,6 +24,7 @@ type templateData struct {
 	Config configData
 	Assets []asset
 	Get    []handlers
+	Post   []handlers
 	MaxLen int
 }
 
@@ -57,23 +58,23 @@ var funcMap = template.FuncMap{
 	"quote": strconv.Quote,
 	"trim":  strings.TrimSpace,
 
+	"human":        toHuman,
+	"capitalize":   capitalize,
 	"escapeHeader": func(s string) string { return strings.ReplaceAll(s, "\n", "\\n") + "\r\n" },
-
-	"human": toHuman,
-
-	"capitalize": func(s string) string {
-		if len(s) > 0 {
-			return strings.ToUpper(s[:1]) + s[1:]
-		}
-		return s
-	},
-
 	"default": func(def, val string) string {
 		if val != "" {
 			return val
 		}
 		return def
 	},
+}
+
+// capitalize uppercases the first character.
+func capitalize(s string) string {
+	if len(s) == 0 {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // toHuman converts a size in bytes to a short, human-readable string.
@@ -163,28 +164,28 @@ func generate(data templateData, output string, dryRun bool) error {
 
 	// Generate handle-http.go
 	data.Config.Scheme = "HTTP"
-	err = renderWriteCode(dryRun, data, tmpl, output, "handle.go", "handle-http.go")
+	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "handle-http.go")
 	if err != nil {
 		return err
 	}
 
 	// Generate handle-https.go
 	data.Config.Scheme = "HTTPS"
-	err = renderWriteCode(dryRun, data, tmpl, output, "handle.go", "handle-https.go")
+	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "handle-https.go")
 	if err != nil {
 		return err
 	}
 
 	// Generate serve-http.go
 	data.Config.Scheme = "HTTP"
-	err = renderWriteCode(dryRun, data, tmpl, output, "serve.go", "serve-http.go")
+	err = renderWriteCode(dryRun, data, tmpl, output, "endpoints.go", "serve-http.go")
 	if err != nil {
 		return err
 	}
 
 	// Generate serve-https.go
 	data.Config.Scheme = "HTTPS"
-	err = renderWriteCode(dryRun, data, tmpl, output, "serve.go", "serve-https.go")
+	err = renderWriteCode(dryRun, data, tmpl, output, "endpoints.go", "serve-https.go")
 	if err != nil {
 		return err
 	}
@@ -218,12 +219,12 @@ func writeCode(dryRun bool, code []byte, output, filename string) error {
 		return nil
 	}
 
-	err := os.MkdirAll(output, 0o755)
+	err := os.MkdirAll(output, 0o700)
 	if err != nil {
 		return fmt.Errorf("E099: Failed os.MkdirAll(%s): %w", output, err)
 	}
 
-	err = os.WriteFile(filepath.Join(output, filename), code, 0o644)
+	err = os.WriteFile(filepath.Join(output, filename), code, 0o600)
 	if err != nil {
 		return fmt.Errorf("E099: Failed os.WriteFile(%s/%s): %w", output, filename, err)
 	}

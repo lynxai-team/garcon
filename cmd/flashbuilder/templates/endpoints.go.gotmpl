@@ -1,8 +1,8 @@
-{{define "serve.go"}}// Copyright 2026 The contributors of Garcon.
+{{define "endpoints.go"}}// Copyright 2026 The contributors of Garcon.
 // This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 {{ $scheme := .Config.Scheme }}
-// This file contains the {{$scheme}} serveAssetXXXX() methods.
+// This file contains the {{$scheme}} getXxxxxZzzzz() methods.
 
 package main
 
@@ -15,7 +15,7 @@ func (s *Server) notFound{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 {{range .Assets}}{{if and (not .IsDuplicate) (not .IsShortcut)}}{{if .EmbedEligible}}
-func (s *Server) serve{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
+func (s *Server) get{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("If-None-Match") == `"{{.ETag}}"` {
 		w.WriteHeader(http.StatusNotModified)
 		return
@@ -27,7 +27,10 @@ func (s *Server) serve{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.
 	w.Write(file{{.Identifier}})
 }
 {{else}}
-func (s *Server) serve{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
+func (s *Server) get{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, {{.RelPath | quote}})
 }
-{{end}}{{end}}{{end}}{{end}}
+{{end}}{{end}}{{end}}{{range .Post}}{{range .Routes}}
+func (s *Server) post{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
+	// ???
+}{{end}}{{end}}{{end}}
