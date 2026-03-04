@@ -49,6 +49,7 @@ linters:
     - lll
     - mnd # Magic number
     - nestif
+    - nilerr # error is not nil but it returns nil
     - nilnil
     - nlreturn
     - noctx
