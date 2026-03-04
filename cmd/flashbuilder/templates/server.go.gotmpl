@@ -35,8 +35,8 @@ func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	pathNoSlash := r.URL.Path[1:]
 	truncated := pathNoSlash[:L]
 	switch truncated {
-{{range .Routes}}	// freq={{.Frequency}} {{.Size|human}}{{if .IsDuplicate}} Duplicate{{end}}{{if .IsShortcut}} Shortcut{{end}} {{.AbsPath}}
-	case "{{.RelPath}}":
+{{range .Routes}}	// freq={{.Frequency}} {{.Size|human}}{{if .IsDuplicate}} Duplicate{{end}}{{if .IsShortcut}} Shortcut{{end}} {{.Path}}
+	case "{{.Path}}":
 		s.get{{.Identifier}}{{$scheme}}(w, r)
 {{end}}
 	default:
@@ -49,8 +49,8 @@ func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	pathNoSlash := r.URL.Path[1:]
 	truncated := pathNoSlash[:L]
 	switch truncated {
-{{range .Routes}}	// <form> found in {{.AbsPath}}
-	case "{{.RelPath}}":
+{{range .Routes}}	// <form> found in {{.Path}}
+	case "{{.Path}}":
 		s.post{{.Identifier}}{{$scheme}}(w, r)
 {{end}}
 	default:

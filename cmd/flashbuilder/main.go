@@ -7,17 +7,17 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 
 	"github.com/alecthomas/kong"
 	"github.com/alecthomas/units"
 )
 
-// CLI structure.
-type cli struct {
+type flags struct {
 	Input  string `env:"FLASHBUILDER_INPUT"  type:"path" arg:"input"  help:"Path to asset tree"`
 	Output string `env:"FLASHBUILDER_OUTPUT" type:"path" arg:"output" help:"Destination for generated files"`
 
@@ -31,90 +31,70 @@ type cli struct {
 	AVIF        int              `env:"FLASHBUILDER_AVIF"         default:"50"`
 	WebP        int              `env:"FLASHBUILDER_WEBP"         default:"50"`
 
-	Verbosity int `env:"FLASHBUILDER_LOG_LEVEL" type:"counter" short:"v"`
-
-	DryRun bool `env:"FLASHBUILDER_DRY_RUN"`
-	Test   bool `env:"FLASHBUILDER_TESTS"`
+	Verbosity int  `env:"FLASHBUILDER_LOG_LEVEL" type:"counter" short:"v"`
+	DryRun    bool `env:"FLASHBUILDER_DRY_RUN"`
+	Test      bool `env:"FLASHBUILDER_TESTS"`
 }
 
 func main() {
-	// Kong handles --help flag and environment variables automatically via tags
-	var cli cli
+	var cli flags
 	kong.Parse(&cli)
 	err := do(&cli)
 	if err != nil {
-		log.Println(err)
+		slog.Error("Application failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func setCacheDir(dir string) (string, error) {
-	// Set default cache directory
-	if dir == "" {
-		dir = getDefaultCacheDir()
-	}
-
-	// Ensure cache directory exists
-	err := ensureCacheDir(dir)
-	if err != nil {
-		return "", fmt.Errorf("E099: Failed to create cache directory: %w", err)
-	}
-
-	return dir, nil
-}
-
-func validateInputs(cli *cli) (*cli, error) {
+func validateInputs(cli *flags) (*flags, error) {
 	var err error
 
-	cli.CacheDir, err = setCacheDir(cli.CacheDir)
-	if err != nil {
-		return nil, fmt.Errorf("E099: Failed to create cache directory: %w", err)
+	// Set default cache directory
+	if cli.CacheDir == "" {
+		cli.CacheDir = getDefaultCacheDir()
 	}
 
 	absInput, err := filepath.Abs(cli.Input)
 	if err != nil {
-		return nil, fmt.Errorf("E099: filepath.Abs(input) %w", err)
+		return nil, fmt.Errorf("path.Abs(input) %w", err)
 	}
 
 	absOutput, err := filepath.Abs(cli.Output)
 	if err != nil {
-		return nil, fmt.Errorf("E099: filepath.Abs(output) %w", err)
+		return nil, fmt.Errorf("path.Abs(output) %w", err)
 	}
 
+	// Security check for input/output equality
 	if absInput == absOutput {
-		return nil, errors.New("E099: Input and output must differ")
+		return nil, errors.New("Input and output must differ")
 	}
 
 	return cli, nil
 }
 
-func do(cli *cli) error {
+func do(cli *flags) error {
 	cli, err := validateInputs(cli)
 	if err != nil {
 		return err
 	}
 
+	// Use fs.FS for abstraction
+	// Convert input path to fs.FS
+	input := os.DirFS(cli.Input)
+
 	// Discover assets
-	assets, err := discover(cli.Input, cli.CSP)
+	assets, err := discover(input, cli.CSP)
 	if err != nil {
 		return err
 	}
 
-	// Set .Identifier and .Filename
-	assets = setIdentifiers(assets)
-
-	assets, err = computeHashesETags(assets)
-	if err != nil {
-		return err
-	}
+	// Set .Identifier
+	setIdentifiers(assets)
 
 	assets = deduplicate(assets)
 
 	// Generate variants
-	assets = generateVariants(assets, cli.Brotli, cli.AVIF, cli.WebP, cli.CacheDir)
-
-	// Clean cache to maintain size limit
-	err = cleanCache(cli.CacheDir, int64(cli.CacheMax))
+	err = copyAssetsAndVariants(input, assets, cli)
 	if err != nil {
 		return err
 	}
@@ -124,15 +104,7 @@ func do(cli *cli) error {
 
 	// Set frequency scores
 	for i := range assets {
-		assets[i].Frequency = estimateFrequencyScore(assets[i].RelPath, assets[i].EmbedEligible)
-	}
-
-	// Create links
-	if !cli.DryRun {
-		err = createLinks(assets, cli.Output, cli.CacheDir)
-		if err != nil {
-			return fmt.Errorf("E087: Failed to create links: %w", err)
-		}
+		assets[i].Frequency = estimateFrequencyScore(assets[i].Path, assets[i].IsEmbedEligible)
 	}
 
 	// Add shortcuts
@@ -167,28 +139,28 @@ func do(cli *cli) error {
 	if !cli.DryRun {
 		err = runGoModInit(cli.Output)
 		if err != nil {
-			return fmt.Errorf("E099: Failed to run go mod tidy: %w", err)
+			return fmt.Errorf("Failed to run go mod tidy: %w", err)
 		}
 
 		err = runGoModTidy(cli.Output)
 		if err != nil {
-			return fmt.Errorf("E099: Failed to run go mod tidy: %w", err)
+			return fmt.Errorf("Failed to run go mod tidy: %w", err)
 		}
 
 		err = runGoBuild(cli.Output)
 		if err != nil {
-			return fmt.Errorf("E099: Failed to build binary: %w", err)
+			return fmt.Errorf("Failed to build binary: %w", err)
 		}
 
 		if cli.Test {
 			err = runTests(cli.Output)
 			if err != nil {
-				return fmt.Errorf("E079: Test suite failed: %w", err)
+				return fmt.Errorf("Test suite failed: %w", err)
 			}
 		}
 	}
 
-	fmt.Println("Generation complete")
+	slog.Info("Generation complete")
 	return nil
 }
 
@@ -197,12 +169,12 @@ func do(cli *cli) error {
 func getDefaultCacheDir() string {
 	xdgCache := os.Getenv("XDG_CACHE_HOME")
 	if xdgCache != "" {
-		return filepath.Join(xdgCache, "flashbuilder")
+		return path.Join(xdgCache, "flashbuilder")
 	}
 
 	home := os.Getenv("HOME")
 	if home != "" {
-		return filepath.Join(home, ".cache", "flashbuilder")
+		return path.Join(home, ".cache", "flashbuilder")
 	}
 
 	return ".cache"

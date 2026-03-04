@@ -69,12 +69,12 @@ func TestRenderTemplate(t *testing.T) {
 		},
 		Assets: []asset{
 			{
-				RelPath:       "style.css",
-				Size:          100,
-				MIME:          "text/css",
-				ETag:          `"etag123"`,
-				Identifier:    "AssetStyle",
-				EmbedEligible: true,
+				Path:            "style.css",
+				Size:            100,
+				MIME:            "text/css",
+				ETag:            `"etag123"`,
+				Identifier:      "AssetStyle",
+				IsEmbedEligible: true,
 			},
 		},
 		MaxLen: 10,

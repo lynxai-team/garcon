@@ -5,9 +5,8 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+	"testing/fstest"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -16,48 +15,24 @@ import (
 func TestIntegration_DiscoverToGet(t *testing.T) {
 	t.Parallel()
 
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
+	input := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html></html>")},
+		"style.css":  &fstest.MapFile{Data: []byte("body {}")},
+		"script.js":  &fstest.MapFile{Data: []byte("console.log")},
+		"image.png":  &fstest.MapFile{Data: []byte("\x89PNG")},
+		"data.json":  &fstest.MapFile{Data: []byte("{}")},
 	}
 
-	// Create temp directory
-	tmpDir := t.TempDir()
-
-	// Create test files
-	files := []struct {
-		name    string
-		content string
-	}{
-		{"index.html", "<html></html>"},
-		{"style.css", "body {}"},
-		{"script.js", "console.log"},
-		{"scrip2.js", "console.log"},
-	}
-
-	for _, f := range files {
-		path := filepath.Join(tmpDir, f.name)
-		err := os.WriteFile(path, []byte(f.content), 0o600)
-		if err != nil {
-			t.Fatalf("Failed to write file: %v", err)
-		}
-	}
-
-	cli := cli{
-		Input:  tmpDir,
-		Output: "/tmp/output",
-		DryRun: true,
-	}
-
-	// Discover assets
-	assets, err := discover(cli.Input, cli.CSP)
+	csp := ""
+	assets, err := discover(input, csp)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Set .Identifier and .Filename
-	assets = setIdentifiers(assets)
+	// Set .Identifier
+	setIdentifiers(assets)
 
-	assets, err = computeHashesETags(assets)
+	assets, err = computeHashesETags(input, assets)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,11 +40,12 @@ func TestIntegration_DiscoverToGet(t *testing.T) {
 	assets = deduplicate(assets)
 
 	// Allocate embed budget
-	assets = allocateBudget(assets, int64(cli.EmbedBudget))
+	const embedBudget = 30
+	assets = allocateBudget(assets, embedBudget)
 
 	// Set frequency scores
 	for i := range assets {
-		assets[i].Frequency = estimateFrequencyScore(assets[i].RelPath, assets[i].EmbedEligible)
+		assets[i].Frequency = estimateFrequencyScore(assets[i].Path, assets[i].IsEmbedEligible)
 	}
 
 	// Add shortcuts
@@ -118,9 +94,9 @@ func TestIntegration_BudgetAllocation(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{RelPath: "a.txt", Size: 100},
-		{RelPath: "b.txt", Size: 200},
-		{RelPath: "c.txt", Size: 300},
+		{Path: "a.txt", Size: 100},
+		{Path: "b.txt", Size: 200},
+		{Path: "c.txt", Size: 300},
 	}
 
 	// Budget of 250 should fit a + b, but not c
@@ -129,7 +105,7 @@ func TestIntegration_BudgetAllocation(t *testing.T) {
 	// Verify first two are eligible
 	total := 0
 	for _, a := range result {
-		if a.EmbedEligible {
+		if a.IsEmbedEligible {
 			total++
 		}
 	}
@@ -144,9 +120,9 @@ func TestIntegration_ShortcutGeneration(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{RelPath: "index.html", Identifier: "AssetIndex"},
-		{RelPath: "about/index.html", Identifier: "AssetAboutIndex"},
-		{RelPath: "style.css", Identifier: "AssetStyle"},
+		{Path: "index.html", Identifier: "AssetIndex"},
+		{Path: "about/index.html", Identifier: "AssetAboutIndex"},
+		{Path: "style.css", Identifier: "AssetStyle"},
 	}
 
 	// Build path maps
@@ -155,8 +131,8 @@ func TestIntegration_ShortcutGeneration(t *testing.T) {
 
 	for _, asset := range assets {
 		if !asset.IsDuplicate {
-			canonicalPaths[asset.RelPath] = asset.Identifier
-			shortcut := generateShortcut(asset.RelPath)
+			canonicalPaths[asset.Path] = asset.Identifier
+			shortcut := generateShortcut(asset.Path)
 			if shortcut != "" && canonicalPaths[shortcut] == "" {
 				shortcutPaths[shortcut] = asset.Identifier
 			}

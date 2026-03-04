@@ -5,33 +5,79 @@
 package main
 
 import (
+	"os"
+	"path"
+	"strings"
 	"testing"
+	"testing/fstest"
+	"time"
+
+	"github.com/google/go-cmp/cmp"
+
+	_ "embed"
 )
+
+//go:embed images/logo-flash.avif
+var imageAVIF []byte
+
+//go:embed images/logo-flash.jpg
+var imageJPG []byte
+
+//go:embed images/logo-flash.png
+var imagePNG []byte
+
+//go:embed images/logo-flash.webp
+var imageWebP []byte
+
+// tinyPNG is a minimal 1×1 black PNG image (67 bytes).
+var tinyPNG = []byte{
+	0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+	0x00, 0x00, 0x00, 0x0D, // IHDR header length = 13 ()
+	0x49, 0x48, 0x44, 0x52, // "IHDR"
+	0x00, 0x00, 0x00, 0x01, // width  = 1
+	0x00, 0x00, 0x00, 0x01, // height = 1
+	0x08, 0x02, 0x00, 0x00, 0x00, // bit depth (8), color (RGB), compression, filter, interlace
+	0x90, 0x77, 0x53, 0xDE, // CRC for IHDR
+	0x00, 0x00, 0x00, 0x0A, // IDAT data length = 10
+	0x49, 0x44, 0x41, 0x54, // "IDAT"
+	0x78, 0x9C, 0x63, 0x60, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, // zlib‑compressed scanline: filter byte (0) + RGB = (0,0,0)
+	0xE5, 0x27, 0xD4, 0x5A, // CRC for IDAT
+	0x00, 0x00, 0x00, 0x00, // image trailer length = 0
+	0x49, 0x45, 0x4E, 0x44, // "IEND"
+	0xAE, 0x42, 0x60, 0x82, // CRC for IEND
+}
 
 // TestIsCompressible tests MIME type compression eligibility.
 func TestIsCompressible(t *testing.T) {
 	t.Parallel()
 
+	type expected struct{ b, a, w bool }
 	tests := []struct {
+		expected expected
 		name     string
 		mime     string
-		expected bool
 	}{
-		{"HTML", "text/html", true},
-		{"CSS", "text/css", true},
-		{"JS", "text/javascript", true},
-		{"JSON", "application/json", true},
-		{"XML", "application/xml", true},
-		{"Image", "image/png", false},
-		{"Binary", "application/octet-stream", false},
+		{expected{true, false, false}, "JS", "text/javascript"},
+		{expected{true, false, false}, "XML", "application/xml"},
+		{expected{true, false, false}, "CSS", "text/css"},
+		{expected{true, false, false}, "Markdown", "text/markdown"},
+		{expected{true, false, false}, "SVG", "image/svg+xml"},
+		{expected{true, false, false}, "HTML", "text/html"},
+		{expected{true, false, false}, "JSON", "application/json"},
+		{expected{false, true, true}, "JPEG", "image/jpeg"},
+		{expected{false, true, true}, "PNG", "image/png"},
+		{expected{false, true, true}, "GIF", "image/gif"},
+		{expected{false, true, true}, "AVIF", "image/avif"},
+		{expected{false, true, true}, "WebP", "image/webp"},
+		{expected{false, false, false}, "Binary", "application/octet-stream"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := isCompressible(tt.mime)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
+			b, a, w := variantEligibility(tt.mime)
+			if b != tt.expected.b || a != tt.expected.a || w != tt.expected.w {
+				t.Errorf("Expected %v, got b=%v a=%v w=%v", tt.expected, b, a, w)
 			}
 		})
 	}
@@ -65,25 +111,143 @@ func TestIsImage(t *testing.T) {
 	}
 }
 
-// TestGenerateVariants_SkipNonEmbed tests that variants are skipped for non-embed assets.
-func TestGenerateVariants_SkipNonEmbed(t *testing.T) {
+// isImage determines if content is an image.
+func isImage(mime string) bool {
+	return strings.HasPrefix(mime, "image/")
+}
+
+// TestGenerateVariants_SkipDuplicates tests that variants are skipped for duplicated assets.
+func TestGenerateVariants_SkipDuplicates(t *testing.T) {
+	t.Parallel()
+
+	textFile := []byte("This is a text file ")
+	for range 9000 {
+		textFile = append(textFile, []byte("\n"+"another line in this text file")...)
+	}
+
+	input := fstest.MapFS{
+		"text.txt":      &fstest.MapFile{Data: textFile},
+		"large.png":     &fstest.MapFile{Data: imagePNG},
+		"duplicate.png": &fstest.MapFile{Data: imagePNG},
+		"small.png":     &fstest.MapFile{Data: tinyPNG},
+		"medium.jpeg":   &fstest.MapFile{Data: imageJPG},
+		"medium.webp":   &fstest.MapFile{Data: imageWebP},
+		"medium.avif":   &fstest.MapFile{Data: imageAVIF},
+	}
+
+	assets := []asset{
+		{Path: "text.txt", MIME: "text/plain", IsEmbedEligible: true, IsDuplicate: false, Size: 16_000},
+		{Path: "large.png", MIME: "image/png", IsEmbedEligible: false, IsDuplicate: false, Size: 1000_000},
+		{Path: "small.png", MIME: "image/png", IsEmbedEligible: true, IsDuplicate: false, Size: 1000},
+		{Path: "duplicate.png", MIME: "image/png", IsEmbedEligible: true, IsDuplicate: true, Size: 1000_000},
+		{Path: "medium.jpeg", MIME: "image/jpeg", IsEmbedEligible: true, IsDuplicate: false, Size: 5000},
+		{Path: "medium.webp", MIME: "image/webp", IsEmbedEligible: true, IsDuplicate: false, Size: 5000},
+		{Path: "medium.avif", MIME: "image/avif", IsEmbedEligible: true, IsDuplicate: false, Size: 5000},
+	}
+	expected := []asset{
+		{VariantExt: ".br", Path: "text.txt", MIME: "text/plain", Size: 53, IsEmbedEligible: true},
+		{VariantExt: ".webp", Path: "large.png", MIME: "image/png", Size: 2100},
+		{VariantExt: "", Path: "small.png", MIME: "image/png", Size: 1000, IsEmbedEligible: true},
+		{VariantExt: "", Path: "duplicate.png", MIME: "image/png", Size: 1000_000, IsEmbedEligible: true, IsDuplicate: true},
+		{VariantExt: ".webp", Path: "medium.jpeg", MIME: "image/jpeg", Size: 2100, IsEmbedEligible: true},
+		{VariantExt: "", Path: "medium.webp", MIME: "image/webp", Size: 5000, IsEmbedEligible: true},
+		{VariantExt: ".webp", Path: "medium.avif", MIME: "image/avif", Size: 2100, IsEmbedEligible: true},
+	}
+
+	cli := flags{
+		Input:    t.TempDir(),
+		Output:   t.TempDir(),
+		CacheDir: t.TempDir(),
+		CacheMax: 99_000_000,
+		Brotli:   5,
+		AVIF:     50,
+		WebP:     50,
+	}
+
+	err := copyAssetsAndVariants(input, assets, &cli)
+	if err != nil {
+		t.Errorf("Unexpected err=%s", err)
+	}
+
+	if !cmp.Equal(expected, assets) {
+		t.Error(cmp.Diff(expected, assets))
+	}
+}
+
+// TestAllocateBudget tests embed budget allocation.
+func TestAllocateBudget(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{RelPath: "large.png", Size: 1000000, EmbedEligible: false, MIME: "image/png"},
-		{RelPath: "small.png", Size: 100, EmbedEligible: true, MIME: "image/png"},
+		{Path: "small.txt", Size: 100},
+		{Path: "medium.txt", Size: 500},
+		{Path: "large.txt", Size: 1000},
 	}
 
-	// Run with quality 0 (should skip)
-	result := generateVariants(assets, 0, 0, 0, "/tmp/cache")
+	// Budget of 600 should fit small + medium, but not large
+	result := allocateBudget(assets, 600)
 
-	// Check that non-embed asset has no variants
-	if len(result[0].Variants) > 0 {
-		t.Errorf("Non-embed asset should have no variants")
+	// Verify sorting (smallest first)
+	if len(result) < 3 {
+		t.Fatalf("Expected 3 assets, got %d", len(result))
 	}
 
-	// Check that embed asset has no variants when quality is 0
-	if len(result[1].Variants) > 0 {
-		t.Errorf("Asset should have no variants when quality is 0")
+	// First two should be eligible
+	if !result[0].IsEmbedEligible {
+		t.Errorf("Asset 0 should be eligible")
+	}
+	if !result[1].IsEmbedEligible {
+		t.Errorf("Asset 1 should be eligible")
+	}
+
+	// Last one should not be eligible
+	if result[2].IsEmbedEligible {
+		t.Errorf("Asset 2 should not be eligible (too large)")
+	}
+}
+
+// TestCleanCache tests cache cleaning.
+func TestCleanCache(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	// Create test files with different ages
+	files := []struct {
+		name    string
+		modTime time.Time
+	}{
+		{"old.txt", time.Now().Add(-time.Hour)},
+		{"new.txt", time.Now()},
+	}
+
+	var maxSize int64
+	for _, f := range files {
+		fp := path.Join(tmpDir, f.name)
+		err := os.WriteFile(fp, []byte(f.name), 0o600)
+		if err != nil {
+			t.Fatalf("Failed to write file: %v", err)
+		}
+		// Set modification time
+		err = os.Chtimes(fp, f.modTime, f.modTime)
+		if err != nil {
+			t.Fatalf("Failed to set mod time: %v", err)
+		}
+		maxSize = max(maxSize, int64(len(f.name)))
+	}
+
+	// Clean cache to remove oldest file (simulate small max size)
+	cleanCache(tmpDir, maxSize) // 0 bytes max = force deletion
+
+	// Old file should be deleted
+	_, err := os.Stat(path.Join(tmpDir, "old.txt"))
+	if err == nil {
+		t.Error("Old file should have been deleted")
+	}
+
+	// New file should still exist
+	_, err = os.Stat(path.Join(tmpDir, "new.txt"))
+	if err != nil {
+		t.Error("New file should still exist")
 	}
 }

@@ -15,9 +15,9 @@ func TestBuildGet(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{RelPath: "index.html", Identifier: "IndexHtml", Frequency: 1000, IsDuplicate: false},
-		{RelPath: "style.css", Identifier: "StyleCss", Frequency: 800, IsDuplicate: false},
-		{RelPath: "script.js", Identifier: "ScriptJs", Frequency: 600, IsDuplicate: false},
+		{Path: "index.html", Identifier: "IndexHtml", Frequency: 1000, IsDuplicate: false},
+		{Path: "style.css", Identifier: "StyleCss", Frequency: 800, IsDuplicate: false},
+		{Path: "script.js", Identifier: "ScriptJs", Frequency: 600, IsDuplicate: false},
 	}
 
 	want := []handlers{
@@ -31,13 +31,13 @@ func TestBuildGet(t *testing.T) {
 			Length:    5,
 			PrevEntry: "getIndexHtml",
 			Entry:     "getLen5",
-			Routes:    []asset{{RelPath: "style", Identifier: "StyleCss", Frequency: 800, IsShortcut: true}},
+			Routes:    []asset{{Path: "style", Identifier: "StyleCss", Frequency: 800, IsShortcut: true}},
 		},
 		{
 			Length:    6,
 			PrevEntry: "getLen5",
 			Entry:     "getLen6",
-			Routes:    []asset{{RelPath: "script", Identifier: "ScriptJs", Frequency: 600, IsShortcut: true}},
+			Routes:    []asset{{Path: "script", Identifier: "ScriptJs", Frequency: 600, IsShortcut: true}},
 		},
 		{Length: 7, Entry: "getLen6", PrevEntry: "getLen6"},
 		{Length: 8, Entry: "getLen6", PrevEntry: "getLen6"},
@@ -46,15 +46,15 @@ func TestBuildGet(t *testing.T) {
 			PrevEntry: "getLen6",
 			Entry:     "getLen9",
 			Routes: []asset{
-				{RelPath: "style.css", Identifier: "StyleCss", Frequency: 800},
-				{RelPath: "script.js", Identifier: "ScriptJs", Frequency: 600},
+				{Path: "style.css", Identifier: "StyleCss", Frequency: 800},
+				{Path: "script.js", Identifier: "ScriptJs", Frequency: 600},
 			},
 		},
 		{
 			Length:    10,
 			PrevEntry: "getLen9",
 			Entry:     "getLen10",
-			Routes:    []asset{{RelPath: "index.html", Identifier: "IndexHtml", Frequency: 1000}},
+			Routes:    []asset{{Path: "index.html", Identifier: "IndexHtml", Frequency: 1000}},
 		},
 	}
 
@@ -87,7 +87,7 @@ func TestComputeMaxLen(t *testing.T) {
 
 			assets := make([]asset, len(tt.paths))
 			for i, p := range tt.paths {
-				assets[i] = asset{RelPath: p}
+				assets[i] = asset{Path: p}
 			}
 			result := computeMaxLen(assets)
 			if result != tt.expected {

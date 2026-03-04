@@ -14,9 +14,9 @@ import (
 func (s *Server) notFound{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
-{{range .Assets}}{{if and (not .IsDuplicate) (not .IsShortcut)}}{{if .EmbedEligible}}
+{{range .Assets}}{{if and (not .IsDuplicate) (not .IsShortcut)}}{{if .IsEmbedEligible}}
 func (s *Server) get{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("If-None-Match") == `"{{.ETag}}"` {
+	if r.Header.Get("If-None-Match") == "\"{{.ETag}}\"" {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
@@ -28,7 +28,7 @@ func (s *Server) get{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Re
 }
 {{else}}
 func (s *Server) get{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, {{.RelPath | quote}})
+	http.ServeFile(w, r, {{.Path | quote}})
 }
 {{end}}{{end}}{{end}}{{range .Post}}{{range .Routes}}
 func (s *Server) post{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {

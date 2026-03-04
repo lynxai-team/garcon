@@ -5,207 +5,597 @@
 package main
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"image"
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"io"
+	"io/fs"
+	"log/slog"
+	"math"
 	"os"
+	"path"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/brotli/go/cbrotli"
 	"github.com/kolesa-team/go-webp/encoder"
 	"github.com/vegidio/avif-go"
+	"golang.org/x/sync/errgroup"
 )
 
-// generateVariants creates compression variants for eligible assets
-// Only generates variants if compressed size is smaller than original.
-func generateVariants(assets []asset, brotliQuality, avifQuality, webPQuality int, cacheDir string) []asset {
+const (
+	minSz4Brotli = 100
+	maxSz4Brotli = 100 * 1024 * 1024
+
+	minSz4AVIF = 100
+	maxSz4AVIF = 20 * 1024 * 1024
+
+	minSz4WebP = 100
+	maxSz4WebP = 20 * 1024 * 1024
+
+	// Names of the output sub-directories.
+	assetsBase = "assets"
+	wwwBase    = "www"
+)
+
+// copyAssetsAndVariants links (or copies) assets or their variants.
+func copyAssetsAndVariants(input fs.FS, assets []asset, cli *flags) error {
+	// create assets directory
+	assetsDir := path.Join(cli.Output, assetsBase)
+	err := os.MkdirAll(assetsDir, 0o700)
+	if err != nil {
+		return fmt.Errorf("Failed to create assets directory %s: %w", assetsDir, err)
+	}
+
+	// create www directory
+	wwwDir := path.Join(cli.Output, wwwBase)
+	err = os.MkdirAll(wwwDir, 0o700)
+	if err != nil {
+		return fmt.Errorf("Failed to create www directory %s: %w", wwwDir, err)
+	}
+
+	useCache := true
+	if cli.CacheMax == 0 { // disables cache
+		useCache = false
+		slog.Info("disable cache", "CacheMax", cli.CacheMax)
+	} else {
+		// ensure cache directory exists
+		err = os.MkdirAll(cli.CacheDir, 0o700)
+		if err != nil {
+			useCache = false
+			slog.Warn("disable cache", "err", err)
+		}
+	}
+
+	// use errgroup for concurrency
+	g, _ := errgroup.WithContext(context.Background())
+
 	for i := range assets {
-		if !assets[i].EmbedEligible {
+		if assets[i].IsDuplicate {
 			continue
 		}
 
-		var variants []variant
+		br, av, wp := variantEligibility(assets[i].MIME)
+		generate := br || av || wp
+		if !generate {
+			continue
+		}
 
-		// Generate Brotli variant for compressible MIME types
-		if isCompressible(assets[i].MIME) && brotliQuality > 0 {
-			content, err := os.ReadFile(assets[i].AbsPath)
-			if err == nil {
-				compressed, err := compressBrotli(content, brotliQuality)
-				if err == nil && int64(len(compressed)) < assets[i].Size {
-					v := variant{
-						VariantType: VariantBrotli,
-						Size:        int64(len(compressed)),
-						Identifier:  assets[i].Identifier + "Brotli",
-						Extension:   ".br",
-						CachePath:   filepath.Join(cacheDir, assets[i].RelPath+".br"),
-					}
-					err := os.WriteFile(v.CachePath, compressed, 0o600)
-					if err == nil {
-						variants = append(variants, v)
-					}
+		dstDir := wwwDir
+		if assets[i].IsEmbedEligible {
+			dstDir = assetsDir
+		}
+
+		variantDir := dstDir
+		if useCache {
+			variantDir = cli.CacheDir
+		}
+
+		g.Go(func() error {
+			vFull, ext, size := generateOneVariant(input, &assets[i], cli, variantDir, useCache, br, av, wp)
+			if size > 0 {
+				assets[i].VariantExt = ext
+				assets[i].Size = size
+				if useCache {
+					return linkCopyVariant(cli.CacheDir, vFull, dstDir, assets[i].Path+ext)
 				}
+				return nil // variant already in the dstDir
 			}
-		}
-
-		// Generate AVIF variant for images
-		if isImage(assets[i].MIME) && avifQuality > 0 {
-			v, err := generateAVIFVariant(assets[i], avifQuality, cacheDir)
-			if err == nil && v.Size < assets[i].Size {
-				variants = append(variants, v)
-			}
-		}
-
-		// Generate WebP variant for images
-		if isImage(assets[i].MIME) && webPQuality > 0 {
-			v, err := generateWebPVariant(assets[i], webPQuality, cacheDir)
-			if err == nil && v.Size < assets[i].Size {
-				variants = append(variants, v)
-			}
-		}
-
-		assets[i].Variants = variants
+			return linkCopyAsset(input, cli.Input, dstDir, assets[i].Path)
+		})
 	}
 
-	return assets
-}
-
-// isCompressible determines if content is eligible for Brotli compression.
-func isCompressible(mime string) bool {
-	compressible := []string{
-		"text/html", "text/css", "text/javascript", "application/javascript",
-		"text/plain", "text/xml", "application/json", "application/xml",
-	}
-	for _, m := range compressible {
-		if strings.HasPrefix(mime, m) {
-			return true
-		}
-	}
-	return false
-}
-
-// isImage determines if content is an image.
-func isImage(mime string) bool {
-	return strings.HasPrefix(mime, "image/")
-}
-
-// compressBrotli compresses content using Brotli
-// Uses github.com/google/brotli/go/cbrotli.
-func compressBrotli(content []byte, quality int) ([]byte, error) {
-	opts := cbrotli.WriterOptions{
-		Quality: quality,
-		LGWin:   0, // Automatic window size
-	}
-	return cbrotli.Encode(content, opts)
-}
-
-// generateAVIFVariant generates AVIF variant for image assets
-// Uses github.com/vegidio/avif-go (CGO required).
-func generateAVIFVariant(asset asset, quality int, cacheDir string) (variant, error) {
-	img, err := decodeImage(asset.AbsPath)
+	err = g.Wait()
 	if err != nil {
-		return variant{}, err
+		return err
+	}
+
+	if useCache {
+		cleanCache(cli.CacheDir, int64(cli.CacheMax))
+	}
+
+	return nil
+}
+
+// variantEligibility determines if content is eligible for Brotli / AVIF / WebP.
+func variantEligibility(mime string) (brotliEligible, avifEligible, webpEligible bool) {
+	for _, suffix := range []string{"jpeg", "png", "gif", "webp", "avif"} {
+		if strings.HasSuffix(mime, suffix) {
+			return false, true, true
+		}
+	}
+
+	// application/zip application/x-bzip application/x-bzip2 application/java-archive
+	// application/gzip application/epub+zip application/x-7z-compressed
+	for _, suffix := range []string{"zip", "zip2", "compressed", "archive"} {
+		if strings.HasSuffix(mime, suffix) {
+			return false, false, false
+		}
+	}
+
+	// text/css text/csv text/html text/calendar text/javascript text/plain
+	for _, prefix := range []string{"text"} {
+		if strings.HasPrefix(mime, prefix) {
+			return true, false, false
+		}
+	}
+
+	// image/svg+xml application/xml application/xhtml+xml application/vnd.apple.installer+xml text/xml
+	// application/manifest+json application/vnd.mozilla.xul+xml application/pdf application/ld+json
+	for _, suffix := range []string{"xml", "tar", "json", "pdf"} {
+		if strings.HasSuffix(mime, suffix) {
+			return true, false, false
+		}
+	}
+
+	return false, false, false
+}
+
+const sizeInit = math.MaxInt64
+
+func generateOneVariant(input fs.FS, a *asset, cli *flags, variantDir string, useCache, br, av, wp bool) (vFull, ext string, size int64) {
+	size = sizeInit
+
+	if br {
+		vFull, ext, size = getBrotli(input, a, cli.Brotli, variantDir, useCache)
+	}
+
+	if av {
+		p, e, s := getAVIF(input, a, cli.AVIF, variantDir, useCache)
+		if size > s { // keep the smallest variant
+			vFull, ext, size = p, e, s
+		}
+	}
+
+	if wp {
+		p, e, s := getWebP(input, a, cli.WebP, variantDir, useCache)
+		if size > s { // keep the smallest variant
+			vFull, ext, size = p, e, s
+		}
+	}
+
+	if vFull == "" {
+		return "", "", 0
+	}
+
+	// Skip compression if the size reduction is too small.
+	// The variant must be 7 % smaller or 3 KB smaller.
+	originalSize := a.Size
+	relativeLimit := originalSize * 15 / 16 // 93 % of the original
+	absoluteLimit := originalSize - 3000
+	minAcceptable := max(relativeLimit, absoluteLimit)
+	if size > minAcceptable {
+		return "", "", sizeInit // If it doesn’t beat the threshold, keep the original asset.
+	}
+
+	return vFull, ext, size
+}
+
+func enableVariant(quality int, aSize, minSz, maxSz int64) bool {
+	if quality < 0 {
+		return false
+	}
+	if aSize < minSz {
+		slog.Debug("skip tiny asset", "size", aSize, "min", minSz)
+		return false
+	}
+	if aSize > maxSz {
+		slog.Info("skip huge asset", "size", aSize, "max", maxSz)
+		return false
+	}
+	return true
+}
+
+// getBrotli retrieves Brotli from cache or generates it for asset.
+func getBrotli(input fs.FS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
+	if !enableVariant(quality, a.Size, minSz4Brotli, maxSz4Brotli) {
+		return "", "", sizeInit
+	}
+
+	const ext = ".br"
+	vFull, size = variantPath(a, variantDir, useCache, quality, ext)
+	if size == 0 {
+		dst := createVariantFile(vFull)
+		if dst == nil {
+			return "", "", sizeInit
+		}
+		defer dst.Close()
+
+		err := generateBrotli(input, a, quality, dst)
+		if err != nil {
+			slog.Error("generateBrotli", "err", err)
+			return "", "", sizeInit
+		}
+
+		// the file size is the file offset after the last write
+		size, err = dst.Seek(0, io.SeekCurrent)
+		if err != nil {
+			slog.Error("getBrotli dst.Seek", "err", err)
+			return "", "", sizeInit
+		}
+	}
+
+	return vFull, ext, size
+}
+
+// getAVIF retrieves AVIF from cache or generates it for image asset.
+// Uses github.com/vegidio/avif-go (CGO required).
+func getAVIF(input fs.FS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
+	if !enableVariant(quality, a.Size, minSz4AVIF, maxSz4AVIF) {
+		return "", "", sizeInit
+	}
+
+	const ext = ".avif"
+	vFull, size = variantPath(a, variantDir, useCache, quality, ext)
+	if size == 0 {
+		dst := createVariantFile(vFull)
+		if dst == nil {
+			return "", "", sizeInit
+		}
+		defer dst.Close()
+
+		err := generateAVIF(input, a, quality, dst)
+		if err != nil {
+			slog.Error("generateAVIF", "err", err)
+			return "", "", sizeInit
+		}
+
+		// the file size is the file offset after the last write
+		size, err = dst.Seek(0, io.SeekCurrent)
+		if err != nil {
+			slog.Error("getAVIF dst.Seek", "err", err)
+			return "", "", sizeInit
+		}
+	}
+
+	return vFull, ext, size
+}
+
+// getWebP generates WebP variant for image assets
+// Uses github.com/kolesa-team/go-webp/encoder (CGO required).
+func getWebP(input fs.FS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
+	if !enableVariant(quality, a.Size, minSz4WebP, maxSz4WebP) {
+		return "", "", sizeInit
+	}
+
+	const ext = ".webp"
+	vFull, size = variantPath(a, variantDir, useCache, quality, ext)
+	if size == 0 {
+		dst := createVariantFile(vFull)
+		if dst == nil {
+			return "", "", sizeInit
+		}
+		defer dst.Close()
+
+		err := generateWebP(input, a, quality, dst)
+		if err != nil {
+			slog.Error("generateWebP", "err", err)
+			return "", "", sizeInit
+		}
+
+		// the file size is the file offset after the last write
+		size, err = dst.Seek(0, io.SeekCurrent)
+		if err != nil {
+			slog.Error("getWebP dst.Seek", "err", err)
+			return "", "", sizeInit
+		}
+	}
+
+	return vFull, ext, size
+}
+
+func createVariantFile(vFull string) *os.File {
+	dst, err := os.Create(vFull)
+	if err != nil {
+		slog.Warn("createVariantFile Create", "err", err)
+		return nil
+	}
+	return dst
+}
+
+// generateBrotli streams a file from the provided fs.FS through a Brotli
+// encoder and writes the compressed output directly to path.
+// It returns the number of bytes written to the destination file.
+// Errors are returned to the caller; no logging, no temp‑file, no extra sync.
+func generateBrotli(input fs.FS, a *asset, quality int, dst io.Writer) error {
+	// open source file: asset
+	src, err := input.Open(a.Path)
+	if err != nil {
+		return fmt.Errorf("Brotli input.Open: %w", err)
+	}
+	defer src.Close()
+
+	// create Brotli writer that writes straight into dst
+	enc := cbrotli.NewWriter(dst, cbrotli.WriterOptions{Quality: quality})
+
+	// stream the data: io.Copy uses a 32 KB internal buffer
+	_, err = io.Copy(enc, src)
+	if err != nil {
+		_ = enc.Close() // attempt graceful shutdown
+		return fmt.Errorf("Brotli compress copy: %w", err)
+	}
+
+	// close encoder to flush the final block
+	err = enc.Close()
+	if err != nil {
+		return fmt.Errorf("brotli close: %w", err)
+	}
+
+	return nil
+}
+
+// generateAVIF the generates AVIF for an image asset and writes it in cacheDir
+// Uses github.com/vegidio/avif-go (CGO required).
+func generateAVIF(input fs.FS, a *asset, quality int, dst io.Writer) error {
+	img, err := decodeImage(input, a)
+	if err != nil {
+		return err
 	}
 
 	opts := &avif.Options{
-		Speed:        6,
-		AlphaQuality: quality,
-		ColorQuality: quality,
+		Speed:        0,       // Encoding speed, from 0-10. Higher values result in faster encoding but lower quality (default 6)
+		AlphaQuality: quality, // Specifies the quality of the alpha channel (transparency), from 0-100 (default 60)
+		ColorQuality: quality, // Specifies the quality of the color channels, from 0-100 (default 60)
 	}
 
-	var buf bytes.Buffer
-	err = avif.Encode(&buf, img, opts)
+	err = avif.Encode(dst, img, opts)
 	if err != nil {
-		return variant{}, err
+		return fmt.Errorf("avif.Encode %w", err)
 	}
 
-	v := variant{
-		VariantType: VariantAVIF,
-		Size:        int64(buf.Len()),
-		Identifier:  asset.Identifier + "AVIF",
-		Extension:   ".avif",
-		CachePath:   filepath.Join(cacheDir, asset.RelPath+".avif"),
-	}
-
-	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o600)
-	if err != nil {
-		return variant{}, err
-	}
-
-	return v, nil
+	return nil
 }
 
-// generateWebPVariant generates WebP variant for image assets
+// generateWebP generates WebP variant for image assets
 // Uses github.com/kolesa-team/go-webp/encoder (CGO required).
-func generateWebPVariant(asset asset, quality int, cacheDir string) (variant, error) {
-	img, err := decodeImage(asset.AbsPath)
+func generateWebP(input fs.FS, a *asset, quality int, dst io.Writer) error {
+	img, err := decodeImage(input, a)
 	if err != nil {
-		return variant{}, err
+		return err
 	}
 
 	// Configure WebP options (lossy)
 	opts, err := encoder.NewLossyEncoderOptions(encoder.PresetPhoto, float32(quality))
 	if err != nil {
-		return variant{}, err
+		return fmt.Errorf("WebP NewLossyEncoderOptions %w", err)
 	}
 
 	enc, err := encoder.NewEncoder(img, opts)
 	if err != nil {
-		return variant{}, err
+		return fmt.Errorf("WebP NewEncoder %w", err)
 	}
 
-	var buf bytes.Buffer
-	err = enc.Encode(&buf)
+	err = enc.Encode(dst)
 	if err != nil {
-		return variant{}, err
+		return fmt.Errorf("WebP Encode %w", err)
 	}
 
-	v := variant{
-		VariantType: VariantWebP,
-		Size:        int64(buf.Len()),
-		Identifier:  asset.Identifier + "WebP",
-		Extension:   ".webp",
-		CachePath:   filepath.Join(cacheDir, asset.RelPath+".webp"),
-	}
-
-	err = os.WriteFile(v.CachePath, buf.Bytes(), 0o600)
-	if err != nil {
-		return variant{}, err
-	}
-
-	return v, nil
+	return nil
 }
 
-// decodeImage decodes an image file using standard library decoders.
-func decodeImage(absPath string) (image.Image, error) {
-	file, err := os.Open(absPath)
+// decodeImage decodes an image file.
+func decodeImage(input fs.FS, a *asset) (image.Image, error) {
+	file, err := input.Open(a.Path)
 	if err != nil {
-		return nil, fmt.Errorf("E001: Failed to open image file: %w", err)
+		return nil, fmt.Errorf("Failed to open image file: %w", err)
 	}
 	defer file.Close()
-
-	ext := strings.ToLower(filepath.Ext(absPath))
 
 	var img image.Image
 	var decodeErr error
 
-	switch ext {
-	case ".jpg", ".jpeg":
-		img, decodeErr = jpeg.Decode(file)
-	case ".png":
+	// image/avif  AVIF  AV1 Image File Format
+	// image/webp  WEBP  Web Picture format
+	// image/gif   GIF   Graphics Interchange Format
+	// image/jpeg  JPEG  Joint Photographic Expert Group
+	// image/png   PNG   Portable Network Graphics
+	// image/apng  APNG  Animated PNG
+
+	switch a.MIME {
+	case "image/jpeg":
+		img, decodeErr = jpeg.Decode(file) // jpeg.Decode reads full content
+	case "image/png":
 		img, decodeErr = png.Decode(file)
-	case ".gif":
+	case "image/gif":
 		img, decodeErr = gif.Decode(file)
 	default:
 		img, _, decodeErr = image.Decode(file)
 	}
-
 	if decodeErr != nil {
-		return nil, fmt.Errorf("E001: Failed to decode image: %w", decodeErr)
+		return nil, fmt.Errorf("Failed to decode image %s (%s): %w", a.Path, toHuman(a.Size), decodeErr)
 	}
 
 	return img, nil
+}
+
+func variantPath(a *asset, dir string, useCache bool, quality int, ext string) (string, int64) {
+	vFull := a.Path + ext // in the assets/ or www/ directory
+	if useCache {
+		vFull = strconv.Itoa(quality) + a.ETag + ext // in the cache directory
+	}
+	vFull = path.Join(dir, vFull)
+	info, err := os.Stat(vFull)
+	if err != nil {
+		return vFull, 0 // variant does not yet exist => generate it
+	}
+	return vFull, info.Size() // variant exists => reuse it
+}
+
+// cleanCache maintains cache size within configured limits
+// Removes oldest files when cache exceeds maxSize.
+func cleanCache(cacheDir string, maxSize int64) {
+	type fileInfo struct {
+		modTime time.Time
+		path    string
+		size    int64
+	}
+	var files []fileInfo
+	var total int64
+
+	err := filepath.WalkDir(cacheDir, func(vFull string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() {
+			return nil
+		}
+		info, walkErr := entry.Info()
+		if walkErr != nil {
+			return nil
+		}
+		files = append(files, fileInfo{
+			path:    vFull,
+			size:    info.Size(),
+			modTime: info.ModTime(),
+		})
+		total += info.Size()
+		return nil
+	})
+	if err != nil {
+		slog.Warn("Failed to walk cache directory", "err", err)
+		return
+	}
+
+	// If total size exceeds max, delete oldest files
+	if total > maxSize {
+		// Sort by modification time (oldest first)
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].modTime.Before(files[j].modTime)
+		})
+
+		// Delete oldest files until total size is under max
+		for _, file := range files {
+			if total <= maxSize {
+				break
+			}
+			os.Remove(file.path)
+			total -= file.size
+		}
+	}
+}
+
+// allocateBudget determines which assets are eligible for embedding
+// Assets are sorted by size (smallest first) and embedded until budget exhausted.
+func allocateBudget(assets []asset, budget int64) []asset {
+	// Sort assets by size (smallest first for embedding priority)
+	sort.Slice(assets, func(i, j int) bool {
+		return assets[i].Size < assets[j].Size
+	})
+
+	var total int64
+	for i := range assets {
+		if total+assets[i].Size > budget {
+			break
+		}
+		assets[i].IsEmbedEligible = true
+		total += assets[i].Size
+	}
+
+	return assets
+}
+
+func linkCopyAsset(input fs.FS, inputDir, dstDir, assetPath string) error {
+	srcFull := path.Join(inputDir, assetPath)
+	dstFull := path.Join(dstDir, assetPath)
+
+	dstFullDir := path.Dir(dstFull)
+	if dstFullDir != dstDir { // dstDir already exists => avoid os.MkdirAll(dstDir)
+		err := os.MkdirAll(dstFullDir, 0o700)
+		if err != nil {
+			return fmt.Errorf("linkCopyAsset MkdirAll: %w", err)
+		}
+	}
+
+	os.Remove(dstFull)               // Remove existing if present
+	err := os.Link(srcFull, dstFull) // Create hard-link
+	if err != nil {
+		return copyAsset(input, assetPath, dstFull) // fallback: copy
+	}
+	return nil
+}
+
+func linkCopyVariant(cacheDir, vCacheFull, dstDir, dstPath string) error {
+	dstFull := path.Join(dstDir, dstPath)
+
+	dstFullDir := path.Dir(dstFull)
+	if dstFullDir != dstDir { // dstDir already exists => avoid os.MkdirAll(dstDir)
+		err := os.MkdirAll(dstFullDir, 0o700)
+		if err != nil {
+			return fmt.Errorf("linkCopyVariant MkdirAll: %w", err)
+		}
+	}
+
+	os.Remove(dstFull)                  // Remove existing if present
+	err := os.Link(vCacheFull, dstFull) // Create hard-link
+	if err != nil {
+		return copyVariant(vCacheFull, dstFull) // fallback: copy
+	}
+	return nil
+}
+
+// copyAsset copies the source file to the destination, overwriting the destination if necessary.
+func copyAsset(srcFS fs.FS, srcPath, dstFull string) error {
+	src, err := srcFS.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("copyAsset Open: %w", err)
+	}
+	defer src.Close()
+
+	dst, err := os.Create(dstFull)
+	if err != nil {
+		return fmt.Errorf("copyAsset Create: %w", err)
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	if err != nil {
+		return fmt.Errorf("copyAsset Copy: %w", err)
+	}
+
+	return nil
+}
+
+// copyVariant copies the source file to the destination, overwriting the destination if necessary.
+func copyVariant(srcFull, dstFull string) error {
+	src, err := os.Open(srcFull)
+	if err != nil {
+		return fmt.Errorf("copyVariant Open: %w", err)
+	}
+	defer src.Close()
+
+	dst, err := os.Create(dstFull)
+	if err != nil {
+		return fmt.Errorf("copyVariant Create: %w", err)
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	if err != nil {
+		return fmt.Errorf("copyVariant Copy: %w", err)
+	}
+
+	return nil
 }

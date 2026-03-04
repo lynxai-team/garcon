@@ -7,7 +7,7 @@ package main
 import (
 	"bytes"
 	"os"
-	"path/filepath"
+	"path"
 	"strconv"
 	"testing"
 
@@ -39,14 +39,14 @@ func TestValidateCompressionFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			cli := &cli{
+			flags := &flags{
 				Input:  t.TempDir(),
 				Output: t.TempDir(),
 				Brotli: tt.brotli,
 				AVIF:   tt.avif,
 				WebP:   tt.webp,
 			}
-			err := do(cli)
+			err := do(flags)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -64,7 +64,7 @@ func TestGetDefaultCacheDir(t *testing.T) {
 
 	// Test XDG_CACHE_HOME set
 	if xdgCache != "" {
-		expected := filepath.Join(xdgCache, "flashbuilder")
+		expected := path.Join(xdgCache, "flashbuilder")
 		result := getDefaultCacheDir()
 		if result != expected {
 			t.Errorf("expected %s, got %s", expected, result)
@@ -73,7 +73,7 @@ func TestGetDefaultCacheDir(t *testing.T) {
 
 	// Test HOME set (fallback)
 	if home != "" && xdgCache == "" {
-		expected := filepath.Join(home, ".cache", "flashbuilder")
+		expected := path.Join(home, ".cache", "flashbuilder")
 		result := getDefaultCacheDir()
 		if result != expected {
 			t.Errorf("expected %s, got %s", expected, result)
@@ -94,8 +94,8 @@ func Test_do(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		want string
-		cli  cli
+		want  string
+		flags flags
 	}{{`// Copyright 2026 The contributors of Garcon.
 // This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
@@ -107,7 +107,7 @@ package main
 import (
 	_ "embed"
 )
-`, cli{
+`, flags{
 		Input:       "",
 		Output:      "",
 		CSP:         "",
@@ -131,7 +131,7 @@ package main
 import (
 	_ "embed"
 )
-`, cli{
+`, flags{
 		Input:       "",
 		Output:      "",
 		CSP:         "",
@@ -150,25 +150,25 @@ import (
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			tt.cli.Input = t.TempDir()
-			os.WriteFile(filepath.Join(tt.cli.Input, "index.html"), []byte("<html><body>Hey!</body></html>"), 0o600)
-			os.WriteFile(filepath.Join(tt.cli.Input, "favicon.svg"), []byte(`<svg><rect x1="1" x1="2" y1="3" y1="4"/></svg>`), 0o600)
+			tt.flags.Input = t.TempDir()
+			os.WriteFile(path.Join(tt.flags.Input, "index.html"), []byte("<html><body>Hey!</body></html>"), 0o600)
+			os.WriteFile(path.Join(tt.flags.Input, "favicon.svg"), []byte(`<svg><rect x1="1" x1="2" y1="3" y1="4"/></svg>`), 0o600)
 
-			tt.cli.Output = t.TempDir()
-			t.Log("cli.Output = ", tt.cli.Output)
+			tt.flags.Output = t.TempDir()
+			t.Log("flags.Output = ", tt.flags.Output)
 
-			err := do(&tt.cli)
+			err := do(&tt.flags)
 			if err != nil {
 				t.Errorf("expected success but got error=%v", err)
 			}
 
 			want := []byte(tt.want)
-			got, err := os.ReadFile(filepath.Join(tt.cli.Output, "embed.go"))
+			got, err := os.ReadFile(path.Join(tt.flags.Output, "assets.go"))
 			if err != nil {
-				t.Fatalf("Miss embed.go error=%v", err)
+				t.Fatalf("Miss assets.go error=%v", err)
 			}
 			if !bytes.Equal(got, want) {
-				t.Errorf("embed.go differ: %v", cmp.Diff(want, got))
+				t.Errorf("assets.go differ: %v", cmp.Diff(want, got))
 				t.Errorf("got:"+"\n"+"%s", got)
 			}
 		})

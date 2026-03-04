@@ -12,11 +12,13 @@
 // - CSP added **only** for HTML assets. When `--csp=""` is explicitly set, CSP header is disabled (no CSP header emitted).
 //   When `--csp` is unset, a default CSP fallback is applied: `"default-src 'self'"`.
 
-package main{{range .Assets}}{{if and .EmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
+package main{{range .Assets}}{{if and .IsEmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
 
-var header{{.Identifier}}HTTP = []byte({{if .CSP}}
-	"Content-Security-Policy: {{.CSP}}" + "\r\n" +{{end}}
-	`ETag: "{{.ETag}}"` + "\r\n" +
-	"Content-Type: {{.MIME}}" + "\r\n" +
+var header{{.Identifier}}HTTP = []byte(
 	"Cache-Control: public, max-age=31536000, immutable{{if .IsIndex}}, must-revalidate{{end}}" + "\r\n" +
-	"Content-Length: {{.Size}}" + "\r\n"){{end}}{{end}}{{end}}
+	"Content-Length: {{.Size}}" + "\r\n" +{{if .CSP}}
+	"Content-Security-Policy: {{.CSP}}" + "\r\n" +{{end}}{{if eq .VariantExt ".br"}}
+	"Content-Encoding: br" + "\r\n" +{{end}}
+	"Content-Type: {{.MIME}}" + "\r\n" +
+	"ETag: \"{{.ETag}}\"" + "\r\n"){{end}}{{end}}{{end}}
+

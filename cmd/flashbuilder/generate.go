@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 	"text/template"
@@ -41,7 +41,7 @@ func parseTemplates() (*template.Template, error) {
 	tmpl := template.New("root").Funcs(funcMap)
 	tmpl, err := tmpl.ParseFS(templateFS, "templates/*.go.gotmpl")
 	if err != nil {
-		err = fmt.Errorf("E099: Failed to parse templates: %w", err)
+		err = fmt.Errorf("Failed to parse templates: %w", err)
 	}
 	return tmpl, err
 }
@@ -78,9 +78,10 @@ func capitalize(s string) string {
 }
 
 // toHuman converts a size in bytes to a short, human-readable string.
-// It uses binary units (1024 B = 1 K, 1024 K = 1 M...) and formats the
-// mantissa with at most one decimal place. Small mantissas (< 8) keep a
-// decimal for better precision; larger values are shown as whole numbers.
+// It uses binary units (1024B=1K, 1024K=1M) and formats
+// the mantissa with at most one decimal place.
+// Small mantissas (< 8) keep a decimal for better precision.
+// Larger values are shown as whole numbers (without decimal).
 // If rounding would push the value to the next unit (e.g. 1023.9 K -> 1 M),
 // the function automatically promotes the unit.
 func toHuman(size int64) string {
@@ -103,8 +104,8 @@ func toHuman(size int64) string {
 	}
 
 	// Determine rounding precision:
-	//   * For mantissas < 8 we keep one decimal place (e.g. 1.3K).
-	//   * Otherwise we round to a whole number.
+	//   * For mantissas < 8 we keep one decimal (e.g. 1.3K)
+	//   * Otherwise we round to a whole number (e.g. 8K, 25M, 937G)
 	precision := 1.0
 	if value < 8 {
 		precision = 10 // one-decimal precision
@@ -126,7 +127,7 @@ func renderTemplate(tmpl *template.Template, name string, data any) ([]byte, err
 	var buf bytes.Buffer
 	err := tmpl.ExecuteTemplate(&buf, name, data)
 	if err != nil {
-		return nil, fmt.Errorf("E099: Failed to render %q template: %w", name, err)
+		return nil, fmt.Errorf("Failed to render %q template: %w", name, err)
 	}
 	return buf.Bytes(), nil
 }
@@ -144,8 +145,8 @@ func generate(data templateData, output string, dryRun bool) error {
 		return err
 	}
 
-	// Generate embed.go
-	err = renderWriteCode(dryRun, data, tmpl, output, "embed.go")
+	// Generate assets.go
+	err = renderWriteCode(dryRun, data, tmpl, output, "assets.go")
 	if err != nil {
 		return err
 	}
@@ -221,12 +222,12 @@ func writeCode(dryRun bool, code []byte, output, filename string) error {
 
 	err := os.MkdirAll(output, 0o700)
 	if err != nil {
-		return fmt.Errorf("E099: Failed os.MkdirAll(%s): %w", output, err)
+		return fmt.Errorf("Failed os.MkdirAll(%s): %w", output, err)
 	}
 
-	err = os.WriteFile(filepath.Join(output, filename), code, 0o600)
+	err = os.WriteFile(path.Join(output, filename), code, 0o600)
 	if err != nil {
-		return fmt.Errorf("E099: Failed os.WriteFile(%s/%s): %w", output, filename, err)
+		return fmt.Errorf("Failed os.WriteFile(%s/%s): %w", output, filename, err)
 	}
 
 	return nil

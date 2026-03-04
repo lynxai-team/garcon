@@ -6,13 +6,14 @@ package main
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
 )
 
-// handlers is sed to render the handlers and get array.
+// handlers is used to render the handlers and get array.
 type handlers struct {
 	PrevEntry string
 	Entry     string
@@ -22,39 +23,40 @@ type handlers struct {
 
 // buildGetRoutesByLength groups routes by length, sorted by frequency score.
 func buildGetRoutesByLength(assets []asset, size int) [][]asset {
-	routesByLen := make([][]asset, size)
+	routesByLen := make([][]asset, size+1) // allocate size+1 to avoid panic
 
-	// 1. group routes by length
+	// group routes by length
 	for _, a := range assets {
-		routeLen := len(a.RelPath) // relative path without leading slash
+		routeLen := len(a.Path)
 		routesByLen[routeLen] = append(routesByLen[routeLen], a)
 	}
 
-	// 2. sort by frequency score within each length group
-	for routeLen, assets := range routesByLen {
+	// sort by frequency score within each length group
+	for _, assets := range routesByLen {
+		if len(assets) == 0 {
+			continue
+		}
 		sort.Slice(assets, func(i, j int) bool {
 			return assets[i].Frequency > assets[j].Frequency
 		})
-		routesByLen[routeLen] = assets
 	}
 
 	return routesByLen
 }
 
-// buildRoutesByLength groups routes by length, sorted by frequency score.
+// buildPostRoutesByLength groups routes by length for POST requests.
 func buildPostRoutesByLength(assets []asset, size int) [][]asset {
-	routesByLen := make([][]asset, size)
-
-	// group routes by length
-	existing := existing{}
+	routesByLen := make([][]asset, size+1)
+	exist := existing{}
 	for _, a := range assets {
 		for route := range a.Form {
 			if route != "" && route[0] == '/' {
 				route = route[1:] // drop leading slash
 			} else {
 				// sanitize relative path
-				dir := filepath.Dir(a.RelPath)
-				route, err := filepath.Rel(dir, route)
+				dir := path.Dir(a.Path)
+				var err error
+				route, err = filepath.Rel(dir, route)
 				if err != nil {
 					fmt.Println("WARN cannot deduce relative path ", dir, route, err)
 				}
@@ -62,22 +64,28 @@ func buildPostRoutesByLength(assets []asset, size int) [][]asset {
 
 			routeLen := len(route)
 
-			if slices.ContainsFunc(routesByLen[routeLen], func(a asset) bool { return a.RelPath == route }) {
+			if routeLen < len(routesByLen) &&
+				slices.ContainsFunc(routesByLen[routeLen], func(a asset) bool { return route == a.Path }) {
 				continue
 			}
 
 			modifiedAsset := a
-			modifiedAsset.Identifier = existing.generateIdentifier(route)
-			modifiedAsset.RelPath = route
+			modifiedAsset.Identifier = exist.generateIdentifier(route)
+			modifiedAsset.Path = route
+			// Ensure routesByLen is large enough
+			if routeLen >= len(routesByLen) {
+				newRoutes := make([][]asset, routeLen+2)
+				copy(newRoutes, routesByLen)
+				routesByLen = newRoutes
+			}
 			routesByLen[routeLen] = append(routesByLen[routeLen], modifiedAsset)
 		}
 	}
-	// no idea how to sort the POST endpoints
+	// No sorting logic for POST endpoints yet, leaving as is.
 	return routesByLen
 }
 
 // buildGet generates the dispatch array for the GET handlers.
-// We use `index = assetRouteLen + 1` to eliminate the runtime slash removal.
 func buildGet(assets []asset, maxLen int) []handlers {
 	routesByLen := buildGetRoutesByLength(assets, maxLen+1)
 	get := make([]handlers, maxLen+2)
@@ -87,6 +95,10 @@ func buildGet(assets []asset, maxLen int) []handlers {
 		// index (of the get array) is the length of the request path (including leading slash)
 		// the asset routes are relative paths (no leading slash)
 		routeLen := max(0, i-1) // subtract the leading slash
+		if routeLen >= len(routesByLen) {
+			// Handle out of bounds
+			continue
+		}
 		assets := routesByLen[routeLen]
 
 		prevEntry := function
@@ -105,21 +117,20 @@ func buildGet(assets []asset, maxLen int) []handlers {
 			Routes:    assets,
 		}
 	}
-
 	return get
 }
 
 // buildPost generates the dispatch array for the POST handlers.
-// We use `index = assetRouteLen + 1` to eliminate the runtime slash removal.
 func buildPost(assets []asset, maxLen int) []handlers {
 	routesByLen := buildPostRoutesByLength(assets, maxLen+1)
 	post := make([]handlers, maxLen+2)
 	atLeastOnePost := false
 
 	for i := range post {
-		// index (of the get array) is the length of the request path (including leading slash)
-		// the asset routes are relative paths (no leading slash)
-		routeLen := max(0, i-1) // subtract the leading slash
+		routeLen := max(0, i-1)
+		if routeLen >= len(routesByLen) {
+			continue
+		}
 		assets := routesByLen[routeLen]
 
 		function := "notFound"
@@ -149,17 +160,17 @@ func buildPost(assets []asset, maxLen int) []handlers {
 func addShortcutPaths(assets []asset) []asset {
 	paths := make(map[string]struct{}, len(assets))
 	for _, asset := range assets {
-		paths[asset.RelPath] = struct{}{}
+		paths[asset.Path] = struct{}{}
 	}
 
 	shortcuts := make([]asset, 0, len(assets))
 	for a := range slices.Values(assets) {
-		shortPath := generateShortcut(a.RelPath)
+		shortPath := generateShortcut(a.Path)
 		_, found := paths[shortPath]
 		if !found {
 			a.IsShortcut = true
-			a.AbsPath = ""
-			a.RelPath = shortPath
+			a.Path = ""
+			a.Path = shortPath
 			shortcuts = append(shortcuts, a)
 			paths[shortPath] = struct{}{}
 		}
@@ -167,12 +178,11 @@ func addShortcutPaths(assets []asset) []asset {
 	return append(assets, shortcuts...)
 }
 
-// computeMaxLen calculates the maximum path length for get array sizing.
 func computeMaxLen(assets []asset) int {
 	maxLen := 0
 	for _, asset := range assets {
-		if len(asset.RelPath) > maxLen {
-			maxLen = len(asset.RelPath)
+		if len(asset.Path) > maxLen {
+			maxLen = len(asset.Path)
 		}
 	}
 	return maxLen

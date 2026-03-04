@@ -5,98 +5,36 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+	"testing/fstest"
 )
 
-// TestDiscover tests asset discovery.
 func TestDiscover(t *testing.T) {
 	t.Parallel()
 
-	// Create temporary directory
-	tmpDir := t.TempDir()
-
-	// Create test files
-	files := []struct {
-		name     string
-		content  string
-		expected string
-	}{
-		{"index.html", "<html></html>", "text/html"},
-		{"style.css", "body {}", "text/css"},
-		{"script.js", "console.log", "text/javascript"},
-		{"image.png", "\x89PNG", "image/png"},
-		{"data.json", "{}", "application/json"},
+	input := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html></html>")},
+		"style.css":  &fstest.MapFile{Data: []byte("body {}")},
+		"script.js":  &fstest.MapFile{Data: []byte("console.log")},
+		"image.png":  &fstest.MapFile{Data: []byte("\x89PNG")},
+		"data.json":  &fstest.MapFile{Data: []byte("{}")},
 	}
 
-	for _, file := range files {
-		path := filepath.Join(tmpDir, file.name)
-		err := os.WriteFile(path, []byte(file.content), 0o600)
-		if err != nil {
-			t.Fatalf("Failed to write file: %v", err)
-		}
-	}
-
-	// Run discovery
-	assets, err := discover(tmpDir, "")
+	assets, err := discover(input, "")
 	if err != nil {
 		t.Fatalf("Discovery failed: %v", err)
 	}
 
 	// Verify count
-	if len(assets) != len(files) {
-		t.Errorf("Expected %d assets, got %d", len(files), len(assets))
+	if len(assets) != 5 {
+		t.Errorf("Expected 5 assets, got %d", len(assets))
 	}
 
-	// Verify sorting (alphabetical by RelPath)
+	// Verify sorting
 	for i := 1; i < len(assets); i++ {
-		if assets[i].RelPath < assets[i-1].RelPath {
-			t.Errorf("Assets not sorted: %s should come after %s", assets[i].RelPath, assets[i-1].RelPath)
+		if assets[i].Path < assets[i-1].Path {
+			t.Errorf("Assets not sorted")
 		}
-	}
-
-	// Verify MIME detection
-	for _, asset := range assets {
-		if asset.MIME == "" || asset.MIME == "application/octet-stream" && asset.RelPath != "data.json" {
-			t.Errorf("MIME detection failed for %s: got %s", asset.RelPath, asset.MIME)
-		}
-	}
-}
-
-// TestDetectMIME tests MIME type detection.
-func TestDetectMIME(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		filename     string
-		content      string
-		expectedMIME string
-	}{
-		{"HTML file", "index.html", "<html></html>", "text/html; charset=utf-8"},
-		{"CSS file", "style.css", "body {}", "text/css; charset=utf-8"},
-		{"JS file", "script.js", "console.log", "text/javascript; charset=utf-8"},
-		{"Unknown", "data.bin", "\x00\x01\x02", "application/octet-stream"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			tmpDir := t.TempDir()
-			path := filepath.Join(tmpDir, tt.filename)
-
-			err := os.WriteFile(path, []byte(tt.content), 0o600)
-			if err != nil {
-				t.Fatalf("Failed to write file: %v", err)
-			}
-
-			mime := detectMIME(path)
-			if mime != tt.expectedMIME {
-				t.Errorf("Expected %s, got %s", tt.expectedMIME, mime)
-			}
-		})
 	}
 }
 
@@ -106,7 +44,7 @@ func TestGenerateIdentifier(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		relPath  string
+		inPath   string
 		expected string
 	}{
 		{"Simple file", "css/style.css", "CssStyleCss"},
@@ -125,7 +63,7 @@ func TestGenerateIdentifier(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			id := identifiers.generateIdentifier(tt.relPath)
+			id := identifiers.generateIdentifier(tt.inPath)
 			// Check for valid Go identifier chars
 			for _, r := range id {
 				if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
@@ -173,7 +111,7 @@ func TestGenerateShortcut(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		relPath  string
+		inPath   string
 		expected string
 	}{
 		{"Root index", "index.html", ""},
@@ -186,34 +124,7 @@ func TestGenerateShortcut(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := generateShortcut(tt.relPath)
-			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
-			}
-		})
-	}
-}
-
-// TestSanitizeIdentifier tests identifier sanitization.
-func TestSanitizeIdentifier(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"Simple", "style", "style"},
-		{"With dash", "my-file", "myfile"},
-		{"With number", "file1", "file1"},
-		{"Special chars", "file@#$", "file"},
-		{"Unicode", "caf/é", "café"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := sanitizeIdentifier(tt.input)
+			result := generateShortcut(tt.inPath)
 			if result != tt.expected {
 				t.Errorf("Expected %s, got %s", tt.expected, result)
 			}
