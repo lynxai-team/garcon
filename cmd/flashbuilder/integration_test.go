@@ -54,24 +54,20 @@ func TestIntegration_DiscoverToGet(t *testing.T) {
 	const embedBudget = 30
 	assets = allocateBudget(assets, embedBudget)
 
-	// Set frequency scores
-	for i := range assets {
-		assets[i].Frequency = estimateFrequencyScore(assets[i].Path, assets[i].IsEmbedEligible)
-	}
-
 	// Add shortcuts
 	assets = addShortcutPaths(assets)
 
-	// Compute MaxLen
-	maxLen := computeMaxLen(assets)
+	// Compute MaxLenG
+	maxLenG := computeMaxLenGet(assets)
+	maxLenP := computeMaxLenPost(assets)
 
 	// Generate get and post arrays
-	get := buildGet(assets, maxLen)
-	post := buildPost(assets, maxLen)
+	get := buildGet(assets, maxLenG)
+	post := buildPost(assets, maxLenP)
 
 	// Verify get array
-	if len(get) != maxLen+2 {
-		t.Errorf("HTTP get length: expected %d, got %d", maxLen+2, len(get))
+	if len(get) != maxLenG+2 {
+		t.Errorf("HTTP get length: expected %d, got %d", maxLenG+2, len(get))
 	}
 
 	// Verify post array

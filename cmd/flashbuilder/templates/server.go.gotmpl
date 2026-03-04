@@ -1,7 +1,10 @@
-{{define "server.go"}}// Copyright 2026 The contributors of Garcon.
+{{- define "server.go" -}}
+{{- $scheme := .Config.Scheme -}}
+
+// Copyright 2026 The contributors of Garcon.
 // This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
-{{ $scheme := .Config.Scheme }}
+
 // This file contains the {{$scheme}} handlers.
 
 package main
@@ -15,11 +18,11 @@ import (
 func newServer{{$scheme}}() *Server {
 	s := new(Server)
 
-	s.get = [maxLen + 2]func(http.ResponseWriter, *http.Request){
+	s.get = [maxLenG + 2]func(http.ResponseWriter, *http.Request){
 {{range .Get}}		s.{{.Entry}}{{$scheme}},
 {{end}}	}{{if .Post}}
 
-	s.post = [maxLen + 2]func(http.ResponseWriter, *http.Request){
+	s.post = [maxLenP + 2]func(http.ResponseWriter, *http.Request){
 {{range .Post}}		s.{{.Entry}}{{$scheme}},
 {{end}}	}
 
@@ -29,13 +32,15 @@ func newServer{{$scheme}}() *Server {
 
 	return s
 }
-{{range .Get}}{{ if and .Routes .Length }}
+
+{{- range .Get -}}
+	{{- if and .Routes .Length }}
+
 func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
-	const L = {{.Length}}
 	pathNoSlash := r.URL.Path[1:]
-	truncated := pathNoSlash[:L]
+	truncated := pathNoSlash[:{{.Length}}] // here, routes are {{.Length}}-byte long
 	switch truncated {
-{{range .Routes}}	// freq={{.Frequency}} {{.Size|human}}{{if .IsDuplicate}} Duplicate{{end}}{{if .IsShortcut}} Shortcut{{end}} {{.Path}}
+{{range .Routes}}	// traffic={{.Frequency}} {{.Size|human}}{{if .IsDuplicate}} Duplicate{{end}}{{if .IsShortcut}} Shortcut{{end}} {{.Path}}
 	case "{{.Path}}":
 		s.get{{.Identifier}}{{$scheme}}(w, r)
 {{end}}
@@ -43,11 +48,16 @@ func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 		s.{{.PrevEntry}}{{$scheme}}(w, r)
 	}
 }
-{{end}}{{end}}{{range .Post}}{{ if and .Routes .Length }}
+
+	{{- end -}}
+{{- end -}}
+
+{{- range .Post -}}
+	{{- if and .Routes .Length }}
+
 func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
-	const L = {{.Length}}
 	pathNoSlash := r.URL.Path[1:]
-	truncated := pathNoSlash[:L]
+	truncated := pathNoSlash[:{{.Length}}] // here, routes are {{.Length}}-byte long
 	switch truncated {
 {{range .Routes}}	// <form> found in {{.Path}}
 	case "{{.Path}}":
@@ -57,4 +67,7 @@ func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 		s.{{.PrevEntry}}{{$scheme}}(w, r)
 	}
 }
-{{end}}{{end}}{{end}}
+
+	{{- end -}}
+{{ end }}
+{{ end }}

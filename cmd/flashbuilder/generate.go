@@ -21,18 +21,18 @@ var templateFS embed.FS
 
 // templateData aggregates all data for template rendering.
 type templateData struct {
-	Config configData
-	Assets []asset
-	Get    []handlers
-	Post   []handlers
-	MaxLen int
+	Config  cfg
+	Assets  []asset
+	Get     []handlers
+	Post    []handlers
+	MaxLenG int
+	MaxLenP int
 }
 
-// configData holds configuration for template rendering.
-type configData struct {
+// cfg holds configuration for template rendering.
+type cfg struct {
 	CSP       string
 	HTTPSPort string
-	Module    string
 	Scheme    string // "HTTP" or "HTTPS"
 }
 

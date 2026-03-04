@@ -1,4 +1,6 @@
-{{define "assets.go"}}// Copyright 2026 The contributors of Garcon.
+{{- define "assets.go" -}}
+
+// Copyright 2026 The contributors of Garcon.
 // This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
@@ -9,7 +11,13 @@ package main
 import (
 	_ "embed"
 )
-{{range .Assets}}{{if and .IsEmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
+
+{{- range .Assets -}}
+	{{- if and .IsEmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
+
 //go:embed assets/{{.Path}}{{.VariantExt}}
 var file{{.Identifier}} []byte
-{{end}}{{end}}{{end}}
+
+	{{- end -}}
+{{ end }}
+{{ end }}

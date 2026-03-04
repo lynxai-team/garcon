@@ -96,13 +96,7 @@ func Test_do(t *testing.T) {
 	tests := []struct {
 		want  string
 		flags flags
-	}{{`// Copyright 2026 The contributors of Garcon.
-// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
-// SPDX-License-Identifier: MIT
-
-// This file contains all embed-eligible assets.
-
-package main
+	}{{`package main
 
 import (
 	_ "embed"
@@ -120,13 +114,7 @@ import (
 		CacheMax:    5 * 1024 * 1024,
 		DryRun:      false,
 		Test:        false,
-	}}, {`// Copyright 2026 The contributors of Garcon.
-// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
-// SPDX-License-Identifier: MIT
-
-// This file contains all embed-eligible assets.
-
-package main
+	}}, {`package main
 
 import (
 	_ "embed"

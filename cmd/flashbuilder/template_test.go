@@ -62,10 +62,9 @@ func TestRenderTemplate(t *testing.T) {
 	// This test requires template files to be present
 	// Skip if templates are not available
 	data := templateData{
-		Config: configData{
+		Config: cfg{
 			CSP:       "default-src 'self'",
 			HTTPSPort: "8443",
-			Module:    "flash",
 		},
 		Assets: []asset{
 			{
@@ -77,7 +76,8 @@ func TestRenderTemplate(t *testing.T) {
 				IsEmbedEligible: true,
 			},
 		},
-		MaxLen: 10,
+		MaxLenG: 10,
+		MaxLenP: 10,
 	}
 
 	tmpl, err := parseTemplates()

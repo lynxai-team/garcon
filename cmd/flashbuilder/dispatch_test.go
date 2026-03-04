@@ -59,8 +59,8 @@ func TestBuildGet(t *testing.T) {
 	}
 
 	assets = addShortcutPaths(assets)
-	maxLen := computeMaxLen(assets)
-	get := buildGet(assets, maxLen)
+	maxLenG := computeMaxLenGet(assets)
+	get := buildGet(assets, maxLenG)
 
 	if !cmp.Equal(get, want) {
 		t.Errorf("Structs differ: %v", cmp.Diff(want, get))
@@ -89,7 +89,7 @@ func TestComputeMaxLen(t *testing.T) {
 			for i, p := range tt.paths {
 				assets[i] = asset{Path: p}
 			}
-			result := computeMaxLen(assets)
+			result := computeMaxLenGet(assets)
 			if result != tt.expected {
 				t.Errorf("Expected %d, got %d", tt.expected, result)
 			}

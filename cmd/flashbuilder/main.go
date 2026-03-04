@@ -7,6 +7,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -29,7 +30,7 @@ type flags struct {
 	EmbedBudget units.Base2Bytes `env:"FLASHBUILDER_EMBED_BUDGET" default:"200GB"`
 	Brotli      int              `env:"FLASHBUILDER_BROTLI"       default:"11"`
 	AVIF        int              `env:"FLASHBUILDER_AVIF"         default:"50"`
-	WebP        int              `env:"FLASHBUILDER_WEBP"         default:"50"`
+	WebP        int              `env:"FLASHBUILDER_WEBP"         default:"50"    name:"webp"`
 
 	Verbosity int  `env:"FLASHBUILDER_LOG_LEVEL" type:"counter" short:"v"`
 	DryRun    bool `env:"FLASHBUILDER_DRY_RUN"`
@@ -73,64 +74,59 @@ func validateInputs(cli *flags) (*flags, error) {
 }
 
 func do(cli *flags) error {
+	setLogLevel(cli.Verbosity)
+
 	cli, err := validateInputs(cli)
 	if err != nil {
 		return err
 	}
 
-	// Use fs.FS for abstraction
-	// Convert input path to fs.FS
-	input := os.DirFS(cli.Input)
+	// use fs.ReadFileFS for mocking with fstest.
+	input, ok := os.DirFS(cli.Input).(fs.ReadFileFS)
+	if !ok {
+		return errors.New("cannot type assert os.DirFS -> fs.ReadFileFS")
+	}
 
-	// Discover assets
+	// discover assets
 	assets, err := discover(input, cli.CSP)
 	if err != nil {
 		return err
 	}
 
-	// Set .Identifier
+	// set .Identifier
 	setIdentifiers(assets)
 
 	assets = deduplicate(assets)
 
-	// Generate variants
+	// allocate embed budget
+	assets = allocateBudget(assets, int64(cli.EmbedBudget))
+
+	// copy assets to assets/ and www/
+	// generate assets variants (Brotli, AVIF, WebP)
+	// replace assets by their variants
 	err = copyAssetsAndVariants(input, assets, cli)
 	if err != nil {
 		return err
 	}
 
-	// Allocate embed budget
-	assets = allocateBudget(assets, int64(cli.EmbedBudget))
-
-	// Set frequency scores
-	for i := range assets {
-		assets[i].Frequency = estimateFrequencyScore(assets[i].Path, assets[i].IsEmbedEligible)
-	}
-
-	// Add shortcuts
 	assets = addShortcutPaths(assets)
 
-	// Compute MaxLen
-	maxLen := computeMaxLen(assets)
+	maxLenG := computeMaxLenGet(assets)
+	maxLenP := computeMaxLenPost(assets)
 
 	// Generate get and post arrays
-	get := buildGet(assets, maxLen)
-	post := buildPost(assets, maxLen)
-
-	// Convert to template data
-	data := templateData{
-		Config: configData{
-			CSP:       cli.CSP,
-			HTTPSPort: "8443",
-			Module:    "flash",
-		},
-		Assets: assets,
-		Get:    get,
-		Post:   post,
-		MaxLen: maxLen,
-	}
+	get := buildGet(assets, maxLenG)
+	post := buildPost(assets, maxLenP)
 
 	// Generate Go code
+	data := templateData{
+		Config:  cfg{CSP: cli.CSP, HTTPSPort: "8443"},
+		Assets:  assets,
+		Get:     get,
+		Post:    post,
+		MaxLenG: maxLenG,
+		MaxLenP: maxLenP,
+	}
 	err = generate(data, cli.Output, cli.DryRun)
 	if err != nil {
 		return err
@@ -162,6 +158,19 @@ func do(cli *flags) error {
 
 	slog.Info("Generation complete")
 	return nil
+}
+
+func setLogLevel(verbosity int) {
+	switch verbosity {
+	case -1:
+		slog.SetLogLoggerLevel(slog.LevelError) // -v=-1 (or FLASHBUILDER_LOG_LEVEL=-1)
+	case 0:
+		slog.SetLogLoggerLevel(slog.LevelWarn) // default
+	case 1:
+		slog.SetLogLoggerLevel(slog.LevelInfo) // -v
+	default:
+		slog.SetLogLoggerLevel(slog.LevelDebug) // -vv
+	}
 }
 
 // getDefaultCacheDir returns the default cache directory

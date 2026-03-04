@@ -146,12 +146,12 @@ func TestGenerateVariants_SkipDuplicates(t *testing.T) {
 	}
 	expected := []asset{
 		{VariantExt: ".br", Path: "text.txt", MIME: "text/plain", Size: 53, IsEmbedEligible: true},
-		{VariantExt: ".webp", Path: "large.png", MIME: "image/png", Size: 2100},
+		{VariantExt: ".avif", Path: "large.png", MIME: "image/png", Size: 1034},
 		{VariantExt: "", Path: "small.png", MIME: "image/png", Size: 1000, IsEmbedEligible: true},
 		{VariantExt: "", Path: "duplicate.png", MIME: "image/png", Size: 1000_000, IsEmbedEligible: true, IsDuplicate: true},
-		{VariantExt: ".webp", Path: "medium.jpeg", MIME: "image/jpeg", Size: 2100, IsEmbedEligible: true},
+		{VariantExt: ".avif", Path: "medium.jpeg", MIME: "image/jpeg", Size: 727, IsEmbedEligible: true},
 		{VariantExt: "", Path: "medium.webp", MIME: "image/webp", Size: 5000, IsEmbedEligible: true},
-		{VariantExt: ".webp", Path: "medium.avif", MIME: "image/avif", Size: 2100, IsEmbedEligible: true},
+		{VariantExt: ".avif", Path: "medium.avif", MIME: "image/avif", Size: 1037, IsEmbedEligible: true},
 	}
 
 	cli := flags{

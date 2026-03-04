@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
@@ -16,6 +17,7 @@ import (
 	"math"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"sort"
@@ -39,7 +41,7 @@ type asset struct {
 	VariantExt string // the variant Path has an extra extension ".br" ".avif" ".webp"
 	MIME       string // Detected MIME type (e.g., "text/html"), used for Content-Type
 
-	Form map[string]struct{} // contact-form API endpoint found in the HTML
+	API map[string]struct{} // API endpoints (contact-form found in HTML) for the POST routes
 
 	// headers
 	CSP       string  // Content-Security-Policy header value
@@ -81,11 +83,9 @@ type fileItem struct {
 const workers = 4
 
 // processItem creates an asset from a file path.
-// It handles the checks for special file types and returns ErrSkip for them.
-// This logic is extracted from the worker to reduce clutter.
-func processItem(input fs.FS, file fileItem, csp string) (*asset, error) {
+func processItem(input fs.ReadFileFS, file fileItem, csp string) (*asset, error) {
 	mimeType := detectMIME(input, file.path)
-	isHTML, isIndex, c, form := extractHTML(input, file.path, mimeType)
+	isHTML, isIndex, c, endpoints := extractHTML(input, file.path, mimeType)
 	if isHTML && c == "" {
 		c = csp
 	}
@@ -96,22 +96,23 @@ func processItem(input fs.FS, file fileItem, csp string) (*asset, error) {
 	}
 
 	return &asset{
-		Path:    file.path, // relative to input (also used as the request endpoint even if the variant is embedded)
-		Size:    file.size,
-		MIME:    mimeType,
-		Hash:    hash,
-		ETag:    etag,
-		IsHTML:  isHTML,
-		IsIndex: isIndex,
-		CSP:     c,    // Content-Security-Policy (HTTP header)
-		Form:    form, // Contact-form API endpoint
+		Path:      file.path, // relative to input (also used as the request endpoint even if the variant is embedded)
+		Size:      file.size,
+		MIME:      mimeType,
+		Hash:      hash,
+		ETag:      etag,
+		IsHTML:    isHTML,
+		IsIndex:   isIndex,
+		CSP:       c,         // Content-Security-Policy (HTTP header)
+		API:       endpoints, // Contact-form API endpoints (POST requests)
+		Frequency: estimateFrequencyScore(file.path),
 	}, nil
 }
 
 // discover walks the input directory and collects all files.
 // Parallelized using errgroup. Accepts fs.FS for testability.
 // Returns assets sorted by relative path for deterministic ordering.
-func discover(input fs.FS, csp string) ([]asset, error) {
+func discover(input fs.ReadFileFS, csp string) ([]asset, error) {
 	var assets []asset
 	var mu sync.Mutex
 
@@ -205,8 +206,21 @@ func discover(input fs.FS, csp string) ([]asset, error) {
 	return assets, nil
 }
 
-// extractFromFS wraps [extractFromHTML].
-func extractFromFS(input fs.FS, assetPath string) (csp string, actions map[string]struct{}) {
+func extractHTML(input fs.ReadFileFS, assetPath, mimeType string) (isHTML, isIndex bool, csp string, endpoints map[string]struct{}) {
+	isHTML = strings.HasSuffix(mimeType, "/html") || // text/html
+		strings.HasSuffix(mimeType, "html+xml") // application/xhtml+xml
+
+	isIndex = isHTML && strings.HasSuffix(assetPath, "index.html")
+
+	if isHTML {
+		csp, endpoints = parseHTML(input, assetPath)
+	}
+
+	return isHTML, isIndex, csp, endpoints
+}
+
+// parseHTML parses HTML and returns first CSP and unique <form> actions.
+func parseHTML(input fs.ReadFileFS, assetPath string) (csp string, endpoints map[string]struct{}) {
 	// Re-open to read full content (or reset reader)
 	f, err := input.Open(assetPath)
 	if err != nil {
@@ -214,12 +228,8 @@ func extractFromFS(input fs.FS, assetPath string) (csp string, actions map[strin
 		return "", nil
 	}
 	defer f.Close()
-	return extractFromHTML(f)
-}
 
-// extractFromHTML parses HTML and returns first CSP and unique <form> actions.
-func extractFromHTML(r io.Reader) (csp string, actions map[string]struct{}) {
-	z := html.NewTokenizer(r)
+	z := html.NewTokenizer(f)
 	for {
 		tt := z.Next()
 		switch tt {
@@ -228,7 +238,7 @@ func extractFromHTML(r io.Reader) (csp string, actions map[string]struct{}) {
 			if errors.Is(err, io.EOF) {
 				slog.Warn("HTML parse error", "error", err)
 			}
-			return csp, actions // EOF reached
+			return csp, endpoints // EOF reached
 		case html.StartTagToken, html.SelfClosingTagToken:
 			t := z.Token()
 			switch strings.ToLower(t.Data) {
@@ -247,19 +257,22 @@ func extractFromHTML(r io.Reader) (csp string, actions map[string]struct{}) {
 					}
 				}
 				if strings.EqualFold(httpEquiv, "Content-Security-Policy") && content != "" {
-					csp = html.UnescapeString(content)
+					csp = validCSP(html.UnescapeString(content))
 				}
 			case "form":
 				// Collect unique action attributes.
 				for _, a := range t.Attr {
 					if strings.EqualFold(a.Key, "action") {
-						act := html.UnescapeString(a.Val)
-						if _, ok := actions[act]; !ok {
-							if actions == nil {
-								actions = map[string]struct{}{act: {}}
+						api := validEndpoint(assetPath, html.UnescapeString(a.Val))
+						if api == "" {
+							break
+						}
+						if _, ok := endpoints[api]; !ok {
+							if endpoints == nil {
+								endpoints = map[string]struct{}{api: {}}
 								break
 							}
-							actions[act] = struct{}{}
+							endpoints[api] = struct{}{}
 						}
 						break
 					}
@@ -269,11 +282,52 @@ func extractFromHTML(r io.Reader) (csp string, actions map[string]struct{}) {
 	}
 }
 
+func validCSP(csp string) string {
+	for i := range len(csp) {
+		// Valid CSP only contains visible ASCII characters (Space 0x20 to Tilde 0x7E)
+		if csp[i] < 0x20 || csp[i] > 0x7E {
+			slog.Info("skip invalid", "CSP", csp)
+			return ""
+		}
+	}
+	return csp
+}
+
+func validEndpoint(assetPath, endpoint string) string {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		slog.Info("skip <form> because not an URL", "action", endpoint, "err", err)
+		return ""
+	}
+
+	sanitized := path.Clean(u.Path)
+	if !path.IsAbs(sanitized) {
+		sanitized = path.Join(path.Dir(assetPath), sanitized)
+		sanitized = path.Clean(sanitized)
+	}
+
+	if sanitized == "" {
+		slog.Info("skip <form> because sanitized is empty", "action", endpoint)
+		return ""
+	}
+
+	if strings.Contains(sanitized, "..") {
+		slog.Info("skip <form> because contains ..", "action", endpoint, "sanitized", sanitized)
+		return ""
+	}
+
+	if sanitized[0] == '/' {
+		sanitized = sanitized[1:] // drop leading slash
+	}
+
+	return sanitized
+}
+
 // detectMIME determines the MIME type for a file
 // Step 1: Extension-based lookup
 // Step 2: Content sniffing
 // Step 3: Fallback to application/octet-stream.
-func detectMIME(input fs.FS, assetPath string) string {
+func detectMIME(input fs.ReadFileFS, assetPath string) string {
 	// search by extension
 	ext := path.Ext(assetPath)
 	if ext != "" {
@@ -308,19 +362,6 @@ func detectMIME(input fs.FS, assetPath string) string {
 
 	// Step 3: Fallback
 	return "application/octet-stream"
-}
-
-func extractHTML(input fs.FS, assetPath, mimeType string) (isHTML, isIndex bool, csp string, form map[string]struct{}) {
-	isHTML = strings.HasSuffix(mimeType, "/html") || // text/html
-		strings.HasSuffix(mimeType, "html+xml") // application/xhtml+xml
-
-	isIndex = isHTML && strings.HasSuffix(assetPath, "index.html")
-
-	if isHTML {
-		csp, form = extractFromFS(input, assetPath)
-	}
-
-	return isHTML, isIndex, csp, form
 }
 
 // deduplicate identifies duplicate assets based on content hash.
@@ -405,7 +446,7 @@ func (e existing) resolveCollision(original string) string {
 
 // estimateFrequencyScore estimates request frequency for switch case ordering
 // Higher frequency assets appear first in switch statements for better branch prediction.
-func estimateFrequencyScore(assetPath string, isEmbed bool) int {
+func estimateFrequencyScore(assetPath string) int {
 	score := 0
 
 	if assetPath == "" || assetPath == "index.html" {
@@ -425,9 +466,6 @@ func estimateFrequencyScore(assetPath string, isEmbed bool) int {
 	}
 	if strings.Contains(assetPath, "logo.") {
 		score += 400
-	}
-	if isEmbed {
-		score += 200
 	}
 
 	// Path complexity penalty
@@ -472,33 +510,37 @@ func uint128From16Bytes(b [16]byte) uint128 {
 }
 
 // computeImoHash computes the ImoHash for a file (128 bits).
-func computeImoHashEtag(input fs.FS, assetPath string) (uint128, string, error) {
+func computeImoHashEtag(input fs.ReadFileFS, assetPath string) (hash uint128, etag string, err error) {
 	f, err := input.Open(assetPath)
 	if err != nil {
 		return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag input.Open: %w", err)
 	}
 	defer f.Close()
 
-	fi, err := f.Stat()
+	info, err := f.Stat()
 	if err != nil {
 		return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag f.Stat: %w", err)
 	}
 
 	ff, ok := f.(io.ReaderAt)
-	if !ok {
-		return uint128{0, 0}, "", errors.New("computeImoHashEtag: cannot access fs.File as io.ReaderAt")
+	if !ok { // no ReaderAt interface for fstest => Fallback
+		buf, err := io.ReadAll(f)
+		if err != nil {
+			return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag io.ReadAll: %w", err)
+		}
+		ff = bytes.NewReader(buf)
 	}
 
-	sr := io.NewSectionReader(ff, 0, fi.Size())
+	sr := io.NewSectionReader(ff, 0, info.Size())
 	sum, err := imohash.SumSectionReader(sr)
 	if err != nil {
 		return uint128{0, 0}, "", fmt.Errorf("imohash.SumSectionReader: %w", err)
 	}
 
-	u128 := uint128From16Bytes(sum)
-	etag := computeETag(sum)
+	hash = uint128From16Bytes(sum)
+	etag = computeETag(sum)
 
-	return u128, etag, nil
+	return hash, etag, nil
 }
 
 // base91Alphabet contains 91 ASCII characters that are safe for POSIX filenames (Linux and macOS).

@@ -80,22 +80,21 @@ func TestEstimateFrequencyScore(t *testing.T) {
 	tests := []struct {
 		name     string
 		path     string
-		isEmbed  bool
 		expected int
 	}{
-		{"Index file", "index.html", true, 1000 + 500 + 200},
-		{"Favicon", "favicon.ico", true, 900 + 200},
-		{"CSS file", "style.css", true, 800 + 200},
-		{"JS file", "script.js", true, 600 + 200},
-		{"Logo", "logo.png", true, 400 + 200},
-		{"Deep path", "assets/css/main.css", true, 800 + 200 - (5 * len("assets/css/main.css")) - 30*2},
-		{"Low traffic", "data.pdf", true, -100 + 200 - (5 * len("data.pdf"))},
+		{"Index file", "index.html", 1000 + 500 + 200},
+		{"Favicon", "favicon.ico", 900 + 200},
+		{"CSS file", "style.css", 800 + 200},
+		{"JS file", "script.js", 600 + 200},
+		{"Logo", "logo.png", 400 + 200},
+		{"Deep path", "assets/css/main.css", 800 + 200 - (5 * len("assets/css/main.css")) - 30*2},
+		{"Low traffic", "data.pdf", -100 + 200 - (5 * len("data.pdf"))},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := estimateFrequencyScore(tt.path, tt.isEmbed)
+			result := estimateFrequencyScore(tt.path)
 			// Just verify it returns a positive value for high-priority files
 			// and negative for low-priority
 			if tt.path == "index.html" && result <= 0 {

@@ -45,7 +45,7 @@ const (
 )
 
 // copyAssetsAndVariants links (or copies) assets or their variants.
-func copyAssetsAndVariants(input fs.FS, assets []asset, cli *flags) error {
+func copyAssetsAndVariants(input fs.ReadFileFS, assets []asset, cli *flags) error {
 	// create assets directory
 	assetsDir := path.Join(cli.Output, assetsBase)
 	err := os.MkdirAll(assetsDir, 0o700)
@@ -125,15 +125,16 @@ func copyAssetsAndVariants(input fs.FS, assets []asset, cli *flags) error {
 
 // variantEligibility determines if content is eligible for Brotli / AVIF / WebP.
 func variantEligibility(mime string) (brotliEligible, avifEligible, webpEligible bool) {
-	for _, suffix := range []string{"jpeg", "png", "gif", "webp", "avif"} {
+	// image/jpeg image/png image/apng image/gif image/webp image/avif image/x-icon image/vnd.microsoft.icon
+	for _, suffix := range []string{"jpeg", "png", "gif", "webp", "avif", "icon"} {
 		if strings.HasSuffix(mime, suffix) {
 			return false, true, true
 		}
 	}
 
 	// application/zip application/x-bzip application/x-bzip2 application/java-archive
-	// application/gzip application/epub+zip application/x-7z-compressed
-	for _, suffix := range []string{"zip", "zip2", "compressed", "archive"} {
+	// application/gzip application/epub+zip application/x-7z-compressed font/woff2
+	for _, suffix := range []string{"zip", "zip2", "compressed", "archive", "woff2"} {
 		if strings.HasSuffix(mime, suffix) {
 			return false, false, false
 		}
@@ -159,7 +160,7 @@ func variantEligibility(mime string) (brotliEligible, avifEligible, webpEligible
 
 const sizeInit = math.MaxInt64
 
-func generateOneVariant(input fs.FS, a *asset, cli *flags, variantDir string, useCache, br, av, wp bool) (vFull, ext string, size int64) {
+func generateOneVariant(input fs.ReadFileFS, a *asset, cli *flags, variantDir string, useCache, br, av, wp bool) (vFull, ext string, size int64) {
 	size = sizeInit
 
 	if br {
@@ -213,7 +214,7 @@ func enableVariant(quality int, aSize, minSz, maxSz int64) bool {
 }
 
 // getBrotli retrieves Brotli from cache or generates it for asset.
-func getBrotli(input fs.FS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
+func getBrotli(input fs.ReadFileFS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
 	if !enableVariant(quality, a.Size, minSz4Brotli, maxSz4Brotli) {
 		return "", "", sizeInit
 	}
@@ -227,16 +228,12 @@ func getBrotli(input fs.FS, a *asset, quality int, variantDir string, useCache b
 		}
 		defer dst.Close()
 
-		err := generateBrotli(input, a, quality, dst)
-		if err != nil {
-			slog.Error("generateBrotli", "err", err)
-			return "", "", sizeInit
-		}
+		slog.Info("Brotli compress", "asset", a.Path, "dst", vFull, "quality", quality)
 
-		// the file size is the file offset after the last write
-		size, err = dst.Seek(0, io.SeekCurrent)
+		var err error
+		size, err = compressBrotli(input, a, quality, dst)
 		if err != nil {
-			slog.Error("getBrotli dst.Seek", "err", err)
+			slog.Warn("getBrotli", "err", err)
 			return "", "", sizeInit
 		}
 	}
@@ -246,7 +243,7 @@ func getBrotli(input fs.FS, a *asset, quality int, variantDir string, useCache b
 
 // getAVIF retrieves AVIF from cache or generates it for image asset.
 // Uses github.com/vegidio/avif-go (CGO required).
-func getAVIF(input fs.FS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
+func getAVIF(input fs.ReadFileFS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
 	if !enableVariant(quality, a.Size, minSz4AVIF, maxSz4AVIF) {
 		return "", "", sizeInit
 	}
@@ -260,16 +257,12 @@ func getAVIF(input fs.FS, a *asset, quality int, variantDir string, useCache boo
 		}
 		defer dst.Close()
 
-		err := generateAVIF(input, a, quality, dst)
-		if err != nil {
-			slog.Error("generateAVIF", "err", err)
-			return "", "", sizeInit
-		}
+		slog.Info("AVIF encode", "asset", a.Path, "dst", vFull, "quality", quality)
 
-		// the file size is the file offset after the last write
-		size, err = dst.Seek(0, io.SeekCurrent)
+		var err error
+		size, err = encodeAVIF(input, a, quality, dst)
 		if err != nil {
-			slog.Error("getAVIF dst.Seek", "err", err)
+			slog.Warn("getAVIF", "err", err)
 			return "", "", sizeInit
 		}
 	}
@@ -279,7 +272,7 @@ func getAVIF(input fs.FS, a *asset, quality int, variantDir string, useCache boo
 
 // getWebP generates WebP variant for image assets
 // Uses github.com/kolesa-team/go-webp/encoder (CGO required).
-func getWebP(input fs.FS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
+func getWebP(input fs.ReadFileFS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
 	if !enableVariant(quality, a.Size, minSz4WebP, maxSz4WebP) {
 		return "", "", sizeInit
 	}
@@ -293,16 +286,12 @@ func getWebP(input fs.FS, a *asset, quality int, variantDir string, useCache boo
 		}
 		defer dst.Close()
 
-		err := generateWebP(input, a, quality, dst)
-		if err != nil {
-			slog.Error("generateWebP", "err", err)
-			return "", "", sizeInit
-		}
+		slog.Info("WebP encode", "asset", a.Path, "dst", vFull, "quality", quality)
 
-		// the file size is the file offset after the last write
-		size, err = dst.Seek(0, io.SeekCurrent)
+		var err error
+		size, err = encodeWebP(input, a, quality, dst)
 		if err != nil {
-			slog.Error("getWebP dst.Seek", "err", err)
+			slog.Warn("getWebP", "err", err)
 			return "", "", sizeInit
 		}
 	}
@@ -319,15 +308,15 @@ func createVariantFile(vFull string) *os.File {
 	return dst
 }
 
-// generateBrotli streams a file from the provided fs.FS through a Brotli
+// compressBrotli streams a file from the provided fs.FS through a Brotli
 // encoder and writes the compressed output directly to path.
 // It returns the number of bytes written to the destination file.
 // Errors are returned to the caller; no logging, no temp‑file, no extra sync.
-func generateBrotli(input fs.FS, a *asset, quality int, dst io.Writer) error {
+func compressBrotli(input fs.ReadFileFS, a *asset, quality int, dst io.Writer) (int64, error) {
 	// open source file: asset
 	src, err := input.Open(a.Path)
 	if err != nil {
-		return fmt.Errorf("Brotli input.Open: %w", err)
+		return 0, fmt.Errorf("Brotli input.Open: %w", err)
 	}
 	defer src.Close()
 
@@ -335,29 +324,30 @@ func generateBrotli(input fs.FS, a *asset, quality int, dst io.Writer) error {
 	enc := cbrotli.NewWriter(dst, cbrotli.WriterOptions{Quality: quality})
 
 	// stream the data: io.Copy uses a 32 KB internal buffer
-	_, err = io.Copy(enc, src)
+	size, err := io.Copy(enc, src)
 	if err != nil {
 		_ = enc.Close() // attempt graceful shutdown
-		return fmt.Errorf("Brotli compress copy: %w", err)
+		return 0, fmt.Errorf("Brotli compress copy: %w", err)
 	}
 
 	// close encoder to flush the final block
 	err = enc.Close()
 	if err != nil {
-		return fmt.Errorf("brotli close: %w", err)
+		return 0, fmt.Errorf("Brotli close: %w", err)
 	}
 
-	return nil
+	return size, nil
 }
 
-// generateAVIF the generates AVIF for an image asset and writes it in cacheDir
+// encodeAVIF generates AVIF for an image asset and writes it in cacheDir
 // Uses github.com/vegidio/avif-go (CGO required).
-func generateAVIF(input fs.FS, a *asset, quality int, dst io.Writer) error {
+func encodeAVIF(input fs.ReadFileFS, a *asset, quality int, dst *os.File) (int64, error) {
 	img, err := decodeImage(input, a)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
+	quality = min(0, max(quality, 100))
 	opts := &avif.Options{
 		Speed:        0,       // Encoding speed, from 0-10. Higher values result in faster encoding but lower quality (default 6)
 		AlphaQuality: quality, // Specifies the quality of the alpha channel (transparency), from 0-100 (default 60)
@@ -366,41 +356,51 @@ func generateAVIF(input fs.FS, a *asset, quality int, dst io.Writer) error {
 
 	err = avif.Encode(dst, img, opts)
 	if err != nil {
-		return fmt.Errorf("avif.Encode %w", err)
+		return 0, fmt.Errorf("avif.Encode %w", err)
 	}
 
-	return nil
+	info, err := dst.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("encodeAVIF dst.Stat %w", err)
+	}
+
+	return info.Size(), nil
 }
 
-// generateWebP generates WebP variant for image assets
+// encodeWebP generates WebP variant for image assets
 // Uses github.com/kolesa-team/go-webp/encoder (CGO required).
-func generateWebP(input fs.FS, a *asset, quality int, dst io.Writer) error {
+func encodeWebP(input fs.ReadFileFS, a *asset, quality int, dst *os.File) (int64, error) {
 	img, err := decodeImage(input, a)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Configure WebP options (lossy)
 	opts, err := encoder.NewLossyEncoderOptions(encoder.PresetPhoto, float32(quality))
 	if err != nil {
-		return fmt.Errorf("WebP NewLossyEncoderOptions %w", err)
+		return 0, fmt.Errorf("WebP NewLossyEncoderOptions %w", err)
 	}
 
 	enc, err := encoder.NewEncoder(img, opts)
 	if err != nil {
-		return fmt.Errorf("WebP NewEncoder %w", err)
+		return 0, fmt.Errorf("WebP NewEncoder %w", err)
 	}
 
 	err = enc.Encode(dst)
 	if err != nil {
-		return fmt.Errorf("WebP Encode %w", err)
+		return 0, fmt.Errorf("WebP Encode %w", err)
 	}
 
-	return nil
+	info, err := dst.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("encodeWebP dst.Stat %w", err)
+	}
+
+	return info.Size(), nil
 }
 
 // decodeImage decodes an image file.
-func decodeImage(input fs.FS, a *asset) (image.Image, error) {
+func decodeImage(input fs.ReadFileFS, a *asset) (image.Image, error) {
 	file, err := input.Open(a.Path)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open image file: %w", err)
@@ -416,6 +416,8 @@ func decodeImage(input fs.FS, a *asset) (image.Image, error) {
 	// image/jpeg  JPEG  Joint Photographic Expert Group
 	// image/png   PNG   Portable Network Graphics
 	// image/apng  APNG  Animated PNG
+	// image/x-icon  favicon.ico
+	// image/vnd.microsoft.icon
 
 	switch a.MIME {
 	case "image/jpeg":
@@ -439,12 +441,22 @@ func variantPath(a *asset, dir string, useCache bool, quality int, ext string) (
 	if useCache {
 		vFull = strconv.Itoa(quality) + a.ETag + ext // in the cache directory
 	}
+
 	vFull = path.Join(dir, vFull)
 	info, err := os.Stat(vFull)
 	if err != nil {
 		return vFull, 0 // variant does not yet exist => generate it
 	}
-	return vFull, info.Size() // variant exists => reuse it
+
+	size := info.Size()
+	if size == 0 {
+		os.Remove(vFull)
+		return vFull, 0
+	}
+
+	// variant exists => reuse it
+	slog.Debug("reuse", "variant", vFull, "size", toHuman(size))
+	return vFull, size
 }
 
 // cleanCache maintains cache size within configured limits
@@ -517,7 +529,7 @@ func allocateBudget(assets []asset, budget int64) []asset {
 	return assets
 }
 
-func linkCopyAsset(input fs.FS, inputDir, dstDir, assetPath string) error {
+func linkCopyAsset(input fs.ReadFileFS, inputDir, dstDir, assetPath string) error {
 	srcFull := path.Join(inputDir, assetPath)
 	dstFull := path.Join(dstDir, assetPath)
 
@@ -531,7 +543,9 @@ func linkCopyAsset(input fs.FS, inputDir, dstDir, assetPath string) error {
 
 	os.Remove(dstFull)               // Remove existing if present
 	err := os.Link(srcFull, dstFull) // Create hard-link
-	if err != nil {
+	if err == nil {
+		slog.Debug("hard-link", "asset", srcFull, "dst", dstFull)
+	} else {
 		return copyAsset(input, assetPath, dstFull) // fallback: copy
 	}
 	return nil
@@ -550,7 +564,9 @@ func linkCopyVariant(vCacheFull, dstDir, dstPath string) error {
 
 	os.Remove(dstFull)                  // Remove existing if present
 	err := os.Link(vCacheFull, dstFull) // Create hard-link
-	if err != nil {
+	if err == nil {
+		slog.Debug("hard-link", "variant", vCacheFull, "dst", dstFull)
+	} else {
 		return copyVariant(vCacheFull, dstFull) // fallback: copy
 	}
 	return nil
@@ -575,6 +591,7 @@ func copyAsset(srcFS fs.FS, srcPath, dstFull string) error {
 		return fmt.Errorf("copyAsset Copy: %w", err)
 	}
 
+	slog.Debug("fallback copy", "asset", srcPath, "dst", dstFull)
 	return nil
 }
 
@@ -597,5 +614,6 @@ func copyVariant(srcFull, dstFull string) error {
 		return fmt.Errorf("copyVariant Copy: %w", err)
 	}
 
+	slog.Debug("fallback copy", "variant", srcFull, "dst", dstFull)
 	return nil
 }

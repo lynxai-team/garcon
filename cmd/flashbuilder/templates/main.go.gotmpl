@@ -1,4 +1,6 @@
-{{define "main.go"}}// Copyright 2026 The contributors of Garcon.
+{{- define "main.go" -}}
+
+// Copyright 2026 The contributors of Garcon.
 // This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
@@ -32,23 +34,33 @@ import (
 	"github.com/lynxai-team/garcon/wf"{{end}}
 )
 
-// maxLen is the length of the largest asset path.
-const maxLen = {{.MaxLen}}
+// maxLenG is the length of the largest asset path (no leading slash).
+const maxLenG = {{.MaxLenG}}
+
+{{- if .Post}}
+
+// maxLenP is the length of the largest API endpoint (no leading slash).
+const maxLenP = {{.MaxLenP}}
+
+{{- end}}
 
 // Server implements http.Handler.
 type Server struct {
-	get  [maxLen + 2]func(http.ResponseWriter, *http.Request){{if .Post}}
-	post [maxLen + 2]func(http.ResponseWriter, *http.Request)
+	get  [maxLenG + 2]func(http.ResponseWriter, *http.Request){{if .Post}}
+	post [maxLenP + 2]func(http.ResponseWriter, *http.Request)
 
 	webForm wf.WebForm{{end}}
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	idx := min(len(r.URL.Path), len(s.get)-1){{if .Post}}
+{{- if .Post}}
 	if r.Method != "" && r.Method[0] == 'P' {
+		idx := min(len(r.URL.Path), len(s.post)-1)
 		s.post[idx](w, r)
 		return
-	}{{end}}
+	}
+{{end}}
+	idx := min(len(r.URL.Path), len(s.get)-1)
 	s.get[idx](w, r)
 }
 
@@ -219,4 +231,4 @@ func shutdownServers(ctx context.Context, tcpSrv *http.Server, udpSrv *http3.Ser
 		log.Printf("UDP shutdown error: %v", err)
 	}
 }
-{{end}}
+{{ end }}
