@@ -103,7 +103,7 @@ func copyAssetsAndVariants(input fs.FS, assets []asset, cli *flags) error {
 				assets[i].VariantExt = ext
 				assets[i].Size = size
 				if useCache {
-					return linkCopyVariant(cli.CacheDir, vFull, dstDir, assets[i].Path+ext)
+					return linkCopyVariant(vFull, dstDir, assets[i].Path+ext)
 				}
 				return nil // variant already in the dstDir
 			}
@@ -537,7 +537,7 @@ func linkCopyAsset(input fs.FS, inputDir, dstDir, assetPath string) error {
 	return nil
 }
 
-func linkCopyVariant(cacheDir, vCacheFull, dstDir, dstPath string) error {
+func linkCopyVariant(vCacheFull, dstDir, dstPath string) error {
 	dstFull := path.Join(dstDir, dstPath)
 
 	dstFullDir := path.Dir(dstFull)

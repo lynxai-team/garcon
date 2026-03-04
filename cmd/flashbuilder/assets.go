@@ -80,14 +80,6 @@ type fileItem struct {
 
 const workers = 4
 
-// ErrSkip is a sentinel error to signal that a file should be skipped
-// without logging it as a severe error (e.g., sockets, devices).
-var ErrSkip = errors.New("skip")
-
-func (a *asset) isVariant() bool {
-	return a.VariantExt != ""
-}
-
 // processItem creates an asset from a file path.
 // It handles the checks for special file types and returns ErrSkip for them.
 // This logic is extracted from the worker to reduce clutter.
@@ -144,10 +136,6 @@ func discover(input fs.FS, csp string) ([]asset, error) {
 					// processItem handles the logic for a single file
 					a, err := processItem(input, p, csp)
 					if err != nil {
-						// Use sentinel error to distinguish skips from failures
-						if errors.Is(err, ErrSkip) {
-							continue // Skip without logging
-						}
 						return err // Real error, stop the group
 					}
 
@@ -530,41 +518,4 @@ func computeETag(hash [16]byte) string {
 	encoder := base91.NewEncoding(base91Alphabet)
 	b91 := encoder.EncodeToString(hash[:])
 	return b91
-}
-
-// computeImoHashEtag sets the ImoHash and ETag for each asset.
-// Not very IO intensive because ImoHash reads three file chunks.
-// However, lets's speed up this step this step with parallel workers.
-// The slice assets[i] can be safely concurrency accessed
-// because it does not move during this processing.
-func computeHashesETags(input fs.FS, assets []asset) ([]asset, error) {
-	var g errgroup.Group
-
-	nA := len(assets)      // nA = number of assets
-	nW := min(nA, workers) // nW = number of workers (no more than assets)
-
-	if nW <= 0 {
-		return assets, nil // nothing to do
-	}
-
-	next := 0
-	for w := range nW {
-		g.Go(func() error {
-			first := next
-			next = ((w + 1) * nA) / nW // next == nA for the last worker (w == nW-1)
-
-			for i := first; i < next; i++ {
-				hash, etag, err := computeImoHashEtag(input, assets[i].Path)
-				if err != nil {
-					return err
-				}
-				assets[i].Hash = hash
-				assets[i].ETag = etag
-			}
-			return nil
-		})
-	}
-
-	err := g.Wait()
-	return assets, err
 }
