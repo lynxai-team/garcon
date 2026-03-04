@@ -24,20 +24,31 @@ func TestIntegration_DiscoverToGet(t *testing.T) {
 	}
 
 	csp := ""
+	// Discover assets
 	assets, err := discover(input, csp)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("discover expected success, got err=%d", err)
 	}
 
 	// Set .Identifier
 	setIdentifiers(assets)
 
-	assets, err = computeHashesETags(input, assets)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	assets = deduplicate(assets)
+
+	// Generate variants
+	cli := flags{
+		Input:    t.TempDir(),
+		Output:   t.TempDir(),
+		CacheDir: t.TempDir(),
+		CacheMax: 99_000_000,
+		Brotli:   5,
+		AVIF:     50,
+		WebP:     50,
+	}
+	err = copyAssetsAndVariants(input, assets, &cli)
+	if err != nil {
+		t.Fatalf("copyAssetsAndVariants expected success, got err=%d", err)
+	}
 
 	// Allocate embed budget
 	const embedBudget = 30
@@ -54,12 +65,18 @@ func TestIntegration_DiscoverToGet(t *testing.T) {
 	// Compute MaxLen
 	maxLen := computeMaxLen(assets)
 
-	// Generate get arrays
+	// Generate get and post arrays
 	get := buildGet(assets, maxLen)
+	post := buildPost(assets, maxLen)
 
-	// Verify get arrays
+	// Verify get array
 	if len(get) != maxLen+2 {
 		t.Errorf("HTTP get length: expected %d, got %d", maxLen+2, len(get))
+	}
+
+	// Verify post array
+	if len(post) != 0 {
+		t.Errorf("HTTP post length: expected %d, got %d", 0, len(post))
 	}
 
 	want := []handlers{{
