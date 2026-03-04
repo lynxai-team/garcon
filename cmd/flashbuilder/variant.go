@@ -77,7 +77,7 @@ func copyAssetsAndVariants(input fs.ReadFileFS, assets []asset, cli *flags) erro
 	g, _ := errgroup.WithContext(context.Background())
 
 	for i := range assets {
-		if assets[i].IsDuplicate {
+		if assets[i].IsDuplicate || assets[i].IsShortcut {
 			continue
 		}
 
@@ -99,7 +99,7 @@ func copyAssetsAndVariants(input fs.ReadFileFS, assets []asset, cli *flags) erro
 
 		g.Go(func() error {
 			vFull, ext, size := generateOneVariant(input, &assets[i], cli, variantDir, useCache, br, av, wp)
-			if size > 0 {
+			if vFull != "" {
 				assets[i].VariantExt = ext
 				assets[i].Size = size
 				if useCache {
@@ -198,16 +198,16 @@ func generateOneVariant(input fs.ReadFileFS, a *asset, cli *flags, variantDir st
 	return vFull, ext, size
 }
 
-func enableVariant(quality int, aSize, minSz, maxSz int64) bool {
+func enableVariant(quality int, a *asset, minSz, maxSz int64) bool {
 	if quality < 0 {
 		return false
 	}
-	if aSize < minSz {
-		slog.Debug("skip tiny asset", "size", aSize, "min", minSz)
+	if a.Size < minSz {
+		slog.Debug("skip tiny", "asset", a.Path, "size", a.Size, "min", minSz)
 		return false
 	}
-	if aSize > maxSz {
-		slog.Info("skip huge asset", "size", aSize, "max", maxSz)
+	if a.Size > maxSz {
+		slog.Info("skip huge", "asset", a.Path, "size", toHuman(a.Size), "max", maxSz)
 		return false
 	}
 	return true
@@ -215,7 +215,7 @@ func enableVariant(quality int, aSize, minSz, maxSz int64) bool {
 
 // getBrotli retrieves Brotli from cache or generates it for asset.
 func getBrotli(input fs.ReadFileFS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
-	if !enableVariant(quality, a.Size, minSz4Brotli, maxSz4Brotli) {
+	if !enableVariant(quality, a, minSz4Brotli, maxSz4Brotli) {
 		return "", "", sizeInit
 	}
 
@@ -244,7 +244,7 @@ func getBrotli(input fs.ReadFileFS, a *asset, quality int, variantDir string, us
 // getAVIF retrieves AVIF from cache or generates it for image asset.
 // Uses github.com/vegidio/avif-go (CGO required).
 func getAVIF(input fs.ReadFileFS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
-	if !enableVariant(quality, a.Size, minSz4AVIF, maxSz4AVIF) {
+	if !enableVariant(quality, a, minSz4AVIF, maxSz4AVIF) {
 		return "", "", sizeInit
 	}
 
@@ -273,7 +273,7 @@ func getAVIF(input fs.ReadFileFS, a *asset, quality int, variantDir string, useC
 // getWebP generates WebP variant for image assets
 // Uses github.com/kolesa-team/go-webp/encoder (CGO required).
 func getWebP(input fs.ReadFileFS, a *asset, quality int, variantDir string, useCache bool) (vFull, _ string, size int64) {
-	if !enableVariant(quality, a.Size, minSz4WebP, maxSz4WebP) {
+	if !enableVariant(quality, a, minSz4WebP, maxSz4WebP) {
 		return "", "", sizeInit
 	}
 
@@ -430,7 +430,7 @@ func decodeImage(input fs.ReadFileFS, a *asset) (image.Image, error) {
 		img, _, decodeErr = image.Decode(file)
 	}
 	if decodeErr != nil {
-		return nil, fmt.Errorf("Failed to decode image %s (%s): %w", a.Path, toHuman(a.Size), decodeErr)
+		return nil, fmt.Errorf("Decode %s (%s) %s: %w", a.Path, toHuman(a.Size), a.MIME, decodeErr)
 	}
 
 	return img, nil
@@ -455,7 +455,7 @@ func variantPath(a *asset, dir string, useCache bool, quality int, ext string) (
 	}
 
 	// variant exists => reuse it
-	slog.Debug("reuse", "variant", vFull, "size", toHuman(size))
+	slog.Debug("reuse variant", "asset", a.Path, "sizeA", toHuman(a.Size), "sizeV", toHuman(size), "variant", vFull)
 	return vFull, size
 }
 
@@ -599,7 +599,7 @@ func copyAsset(srcFS fs.FS, srcPath, dstFull string) error {
 func copyVariant(srcFull, dstFull string) error {
 	src, err := os.Open(srcFull)
 	if err != nil {
-		return fmt.Errorf("copyVariant Open: %w", err)
+		return fmt.Errorf("copyVariant Open %q: %w", srcFull, err)
 	}
 	defer src.Close()
 
