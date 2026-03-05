@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -32,7 +33,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const maxAssetSize = math.MaxInt32 // 2_147_483_647 Bytes = 2 GB
+const maxAssetSize = math.MaxInt32 // 2_147_483_647 Bytes = 2 GB
 
 // asset represents a static asset with all pre-computed metadata.
 type asset struct {
@@ -74,30 +75,22 @@ func (u uint128) String() string {
 	return enc.EncodeToString(buf[:])
 }
 
-// Define a structured type for items sent over the channel.
-type fileItem struct {
-	path string
-	size int64
-}
+// newAsset creates an asset from a file path.
+func newAsset(input fs.FS, assetPath string, csp string) (*asset, error) {
+	mimeType := detectMIME(input, assetPath)
 
-const workers = 4
-
-// processItem creates an asset from a file path.
-func processItem(input fs.ReadFileFS, file fileItem, csp string) (*asset, error) {
-	mimeType := detectMIME(input, file.path)
-	isHTML, isIndex, c, endpoints := extractHTML(input, file.path, mimeType)
+	isHTML, isIndex, c, endpoints := extractHTML(input, assetPath, mimeType)
 	if isHTML && c == "" {
 		c = csp
 	}
 
-	hash, etag, err := computeImoHashEtag(input, file.path)
+	hash, etag, err := computeImoHashEtag(input, assetPath)
 	if err != nil {
 		return nil, err
 	}
 
 	return &asset{
-		Path:      file.path, // relative to input (also used as the request endpoint even if the variant is embedded)
-		Size:      file.size,
+		Path:      assetPath, // relative to input (also used as the request endpoint even if the variant is embedded)
 		MIME:      mimeType,
 		Hash:      hash,
 		ETag:      etag,
@@ -105,108 +98,92 @@ func processItem(input fs.ReadFileFS, file fileItem, csp string) (*asset, error)
 		IsIndex:   isIndex,
 		CSP:       c,         // Content-Security-Policy (HTTP header)
 		API:       endpoints, // Contact-form API endpoints (POST requests)
-		Frequency: estimateFrequencyScore(file.path),
+		Frequency: estimateFrequencyScore(assetPath),
 	}, nil
 }
 
-// discover walks the input directory and collects all files.
-// Parallelized using errgroup. Accepts fs.FS for testability.
-// Returns assets sorted by relative path for deterministic ordering.
-func discover(input fs.ReadFileFS, csp string) ([]asset, error) {
+// discoverAssets walks the input directory and collects all files.
+// It uses errgroup.SetLimit to bound concurrency,
+// preventing excessive goroutine spawning and memory exhaustion,
+// by blocking the WalkDir producer when the `workers` limit is reached.
+func discoverAssets(input fs.FS, csp string) ([]asset, error) {
 	var assets []asset
 	var mu sync.Mutex
 
-	// Initialize errgroup for concurrent processing
+	// Initialize errgroup with context for cancellation.
 	g, ctx := errgroup.WithContext(context.Background())
 
-	// Buffered channel to improve throughput.
-	paths := make(chan fileItem, workers*2)
+	// Set the concurrency limit: ensure we do not spawn more than 'workers' goroutines.
+	workers := max(2, runtime.NumCPU()/2)
+	g.SetLimit(workers)
 
-	// Worker pool to process paths (Consumer)
-	for range workers {
-		g.Go(func() error {
-			for {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case p, ok := <-paths:
-					if !ok {
-						return nil // Channel closed
-					}
-
-					// processItem handles the logic for a single file
-					a, err := processItem(input, p, csp)
-					if err != nil {
-						return err // Real error, stop the group
-					}
-
-					mu.Lock()
-					assets = append(assets, *a)
-					mu.Unlock()
-				}
-			}
-		})
-	}
-
-	// Walk the filesystem (Producer)
-	// This runs synchronously in the main goroutine.
-	walkErr := fs.WalkDir(input, ".", func(assetPath string, entry fs.DirEntry, err error) error {
-		if err != nil { // we cannot propagate error to errgroup context because
-			return err // fs.WalkDir does not accept context => we check ctx.Done
+	// Walk the filesystem
+	err := fs.WalkDir(input, ".", func(assetPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err // Propagate I/O errors immediately.
 		}
 
-		if entry.IsDir() {
+		// If the context is canceled by another worker => we stop immediately.
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		if d.IsDir() {
 			return nil // skip directories
 		}
 
-		info, err := entry.Info()
+		info, err := d.Info()
 		if err != nil {
 			return err
 		}
 
 		mode := info.Mode()
-		if mode&os.ModeSocket != 0 || mode&os.ModeDevice != 0 || mode&os.ModeNamedPipe != 0 {
-			return nil // skip special files (sockets, devices, pipes)
+		const skipMask = os.ModeSocket | os.ModeDevice | os.ModeNamedPipe
+		if mode&skipMask != 0 {
+			slog.Info("skip special files (sockets, devices, pipes)", "mode", mode)
+			return nil
 		}
 
 		if info.Size() > maxAssetSize {
 			slog.Info("skip asset", "size", info.Size(), "max", toHuman(maxAssetSize))
-			return nil // security: no asset larger than 2 GB
+			return nil // security: no asset larger than 2 GB
 		}
 
-		select { // Send to worker
-		case paths <- fileItem{path: assetPath, size: info.Size()}:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		// Spawn a processing task.
+		// g.Go will block if the limit is reached, throttling the WalkDir.
+		// If the context is canceled, g.Go returns ctx.Err() immediately.
+		g.Go(func() error {
+			a, err := newAsset(input, assetPath, csp)
+			if err != nil {
+				return err
+			}
+
+			a.Size = info.Size()
+
+			mu.Lock()
+			assets = append(assets, *a) // Append to slice with mutex protection
+			mu.Unlock()
+			return nil
+		})
+
 		return nil
 	})
-
-	// Close the channel to signal workers to stop.
-	// This must happen after the producer (WalkDir) finishes.
-	close(paths)
-
-	// Wait for workers to finish.
-	// g.Wait returns error if any worker returns error.
-	waitErr := g.Wait()
-
-	// Return walk or worker error
-	if walkErr != nil {
-		return nil, walkErr
-	}
-	if waitErr != nil {
-		return nil, waitErr
+	// If WalkDir returned an error (e.g., permission denied), we return it.
+	if err != nil {
+		return nil, err
 	}
 
-	// Sort by route for deterministic ordering
-	sort.Slice(assets, func(i, j int) bool {
-		return assets[i].Path < assets[j].Path
-	})
+	// Wait for all outstanding goroutines to finish.
+	// g.Wait returns the first error (if any), canceling the context.
+	err = g.Wait()
+	if err != nil {
+		return nil, err
+	}
 
 	return assets, nil
 }
 
-func extractHTML(input fs.ReadFileFS, assetPath, mimeType string) (isHTML, isIndex bool, csp string, endpoints map[string]struct{}) {
+func extractHTML(input fs.FS, assetPath, mimeType string) (isHTML, isIndex bool, csp string, endpoints map[string]struct{}) {
 	isHTML = strings.HasSuffix(mimeType, "/html") || // text/html
 		strings.HasSuffix(mimeType, "html+xml") // application/xhtml+xml
 
@@ -220,7 +197,7 @@ func extractHTML(input fs.ReadFileFS, assetPath, mimeType string) (isHTML, isInd
 }
 
 // parseHTML parses HTML and returns first CSP and unique <form> actions.
-func parseHTML(input fs.ReadFileFS, assetPath string) (csp string, endpoints map[string]struct{}) {
+func parseHTML(input fs.FS, assetPath string) (csp string, endpoints map[string]struct{}) {
 	// Re-open to read full content (or reset reader)
 	f, err := input.Open(assetPath)
 	if err != nil {
@@ -263,8 +240,9 @@ func parseHTML(input fs.ReadFileFS, assetPath string) (csp string, endpoints map
 				// Collect unique action attributes.
 				for _, a := range t.Attr {
 					if strings.EqualFold(a.Key, "action") {
-						api := validEndpoint(assetPath, html.UnescapeString(a.Val))
-						if api == "" {
+						api, err := validEndpoint(assetPath, html.UnescapeString(a.Val))
+						if err != nil {
+							slog.Info("skip <form>", "err", err)
 							break
 						}
 						if _, ok := endpoints[api]; !ok {
@@ -293,41 +271,38 @@ func validCSP(csp string) string {
 	return csp
 }
 
-func validEndpoint(assetPath, endpoint string) string {
+// validEndpoint sanitizes the form action endpoint.
+func validEndpoint(assetPath, endpoint string) (string, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		slog.Info("skip <form> because not an URL", "action", endpoint, "err", err)
-		return ""
+		return "", fmt.Errorf("invalid URL %q: %w", endpoint, err)
 	}
 
 	sanitized := path.Clean(u.Path)
 	if !path.IsAbs(sanitized) {
 		sanitized = path.Join(path.Dir(assetPath), sanitized)
-		sanitized = path.Clean(sanitized)
 	}
 
 	if sanitized == "" {
-		slog.Info("skip <form> because sanitized is empty", "action", endpoint)
-		return ""
+		return "", fmt.Errorf("empty after sanitization %q", endpoint)
 	}
 
 	if strings.Contains(sanitized, "..") {
-		slog.Info("skip <form> because contains ..", "action", endpoint, "sanitized", sanitized)
-		return ""
+		return "", fmt.Errorf(`sanitized contains ".." %q`, sanitized)
 	}
 
 	if sanitized[0] == '/' {
 		sanitized = sanitized[1:] // drop leading slash
 	}
 
-	return sanitized
+	return sanitized, nil
 }
 
 // detectMIME determines the MIME type for a file
 // Step 1: Extension-based lookup
 // Step 2: Content sniffing
 // Step 3: Fallback to application/octet-stream.
-func detectMIME(input fs.ReadFileFS, assetPath string) string {
+func detectMIME(input fs.FS, assetPath string) string {
 	// search by extension
 	ext := path.Ext(assetPath)
 	if ext != "" {
@@ -395,8 +370,8 @@ func deduplicate(assets []asset) []asset {
 	return assets
 }
 
-// setIdentifiers sets identifiers.
-func setIdentifiers(assets []asset) {
+// generateIdentifiers sets identifiers.
+func generateIdentifiers(assets []asset) {
 	identifiers := make(existing, len(assets))
 	for i := range assets {
 		assets[i].Identifier = identifiers.generateIdentifier(assets[i].Path)
@@ -510,7 +485,7 @@ func uint128From16Bytes(b [16]byte) uint128 {
 }
 
 // computeImoHash computes the ImoHash for a file (128 bits).
-func computeImoHashEtag(input fs.ReadFileFS, assetPath string) (hash uint128, etag string, err error) {
+func computeImoHashEtag(input fs.FS, assetPath string) (hash uint128, etag string, err error) {
 	f, err := input.Open(assetPath)
 	if err != nil {
 		return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag input.Open: %w", err)
@@ -522,16 +497,17 @@ func computeImoHashEtag(input fs.ReadFileFS, assetPath string) (hash uint128, et
 		return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag f.Stat: %w", err)
 	}
 
-	ff, ok := f.(io.ReaderAt)
-	if !ok { // no ReaderAt interface for fstest => Fallback
-		buf, err := io.ReadAll(f)
-		if err != nil {
-			return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag io.ReadAll: %w", err)
+	// use ReaderAt for efficiency, fallback to ReadAll if not supported (fstest).
+	readerAt, ok := f.(io.ReaderAt)
+	if !ok { // fallback: read entire content into memory
+		buf, er := io.ReadAll(f)
+		if er != nil {
+			return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag io.ReadAll: %w", er)
 		}
-		ff = bytes.NewReader(buf)
+		readerAt = bytes.NewReader(buf)
 	}
 
-	sr := io.NewSectionReader(ff, 0, info.Size())
+	sr := io.NewSectionReader(readerAt, 0, info.Size())
 	sum, err := imohash.SumSectionReader(sr)
 	if err != nil {
 		return uint128{0, 0}, "", fmt.Errorf("imohash.SumSectionReader: %w", err)
