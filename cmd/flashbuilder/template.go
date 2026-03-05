@@ -29,6 +29,16 @@ type templateData struct {
 	Post      []handlers
 }
 
+// parseTemplates parses and caches templates.
+func parseTemplates() (*template.Template, error) {
+	tmpl := template.New("root").Funcs(funcMap)
+	tmpl, err := tmpl.ParseFS(templateFS, "templates/*.go.gotmpl")
+	if err != nil {
+		err = fmt.Errorf("Failed to parse templates: %w", err)
+	}
+	return tmpl, err
+}
+
 // generate generates the Go code for the flash server.
 func generate(data templateData, output string, dryRun bool) error {
 	tmpl, err := parseTemplates()
@@ -85,12 +95,7 @@ func generate(data templateData, output string, dryRun bool) error {
 }
 
 func renderWriteCode(dryRun bool, data templateData, tmpl *template.Template, output string, filename ...string) error {
-	// render source code
-	code, err := renderTemplate(tmpl, filename[0], data)
-	if err != nil {
-		return err
-	}
-
+	templateDefine := filename[0]
 	goFile := filename[0]
 	if len(filename) > 1 {
 		goFile = filename[1]
@@ -102,10 +107,28 @@ func renderWriteCode(dryRun bool, data templateData, tmpl *template.Template, ou
 		data.Scheme = "HTTP"
 	}
 
-	// create Go file
-	err = writeCode(dryRun, code, output, goFile)
+	// render source code from a template with data.
+	var code bytes.Buffer
+	err := tmpl.ExecuteTemplate(&code, templateDefine, data)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to render %q template: %w", templateDefine, err)
+	}
+
+	if dryRun {
+		return nil
+	}
+
+	// ensure output directory exist
+	err = os.MkdirAll(output, 0o700)
+	if err != nil {
+		return fmt.Errorf("renderWriteCode MkdirAll %s: %w", output, err)
+	}
+
+	// write Go file
+	goFile = path.Join(output, goFile)
+	err = os.WriteFile(goFile, code.Bytes(), 0o600)
+	if err != nil {
+		return fmt.Errorf("renderWriteCode WriteFile %s: %w", goFile, err)
 	}
 
 	return nil
@@ -185,42 +208,4 @@ func toHuman(size int64) string {
 
 	// `%g` prints the shortest representation, dropping trailing ".0".
 	return fmt.Sprintf("%g%s", value, units[idx])
-}
-
-// parseTemplates parses and caches templates.
-func parseTemplates() (*template.Template, error) {
-	tmpl := template.New("root").Funcs(funcMap)
-	tmpl, err := tmpl.ParseFS(templateFS, "templates/*.go.gotmpl")
-	if err != nil {
-		err = fmt.Errorf("Failed to parse templates: %w", err)
-	}
-	return tmpl, err
-}
-
-// renderTemplate renders a template with data.
-func renderTemplate(tmpl *template.Template, name string, data any) ([]byte, error) {
-	var buf bytes.Buffer
-	err := tmpl.ExecuteTemplate(&buf, name, data)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to render %q template: %w", name, err)
-	}
-	return buf.Bytes(), nil
-}
-
-func writeCode(dryRun bool, code []byte, output, filename string) error {
-	if dryRun {
-		return nil
-	}
-
-	err := os.MkdirAll(output, 0o700)
-	if err != nil {
-		return fmt.Errorf("Failed os.MkdirAll(%s): %w", output, err)
-	}
-
-	err = os.WriteFile(path.Join(output, filename), code, 0o600)
-	if err != nil {
-		return fmt.Errorf("Failed os.WriteFile(%s/%s): %w", output, filename, err)
-	}
-
-	return nil
 }
