@@ -25,8 +25,6 @@ type templateData struct {
 	Assets  []asset
 	Get     []handlers
 	Post    []handlers
-	MaxLenG int
-	MaxLenP int
 }
 
 // cfg holds configuration for template rendering.

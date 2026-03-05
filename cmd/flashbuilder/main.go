@@ -55,18 +55,18 @@ func validateInputs(cli *flags) (*flags, error) {
 		cli.CacheDir = getDefaultCacheDir()
 	}
 
-	absInput, err := filepath.Abs(cli.Input)
+	cli.Input, err = filepath.Abs(cli.Input)
 	if err != nil {
 		return nil, fmt.Errorf("path.Abs(input) %w", err)
 	}
 
-	absOutput, err := filepath.Abs(cli.Output)
+	cli.Output, err = filepath.Abs(cli.Output)
 	if err != nil {
 		return nil, fmt.Errorf("path.Abs(output) %w", err)
 	}
 
 	// Security check for input/output equality
-	if absInput == absOutput {
+	if cli.Input == cli.Output {
 		return nil, errors.New("Input and output must differ")
 	}
 
@@ -81,51 +81,44 @@ func do(cli *flags) error {
 		return err
 	}
 
-	// use fs.ReadFileFS for mocking with fstest.
-	input, ok := os.DirFS(cli.Input).(fs.ReadFileFS)
-	if !ok {
-		return errors.New("cannot type assert os.DirFS -> fs.ReadFileFS")
-	}
+	// use fs.FS to access the assets files
+	// this simplifies the tests mocking (fstest)
+	input := os.DirFS(cli.Input)
 
-	// discover assets
-	assets, err := discover(input, cli.CSP)
+	return process(input, cli)
+}
+
+func process(input fs.FS, cli *flags) error {
+	assets, err := discoverAssets(input, cli.CSP)
 	if err != nil {
 		return err
 	}
 
-	// set .Identifier
-	setIdentifiers(assets)
-
+	generateIdentifiers(assets)
 	assets = deduplicate(assets)
-
-	// allocate embed budget
-	assets = allocateBudget(assets, int64(cli.EmbedBudget))
+	allocateEmbedBudget(assets, int64(cli.EmbedBudget))
 
 	// copy assets to assets/ and www/
 	// generate assets variants (Brotli, AVIF, WebP)
 	// replace assets by their variants
-	err = copyAssetsAndVariants(input, assets, cli)
+	err = linkCopyAssetsVariants(input, assets, cli)
 	if err != nil {
 		return err
 	}
 
-	assets = addShortcutPaths(assets)
+	assets = addShortcutRoutes(assets)
 
-	maxLenG := computeMaxLenGet(assets)
-	maxLenP := computeMaxLenPost(assets)
-
-	// Generate get and post arrays
-	get := buildGet(assets, maxLenG)
-	post := buildPost(assets, maxLenP)
+	get, post, err := buildGetPostDispatch(assets)
+	if err != nil {
+		return err
+	}
 
 	// Generate Go code
 	data := templateData{
-		Config:  cfg{CSP: cli.CSP, HTTPSPort: "8443"},
-		Assets:  assets,
-		Get:     get,
-		Post:    post,
-		MaxLenG: maxLenG,
-		MaxLenP: maxLenP,
+		Config: cfg{CSP: cli.CSP, HTTPSPort: "8443"},
+		Assets: assets,
+		Get:    get,
+		Post:   post,
 	}
 	err = generate(data, cli.Output, cli.DryRun)
 	if err != nil {

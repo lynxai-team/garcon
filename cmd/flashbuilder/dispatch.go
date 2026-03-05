@@ -5,6 +5,7 @@
 package main
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -34,6 +35,25 @@ func computeMaxLenPost(assets []asset) int {
 		}
 	}
 	return maxLenP
+}
+
+func buildGetPostDispatch(assets []asset) (get, post []handlers, _ error) {
+	maxLenG := computeMaxLenGet(assets)
+	maxLenP := computeMaxLenPost(assets)
+
+	const maxLenSecurity = 10_000
+	if maxLenG > maxLenSecurity {
+		return nil, nil, fmt.Errorf("the largest asset path is %d > %d", maxLenG, maxLenSecurity)
+	}
+	if maxLenP > maxLenSecurity {
+		return nil, nil, fmt.Errorf("the largest endpoint route is %d > %d", maxLenP, maxLenSecurity)
+	}
+
+	// Generate get and post arrays
+	get = buildGet(assets, maxLenG)
+	post = buildPost(assets, maxLenP)
+
+	return get, post, nil
 }
 
 // buildGet generates the dispatch array for the GET handlers.
@@ -155,7 +175,7 @@ func buildPostRoutesByLength(assets []asset, size int) [][]asset {
 	return routesByLen
 }
 
-func addShortcutPaths(assets []asset) []asset {
+func addShortcutRoutes(assets []asset) []asset {
 	routes := make(map[string]struct{}, len(assets))
 	for _, asset := range assets {
 		routes[asset.Path] = struct{}{}
