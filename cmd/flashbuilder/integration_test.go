@@ -25,13 +25,13 @@ func TestIntegration_DiscoverToGet(t *testing.T) {
 
 	csp := ""
 	// Discover assets
-	assets, err := discover(input, csp)
+	assets, err := discoverAssets(input, csp)
 	if err != nil {
 		t.Fatalf("discover expected success, got err=%d", err)
 	}
 
 	// Set .Identifier
-	setIdentifiers(assets)
+	generateIdentifiers(assets)
 
 	assets = deduplicate(assets)
 
@@ -45,17 +45,17 @@ func TestIntegration_DiscoverToGet(t *testing.T) {
 		AVIF:     50,
 		WebP:     50,
 	}
-	err = copyAssetsAndVariants(input, assets, &cli)
+	err = linkCopyAssetsVariants(input, assets, &cli)
 	if err != nil {
 		t.Fatalf("copyAssetsAndVariants expected success, got err=%d", err)
 	}
 
 	// Allocate embed budget
 	const embedBudget = 30
-	assets = allocateBudget(assets, embedBudget)
+	allocateEmbedBudget(assets, embedBudget)
 
 	// Add shortcuts
-	assets = addShortcutPaths(assets)
+	assets = addShortcutRoutes(assets)
 
 	// Compute MaxLenG
 	maxLenG := computeMaxLenGet(assets)
@@ -113,11 +113,11 @@ func TestIntegration_BudgetAllocation(t *testing.T) {
 	}
 
 	// Budget of 250 should fit a + b, but not c
-	result := allocateBudget(assets, 350)
+	allocateEmbedBudget(assets, 350)
 
 	// Verify first two are eligible
 	total := 0
-	for _, a := range result {
+	for _, a := range assets {
 		if a.IsEmbedEligible {
 			total++
 		}

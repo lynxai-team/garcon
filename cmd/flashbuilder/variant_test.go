@@ -164,7 +164,7 @@ func TestGenerateVariants_SkipDuplicates(t *testing.T) {
 		WebP:     50,
 	}
 
-	err := copyAssetsAndVariants(input, assets, &cli)
+	err := linkCopyAssetsVariants(input, assets, &cli)
 	if err != nil {
 		t.Errorf("Unexpected err=%s", err)
 	}
@@ -174,8 +174,8 @@ func TestGenerateVariants_SkipDuplicates(t *testing.T) {
 	}
 }
 
-// TestAllocateBudget tests embed budget allocation.
-func TestAllocateBudget(t *testing.T) {
+// TestAllocateBudget2 tests embed budget allocation.
+func TestAllocateBudget2(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
@@ -185,29 +185,29 @@ func TestAllocateBudget(t *testing.T) {
 	}
 
 	// Budget of 600 should fit small + medium, but not large
-	result := allocateBudget(assets, 600)
+	allocateEmbedBudget(assets, 600)
 
 	// Verify sorting (smallest first)
-	if len(result) < 3 {
-		t.Fatalf("Expected 3 assets, got %d", len(result))
+	if len(assets) < 3 {
+		t.Fatalf("Expected 3 assets, got %d", len(assets))
 	}
 
 	// First two should be eligible
-	if !result[0].IsEmbedEligible {
+	if !assets[0].IsEmbedEligible {
 		t.Errorf("Asset 0 should be eligible")
 	}
-	if !result[1].IsEmbedEligible {
+	if !assets[1].IsEmbedEligible {
 		t.Errorf("Asset 1 should be eligible")
 	}
 
 	// Last one should not be eligible
-	if result[2].IsEmbedEligible {
+	if assets[2].IsEmbedEligible {
 		t.Errorf("Asset 2 should not be eligible (too large)")
 	}
 }
 
-// TestCleanCache tests cache cleaning.
-func TestCleanCache(t *testing.T) {
+// TestCleanCache2 tests cache cleaning.
+func TestCleanCache2(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
@@ -249,5 +249,158 @@ func TestCleanCache(t *testing.T) {
 	_, err = os.Stat(path.Join(tmpDir, "new.txt"))
 	if err != nil {
 		t.Error("New file should still exist")
+	}
+}
+
+// TestVariantEligibility tests MIME type compression eligibility.
+func TestVariantEligibility(t *testing.T) {
+	t.Parallel()
+
+	type expected struct{ b, a, w bool }
+	tests := []struct {
+		expected expected
+		name     string
+		mime     string
+	}{
+		{expected{true, false, false}, "JS", "text/javascript"},
+		{expected{true, false, false}, "XML", "application/xml"},
+		{expected{true, false, false}, "CSS", "text/css"},
+		{expected{true, false, false}, "Markdown", "text/markdown"},
+		{expected{true, false, false}, "SVG", "image/svg+xml"},
+		{expected{true, false, false}, "HTML", "text/html"},
+		{expected{true, false, false}, "JSON", "application/json"},
+		{expected{false, true, true}, "JPEG", "image/jpeg"},
+		{expected{false, true, true}, "PNG", "image/png"},
+		{expected{false, true, true}, "GIF", "image/gif"},
+		{expected{false, true, true}, "AVIF", "image/avif"},
+		{expected{false, true, true}, "WebP", "image/webp"},
+		{expected{false, false, false}, "Binary", "application/octet-stream"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			b, a, w := variantEligibility(tt.mime)
+			if b != tt.expected.b || a != tt.expected.a || w != tt.expected.w {
+				t.Errorf("Expected %v, got b=%v a=%v w=%v", tt.expected, b, a, w)
+			}
+		})
+	}
+}
+
+// TestAllocateBudget tests embed budget allocation.
+func TestAllocateBudget(t *testing.T) {
+	t.Parallel()
+
+	assets := []asset{
+		{Path: "small.txt", Size: 100},
+		{Path: "medium.txt", Size: 500},
+		{Path: "large.txt", Size: 1000},
+	}
+
+	// Budget of 600 should fit small + medium, but not large
+	allocateEmbedBudget(assets, 600)
+
+	// Verify sorting (smallest first)
+	if len(assets) < 3 {
+		t.Fatalf("Expected 3 assets, got %d", len(assets))
+	}
+
+	// First two should be eligible
+	if !assets[0].IsEmbedEligible {
+		t.Errorf("Asset 0 should be eligible")
+	}
+	if !assets[1].IsEmbedEligible {
+		t.Errorf("Asset 1 should be eligible")
+	}
+
+	// Last one should not be eligible
+	if assets[2].IsEmbedEligible {
+		t.Errorf("Asset 2 should not be eligible (too large)")
+	}
+}
+
+// TestCleanCache tests cache cleaning logic.
+func TestCleanCache(t *testing.T) {
+	t.Parallel()
+
+	// Create temp directory
+	tmpDir := t.TempDir()
+
+	// Create a file
+	filePath := path.Join(tmpDir, "test.txt")
+	err := os.WriteFile(filePath, []byte("test"), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Clean cache with maxSize = 0 (should delete everything)
+	cleanCache(tmpDir, 0)
+
+	// Check if file exists
+	_, err = os.Stat(filePath)
+	if err == nil {
+		t.Error("File should have been deleted")
+	}
+}
+
+// TestGenerateShortcut tests shortcut generation.
+func TestGenerateShortcut(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		inPath   string
+		expected string
+	}{
+		{"Root index", "index.html", ""},
+		{"Subdir index", "about/index.html", "about"},
+		{"CSS file", "style.css", "style"},
+		{"JS file", "script.js", "script"},
+		{"No extension", "path/to/file", "path/to/file"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := generateShortcut(tt.inPath)
+			if result != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestCopyAssetsAndVariants tests the variant generation logic (mocked).
+// NOTE: This test requires CGO dependencies. It's marked as an integration test.
+func TestIntegration_Variants(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	// Setup mock filesystem
+	input := fstest.MapFS{
+		"test.txt": &fstest.MapFile{Data: []byte("This is a text file")},
+	}
+
+	assets := []asset{
+		{Path: "test.txt", MIME: "text/plain", IsEmbedEligible: true, Size: 16_000},
+	}
+
+	cli := flags{
+		Input:    t.TempDir(),
+		Output:   t.TempDir(),
+		CacheDir: t.TempDir(),
+		CacheMax: 99_000_000,
+		Brotli:   5, // Enable Brotli
+	}
+
+	// This will call copyAssetsAndVariants
+	// We expect a .br variant to be created (or skipped if logic says so)
+	err := linkCopyAssetsVariants(input, assets, &cli)
+	if err != nil {
+		t.Errorf("Unexpected err=%s", err)
 	}
 }

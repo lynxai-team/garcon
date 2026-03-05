@@ -76,8 +76,6 @@ func TestRenderTemplate(t *testing.T) {
 				IsEmbedEligible: true,
 			},
 		},
-		MaxLenG: 10,
-		MaxLenP: 10,
 	}
 
 	tmpl, err := parseTemplates()

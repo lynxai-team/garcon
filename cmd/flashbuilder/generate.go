@@ -21,10 +21,10 @@ var templateFS embed.FS
 
 // templateData aggregates all data for template rendering.
 type templateData struct {
-	Config  cfg
-	Assets  []asset
-	Get     []handlers
-	Post    []handlers
+	Config cfg
+	Assets []asset
+	Get    []handlers
+	Post   []handlers
 }
 
 // cfg holds configuration for template rendering.
