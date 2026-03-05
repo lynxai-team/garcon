@@ -209,8 +209,8 @@ func estimateFrequencyScore(assetPath string) int {
 }
 
 func extractHTML(input fs.FS, assetPath, mimeType string) (isHTML, isIndex bool, csp string, endpoints map[string]struct{}) {
-	isHTML = strings.HasSuffix(mimeType, "/html") || // text/html
-		strings.HasSuffix(mimeType, "html+xml") // application/xhtml+xml
+	isHTML = strings.HasPrefix(mimeType, "text/html") ||
+		strings.HasPrefix(mimeType, "application/xhtml") // application/xhtml+xml
 
 	isIndex = isHTML && strings.HasSuffix(assetPath, "index.html")
 
@@ -226,7 +226,7 @@ func parseHTML(input fs.FS, assetPath string) (csp string, endpoints map[string]
 	// Re-open to read full content (or reset reader)
 	f, err := input.Open(assetPath)
 	if err != nil {
-		slog.Warn("extractFromFS input.Open", "path", assetPath, "err", err)
+		slog.Warn("parseHTML input.Open", "path", assetPath, "err", err)
 		return "", nil
 	}
 	defer f.Close()
@@ -238,7 +238,7 @@ func parseHTML(input fs.FS, assetPath string) (csp string, endpoints map[string]
 		case html.ErrorToken:
 			err := z.Err()
 			if errors.Is(err, io.EOF) {
-				slog.Warn("HTML parse error", "error", err)
+				slog.Warn("parseHTML", "err", err, "asset", assetPath)
 			}
 			return csp, endpoints // EOF reached
 		case html.StartTagToken, html.SelfClosingTagToken:
@@ -260,6 +260,7 @@ func parseHTML(input fs.FS, assetPath string) (csp string, endpoints map[string]
 				}
 				if strings.EqualFold(httpEquiv, "Content-Security-Policy") && content != "" {
 					csp = validCSP(html.UnescapeString(content))
+					slog.Debug("parseHTML found", "CSP", csp, "asset", assetPath)
 				}
 			case "form":
 				// Collect unique action attributes.
@@ -267,15 +268,17 @@ func parseHTML(input fs.FS, assetPath string) (csp string, endpoints map[string]
 					if strings.EqualFold(a.Key, "action") {
 						api, err := validEndpoint(assetPath, html.UnescapeString(a.Val))
 						if err != nil {
-							slog.Info("skip <form>", "err", err)
+							slog.Info("skip <form>", "err", err, "asset", assetPath)
 							break
 						}
 						if _, ok := endpoints[api]; !ok {
 							if endpoints == nil {
 								endpoints = map[string]struct{}{api: {}}
+								slog.Debug("parseHTML found first", "endpoint", api, "asset", assetPath)
 								break
 							}
 							endpoints[api] = struct{}{}
+							slog.Debug("parseHTML found another", "endpoint", api, "asset", assetPath)
 						}
 						break
 					}
