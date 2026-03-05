@@ -283,19 +283,15 @@ func isBinaryFile(filePath string) (bool, error) {
 	reader := bufio.NewReader(file)
 	buf := make([]byte, 128)
 
-	for {
-		n, err := reader.Read(buf)
-		if err != nil {
-			if err.Error() != "EOF" {
-				return false, err
-			}
-			break
+	n, err := reader.Read(buf)
+	if err != nil {
+		if err.Error() != "EOF" {
+			return false, err
 		}
-
-		isUTF8 := Valid(buf[:n])
-		return !isUTF8, nil
 	}
-	return false, nil // No binary characters found
+
+	isUTF8 := Valid(buf[:n])
+	return !isUTF8, nil
 }
 
 // genFilenameLine generates the header line with filename (or filename regex).
