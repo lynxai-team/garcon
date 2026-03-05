@@ -87,7 +87,7 @@ func linkCopyAssetsVariants(input fs.FS, assets []asset, cli *flags) error {
 	// Limit the concurrent goroutines: g.Go blocks the for loop
 	// when the limit is reached, until a worker finishes.
 	// We try to use available cores without over-spawning.
-	workers := max(2, runtime.NumCPU()/2)
+	workers := max(2, runtime.NumCPU()/4) // NumCPU = number of logical CPUs
 	g.SetLimit(workers)
 
 	// Main processing loop.
@@ -239,11 +239,11 @@ func enableVariant(quality int, a *asset, minSz, maxSz int64) bool {
 		return false
 	}
 	if a.Size < minSz {
-		slog.Debug("skip tiny", "asset", a.Path, "size", a.Size, "min", minSz)
+		slog.Debug("no variant for tiny", "asset", a.Path, "size", a.Size, "min", minSz)
 		return false
 	}
 	if a.Size > maxSz {
-		slog.Info("skip huge", "asset", a.Path, "size", toHuman(a.Size), "max", maxSz)
+		slog.Info("no variant for huge", "asset", a.Path, "size", toHuman(a.Size), "max", maxSz)
 		return false
 	}
 	return true
