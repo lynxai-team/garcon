@@ -34,41 +34,7 @@ func TestDiscover(t *testing.T) {
 	}
 }
 
-// TestGenerateIdentifier2 tests identifier generation.
-func TestGenerateIdentifier2(t *testing.T) {
-	t.Parallel()
 
-	tests := []struct {
-		name     string
-		inPath   string
-		expected string
-	}{
-		{"Simple file", "css/style.css", "CssStyleCss"},
-		{"Index file", "index.html", "IndexHtml"},
-		{"Nested file", "assets/css/main.css", "AssetsCssMainCss"},
-		{"Special chars", "assets/images/logo-1.png", "AssetsImagesLogo1Png"},
-		{"Duplicate", "css/style.css", "AssetCssStyleCss2"},
-	}
-
-	identifiers := existing{}
-	for i, tt := range tests {
-		if i > 0 && tt.name == "Duplicate" {
-			// Simulate existing identifier
-			identifiers["CssStyleCss"] = struct{}{}
-		}
-
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			id := identifiers.generateIdentifier(tt.inPath)
-			// Check for valid Go identifier chars
-			for _, r := range id {
-				if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
-					t.Errorf("Invalid character in identifier: %c", r)
-				}
-			}
-		})
-	}
-}
 
 // TestEstimateFrequencyScore tests frequency score calculation.
 func TestEstimateFrequencyScore(t *testing.T) {
@@ -121,7 +87,7 @@ func TestGenerateShortcut2(t *testing.T) {
 			t.Parallel()
 			result := generateShortcut(tt.inPath)
 			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
+				t.Errorf("Want %s, got %s", tt.expected, result)
 			}
 		})
 	}
@@ -209,26 +175,47 @@ func TestGenerateIdentifier(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		inPath   string
-		expected string
+		name      string
+		assetPath string
+		want      string
 	}{
 		{"Simple file", "css/style.css", "CssStyleCss"},
 		{"Index file", "index.html", "IndexHtml"},
 		{"Nested file", "assets/css/main.css", "AssetsCssMainCss"},
 		{"Special chars", "assets/images/logo-1.png", "AssetsImagesLogo1Png"},
-		{"Duplicate", "css/style.css", "CssStyleCss2"}, // requires setup
+		{"Duplicate", "css/style.css", "CssStyleCss"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			identifiers := existing{}
-			// Resolve collision for the duplicate test
-			if tt.name == "Duplicate" {
-				identifiers["CssStyleCss"] = struct{}{}
+
+			id := identifiers.generateIdentifier(tt.assetPath)
+			if id != tt.want {
+				t.Errorf("Want %s, got %s", tt.want, id)
 			}
-			id := identifiers.generateIdentifier(tt.inPath)
+
+			// Test collision
+
+			want := tt.want + "0"
+			id = identifiers.generateIdentifier(tt.assetPath)
+			if id != want {
+				t.Errorf("Want %s, got %s", want, id)
+			}
+
+			want = tt.want + "1"
+			id = identifiers.generateIdentifier(tt.assetPath)
+			if id != want {
+				t.Errorf("Want %s, got %s", want, id)
+			}
+
+			want = tt.want + "2"
+			id = identifiers.generateIdentifier(tt.assetPath)
+			if id != want {
+				t.Errorf("Want %s, got %s", want, id)
+			}
+
 			// Check for valid Go identifier chars
 			for _, r := range id {
 				if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
