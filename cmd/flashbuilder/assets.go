@@ -60,48 +60,6 @@ type asset struct {
 	IsIndex bool // Is index file (e.g., index.html)
 }
 
-type uint128 struct {
-	Hi, Lo uint64
-}
-
-// String stringifies uint128:
-// - returns 22‑character Base64‑URL filename‑safe.
-// - Zero‑allocation: only a fixed [22]byte lives on the stack.
-func (u uint128) String() string {
-	var buf [16]byte
-	binary.BigEndian.PutUint64(buf[:8], u.Hi)
-	binary.BigEndian.PutUint64(buf[8:], u.Lo)
-	enc := base64.URLEncoding.WithPadding(base64.NoPadding)
-	return enc.EncodeToString(buf[:])
-}
-
-// newAsset creates an asset from a file path.
-func newAsset(input fs.FS, assetPath, csp string) (*asset, error) {
-	mimeType := detectMIME(input, assetPath)
-
-	isHTML, isIndex, c, endpoints := extractHTML(input, assetPath, mimeType)
-	if isHTML && c == "" {
-		c = csp
-	}
-
-	hash, etag, err := computeImoHashEtag(input, assetPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return &asset{
-		Path:      assetPath, // relative to input (also used as the request endpoint even if the variant is embedded)
-		MIME:      mimeType,
-		Hash:      hash,
-		ETag:      etag,
-		IsHTML:    isHTML,
-		IsIndex:   isIndex,
-		CSP:       c,         // Content-Security-Policy (HTTP header)
-		API:       endpoints, // Contact-form API endpoints (POST requests)
-		Frequency: estimateFrequencyScore(assetPath),
-	}, nil
-}
-
 // discoverAssets walks the input directory and collects all files.
 // It uses errgroup.SetLimit to bound concurrency,
 // preventing excessive goroutine spawning and memory exhaustion,
@@ -118,9 +76,9 @@ func discoverAssets(input fs.FS, csp string) ([]asset, error) {
 	g.SetLimit(workers)
 
 	// Walk the filesystem
-	err := fs.WalkDir(input, ".", func(assetPath string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err // Propagate I/O errors immediately.
+	err := fs.WalkDir(input, ".", func(assetPath string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr // Propagate I/O errors immediately.
 		}
 
 		// If the context is canceled by another worker => we stop immediately.
@@ -128,11 +86,11 @@ func discoverAssets(input fs.FS, csp string) ([]asset, error) {
 			return ctx.Err()
 		}
 
-		if d.IsDir() {
+		if entry.IsDir() {
 			return nil // skip directories
 		}
 
-		info, err := d.Info()
+		info, err := entry.Info()
 		if err != nil {
 			return err
 		}
@@ -181,6 +139,73 @@ func discoverAssets(input fs.FS, csp string) ([]asset, error) {
 	}
 
 	return assets, nil
+}
+
+// newAsset creates an asset from a file path.
+func newAsset(input fs.FS, assetPath, csp string) (*asset, error) {
+	mimeType := detectMIME(input, assetPath)
+
+	isHTML, isIndex, c, endpoints := extractHTML(input, assetPath, mimeType)
+	if isHTML && c == "" {
+		c = csp
+	}
+
+	hash, etag, err := computeImoHashEtag(input, assetPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &asset{
+		Path:      assetPath, // relative to input (also used as the request endpoint even if the variant is embedded)
+		MIME:      mimeType,
+		Hash:      hash,
+		ETag:      etag,
+		IsHTML:    isHTML,
+		IsIndex:   isIndex,
+		CSP:       c,         // Content-Security-Policy (HTTP header)
+		API:       endpoints, // Contact-form API endpoints (POST requests)
+		Frequency: estimateFrequencyScore(assetPath),
+	}, nil
+}
+
+// estimateFrequencyScore estimates request frequency for switch case ordering
+// Higher frequency assets appear first in switch statements for better branch prediction.
+func estimateFrequencyScore(assetPath string) int {
+	score := 0
+
+	if assetPath == "" || assetPath == "index.html" {
+		score += 1000
+	}
+	if strings.Contains(assetPath, "favicon.") {
+		score += 900
+	}
+	if strings.HasSuffix(assetPath, ".css") {
+		score += 800
+	}
+	if strings.HasSuffix(assetPath, ".js") {
+		score += 600
+	}
+	if strings.Contains(assetPath, "index.html") {
+		score += 500
+	}
+	if strings.Contains(assetPath, "logo.") {
+		score += 400
+	}
+
+	// Path complexity penalty
+	score -= 5 * len(assetPath)
+	score -= 30 * strings.Count(assetPath, "/")
+
+	// Low-traffic extensions penalty
+	lowTraffic := []string{".map", ".zip", ".pdf", ".doc", ".xls", ".tar"}
+	for _, ext := range lowTraffic {
+		if strings.HasSuffix(assetPath, ext) {
+			score -= 100
+			break
+		}
+	}
+
+	return score
 }
 
 func extractHTML(input fs.FS, assetPath, mimeType string) (isHTML, isIndex bool, csp string, endpoints map[string]struct{}) {
@@ -339,37 +364,6 @@ func detectMIME(input fs.FS, assetPath string) string {
 	return "application/octet-stream"
 }
 
-// deduplicate identifies duplicate assets based on content hash.
-func deduplicate(assets []asset) []asset {
-	hashMap := make(map[uint128][]int) // Map hash -> slice of asset indices
-
-	// Sort by route length
-	sort.Slice(assets, func(i, j int) bool {
-		return len(assets[i].Path) < len(assets[j].Path)
-	})
-
-	// Group assets by hash
-	for i, a := range assets {
-		key := a.Hash
-		hashMap[key] = append(hashMap[key], i)
-	}
-
-	// Mark duplicates
-	for _, indices := range hashMap {
-		if len(indices) > 1 {
-			canonicalIdx := indices[0]
-			canonical := assets[canonicalIdx]
-			// TODO: For now, assume hash is enough, but we should check content
-			for i := 1; i < len(indices); i++ {
-				idx := indices[i]
-				assets[idx].IsDuplicate = true
-				assets[idx].Identifier = canonical.Identifier
-			}
-		}
-	}
-	return assets
-}
-
 // generateIdentifiers sets identifiers.
 func generateIdentifiers(assets []asset) {
 	identifiers := make(existing, len(assets))
@@ -419,44 +413,35 @@ func (e existing) resolveCollision(original string) string {
 	return value
 }
 
-// estimateFrequencyScore estimates request frequency for switch case ordering
-// Higher frequency assets appear first in switch statements for better branch prediction.
-func estimateFrequencyScore(assetPath string) int {
-	score := 0
+// deduplicate identifies duplicate assets based on content hash.
+func deduplicate(assets []asset) []asset {
+	hashMap := make(map[uint128][]int) // Map hash -> slice of asset indices
 
-	if assetPath == "" || assetPath == "index.html" {
-		score += 1000
-	}
-	if strings.Contains(assetPath, "favicon.") {
-		score += 900
-	}
-	if strings.HasSuffix(assetPath, ".css") {
-		score += 800
-	}
-	if strings.HasSuffix(assetPath, ".js") {
-		score += 600
-	}
-	if strings.Contains(assetPath, "index.html") {
-		score += 500
-	}
-	if strings.Contains(assetPath, "logo.") {
-		score += 400
+	// Sort by route length
+	sort.Slice(assets, func(i, j int) bool {
+		return len(assets[i].Path) < len(assets[j].Path)
+	})
+
+	// Group assets by hash
+	for i, a := range assets {
+		key := a.Hash
+		hashMap[key] = append(hashMap[key], i)
 	}
 
-	// Path complexity penalty
-	score -= 5 * len(assetPath)
-	score -= 30 * strings.Count(assetPath, "/")
-
-	// Low-traffic extensions penalty
-	lowTraffic := []string{".map", ".zip", ".pdf", ".doc", ".xls", ".tar"}
-	for _, ext := range lowTraffic {
-		if strings.HasSuffix(assetPath, ext) {
-			score -= 100
-			break
+	// Mark duplicates
+	for _, indices := range hashMap {
+		if len(indices) > 1 {
+			canonicalIdx := indices[0]
+			canonical := assets[canonicalIdx]
+			// TODO: For now, assume hash is enough, but we should check content
+			for i := 1; i < len(indices); i++ {
+				idx := indices[i]
+				assets[idx].IsDuplicate = true
+				assets[idx].Identifier = canonical.Identifier
+			}
 		}
 	}
-
-	return score
+	return assets
 }
 
 // generateShortcut creates an extensionless shortcut and
@@ -475,6 +460,21 @@ func generateShortcut(inPath string) string {
 	// Extensionless shortcuts
 	ext := path.Ext(inPath)
 	return inPath[:len(inPath)-len(ext)]
+}
+
+type uint128 struct {
+	Hi, Lo uint64
+}
+
+// String stringifies uint128:
+// - returns 22‑character Base64‑URL filename‑safe.
+// - Zero‑allocation: only a fixed [22]byte lives on the stack.
+func (u uint128) String() string {
+	var buf [16]byte
+	binary.BigEndian.PutUint64(buf[:8], u.Hi)
+	binary.BigEndian.PutUint64(buf[8:], u.Lo)
+	enc := base64.URLEncoding.WithPadding(base64.NoPadding)
+	return enc.EncodeToString(buf[:])
 }
 
 func uint128From16Bytes(b [16]byte) uint128 {
@@ -497,10 +497,12 @@ func computeImoHashEtag(input fs.FS, assetPath string) (hash uint128, etag strin
 		return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag f.Stat: %w", err)
 	}
 
-	// use ReaderAt for efficiency, fallback to ReadAll if not supported (fstest).
+	// use ReaderAt for efficiency, fallback to buffered reading if not supported (fstest).
 	readerAt, ok := f.(io.ReaderAt)
-	if !ok { // fallback: read entire content into memory
-		buf, er := io.ReadAll(f)
+	if !ok { // fallback: read content into memory with a limit to prevent OOM.
+		const maxMemoryLoad = 100 * 1024 * 1024 // 100 MB
+		limitedReader := io.LimitReader(f, maxMemoryLoad)
+		buf, er := io.ReadAll(limitedReader)
 		if er != nil {
 			return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag io.ReadAll: %w", er)
 		}
@@ -536,4 +538,22 @@ func computeETag(hash [16]byte) string {
 	encoder := base91.NewEncoding(base91Alphabet)
 	b91 := encoder.EncodeToString(hash[:])
 	return b91
+}
+
+// allocateEmbedBudget determines which assets are eligible for embedding
+// Assets are sorted by size (smallest first) and embedded until budget exhausted.
+func allocateEmbedBudget(assets []asset, budget int64) {
+	// Sort assets by size (smallest first for embedding priority)
+	sort.Slice(assets, func(i, j int) bool {
+		return assets[i].Size < assets[j].Size
+	})
+
+	var total int64
+	for i := range assets {
+		if total+assets[i].Size > budget {
+			break
+		}
+		assets[i].IsEmbedEligible = true
+		total += assets[i].Size
+	}
 }
