@@ -115,10 +115,11 @@ func process(input fs.FS, cli *flags) error {
 
 	// Generate Go code
 	data := templateData{
-		Config: cfg{CSP: cli.CSP, HTTPSPort: "8443"},
-		Assets: assets,
-		Get:    get,
-		Post:   post,
+		CSP:       cli.CSP,
+		HTTPSPort: "8443",
+		Assets:    assets,
+		Get:       get,
+		Post:      post,
 	}
 	err = generate(data, cli.Output, cli.DryRun)
 	if err != nil {

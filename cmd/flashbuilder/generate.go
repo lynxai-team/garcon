@@ -21,27 +21,94 @@ var templateFS embed.FS
 
 // templateData aggregates all data for template rendering.
 type templateData struct {
-	Config cfg
-	Assets []asset
-	Get    []handlers
-	Post   []handlers
-}
-
-// cfg holds configuration for template rendering.
-type cfg struct {
 	CSP       string
 	HTTPSPort string
 	Scheme    string // "HTTP" or "HTTPS"
+	Assets    []asset
+	Get       []handlers
+	Post      []handlers
 }
 
-// parseTemplates parses and caches templates.
-func parseTemplates() (*template.Template, error) {
-	tmpl := template.New("root").Funcs(funcMap)
-	tmpl, err := tmpl.ParseFS(templateFS, "templates/*.go.gotmpl")
+// generate generates the Go code for the flash server.
+func generate(data templateData, output string, dryRun bool) error {
+	tmpl, err := parseTemplates()
 	if err != nil {
-		err = fmt.Errorf("Failed to parse templates: %w", err)
+		return err
 	}
-	return tmpl, err
+	err = renderWriteCode(dryRun, data, tmpl, output, "main.go")
+	if err != nil {
+		return err
+	}
+	err = renderWriteCode(dryRun, data, tmpl, output, "embed.go")
+	if err != nil {
+		return err
+	}
+	err = renderWriteCode(dryRun, data, tmpl, output, "http-headers.go")
+	if err != nil {
+		return err
+	}
+	err = renderWriteCode(dryRun, data, tmpl, output, "https-headers.go")
+	if err != nil {
+		return err
+	}
+	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "http-server.go")
+	if err != nil {
+		return err
+	}
+	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "https-serve.go")
+	if err != nil {
+		return err
+	}
+	err = renderWriteCode(dryRun, data, tmpl, output, "get.go", "http-get.go")
+	if err != nil {
+		return err
+	}
+	err = renderWriteCode(dryRun, data, tmpl, output, "get.go", "https-get.go")
+	if err != nil {
+		return err
+	}
+
+	if len(data.Post) == 0 {
+		return nil // no POST endpoints => do not generate empty Go files
+	}
+
+	err = renderWriteCode(dryRun, data, tmpl, output, "post.go", "http-post.go")
+	if err != nil {
+		return err
+	}
+	err = renderWriteCode(dryRun, data, tmpl, output, "post.go", "https-post.go")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func renderWriteCode(dryRun bool, data templateData, tmpl *template.Template, output string, filename ...string) error {
+	// render source code
+	code, err := renderTemplate(tmpl, filename[0], data)
+	if err != nil {
+		return err
+	}
+
+	goFile := filename[0]
+	if len(filename) > 1 {
+		goFile = filename[1]
+	}
+
+	if strings.Contains(goFile, "https") {
+		data.Scheme = "HTTPS"
+	} else {
+		data.Scheme = "HTTP"
+	}
+
+	// create Go file
+	err = writeCode(dryRun, code, output, goFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // funcMap provides template helper functions.
@@ -120,6 +187,16 @@ func toHuman(size int64) string {
 	return fmt.Sprintf("%g%s", value, units[idx])
 }
 
+// parseTemplates parses and caches templates.
+func parseTemplates() (*template.Template, error) {
+	tmpl := template.New("root").Funcs(funcMap)
+	tmpl, err := tmpl.ParseFS(templateFS, "templates/*.go.gotmpl")
+	if err != nil {
+		err = fmt.Errorf("Failed to parse templates: %w", err)
+	}
+	return tmpl, err
+}
+
 // renderTemplate renders a template with data.
 func renderTemplate(tmpl *template.Template, name string, data any) ([]byte, error) {
 	var buf bytes.Buffer
@@ -128,89 +205,6 @@ func renderTemplate(tmpl *template.Template, name string, data any) ([]byte, err
 		return nil, fmt.Errorf("Failed to render %q template: %w", name, err)
 	}
 	return buf.Bytes(), nil
-}
-
-// generate generates the Go code for the flash server.
-func generate(data templateData, output string, dryRun bool) error {
-	tmpl, err := parseTemplates()
-	if err != nil {
-		return err
-	}
-
-	// Generate main.go
-	err = renderWriteCode(dryRun, data, tmpl, output, "main.go")
-	if err != nil {
-		return err
-	}
-
-	// Generate assets.go
-	err = renderWriteCode(dryRun, data, tmpl, output, "assets.go")
-	if err != nil {
-		return err
-	}
-
-	// Generate headers-http.go
-	err = renderWriteCode(dryRun, data, tmpl, output, "headers-http.go")
-	if err != nil {
-		return err
-	}
-
-	// Generate headers-https.go
-	err = renderWriteCode(dryRun, data, tmpl, output, "headers-https.go")
-	if err != nil {
-		return err
-	}
-
-	// Generate handle-http.go
-	data.Config.Scheme = "HTTP"
-	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "server-http.go")
-	if err != nil {
-		return err
-	}
-
-	// Generate handle-https.go
-	data.Config.Scheme = "HTTPS"
-	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "server-https.go")
-	if err != nil {
-		return err
-	}
-
-	// Generate serve-http.go
-	data.Config.Scheme = "HTTP"
-	err = renderWriteCode(dryRun, data, tmpl, output, "endpoints.go", "endpoints-http.go")
-	if err != nil {
-		return err
-	}
-
-	// Generate serve-https.go
-	data.Config.Scheme = "HTTPS"
-	err = renderWriteCode(dryRun, data, tmpl, output, "endpoints.go", "endpoints-https.go")
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func renderWriteCode(dryRun bool, data any, tmpl *template.Template, output string, filename ...string) error {
-	// render source code
-	code, err := renderTemplate(tmpl, filename[0], data)
-	if err != nil {
-		return err
-	}
-
-	goFile := filename[0]
-	if len(filename) > 1 {
-		goFile = filename[1]
-	}
-
-	// create Go file
-	err = writeCode(dryRun, code, output, goFile)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func writeCode(dryRun bool, code []byte, output, filename string) error {

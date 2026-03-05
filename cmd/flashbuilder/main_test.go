@@ -161,12 +161,12 @@ import (
 			}
 
 			want := []byte(tt.want)
-			got, err := os.ReadFile(path.Join(tt.flags.Output, "assets.go"))
+			got, err := os.ReadFile(path.Join(tt.flags.Output, "embed.go"))
 			if err != nil {
-				t.Fatalf("Miss assets.go error=%v", err)
+				t.Fatalf("Miss embed.go error=%v", err)
 			}
 			if !bytes.Equal(got, want) {
-				t.Errorf("assets.go differ: %v", cmp.Diff(want, got))
+				t.Errorf("embed.go differ: %v", cmp.Diff(want, got))
 				t.Errorf("got:"+"\n"+"%s", got)
 			}
 		})
