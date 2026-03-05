@@ -76,7 +76,7 @@ func (u uint128) String() string {
 }
 
 // newAsset creates an asset from a file path.
-func newAsset(input fs.FS, assetPath string, csp string) (*asset, error) {
+func newAsset(input fs.FS, assetPath, csp string) (*asset, error) {
 	mimeType := detectMIME(input, assetPath)
 
 	isHTML, isIndex, c, endpoints := extractHTML(input, assetPath, mimeType)
@@ -114,7 +114,7 @@ func discoverAssets(input fs.FS, csp string) ([]asset, error) {
 	g, ctx := errgroup.WithContext(context.Background())
 
 	// Set the concurrency limit: ensure we do not spawn more than 'workers' goroutines.
-	workers := max(2, runtime.NumCPU()/2)
+	workers := max(2, runtime.NumCPU()/2) // NumCPU = number of logical CPUs
 	g.SetLimit(workers)
 
 	// Walk the filesystem
@@ -287,12 +287,12 @@ func validEndpoint(assetPath, endpoint string) (string, error) {
 		return "", fmt.Errorf("empty after sanitization %q", endpoint)
 	}
 
-	if strings.Contains(sanitized, "..") {
-		return "", fmt.Errorf(`sanitized contains ".." %q`, sanitized)
-	}
-
 	if sanitized[0] == '/' {
 		sanitized = sanitized[1:] // drop leading slash
+	}
+
+	if sanitized != "" && !fs.ValidPath(sanitized) {
+		return "", fmt.Errorf("invalid path %q", sanitized)
 	}
 
 	return sanitized, nil
