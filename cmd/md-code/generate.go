@@ -171,7 +171,7 @@ func (c *Config) generateMarkdown() error {
 	w := bufio.NewWriter(out)
 
 	// Walk the folder tree in lexical order for deterministic output.
-	err := filepath.WalkDir(c.folder, func(path string, d fs.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(c.folder, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Skip entries that cannot be accessed but continue the walk.
 			return nil
@@ -183,7 +183,7 @@ func (c *Config) generateMarkdown() error {
 				log.Stopf("SKIP dot %q, use --all to include it", path)
 				return filepath.SkipDir
 			}
-			if d.IsDir() {
+			if entry.IsDir() {
 				if slices.Contains(ignoreFolders, base) {
 					log.Stopf("SKIP folder %q, use --all to include it", path)
 					return filepath.SkipDir
@@ -352,19 +352,19 @@ type extractedFile struct {
 // Errors are returned to the caller for proper handling.
 func collectResults(root string) ([]extractedFile, error) {
 	var out []extractedFile
-	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(root, func(fullPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			// Continue walking despite individual errors.
 			return nil
 		}
-		if d.IsDir() {
+		if entry.IsDir() {
 			return nil
 		}
-		info, err := d.Info()
+		info, err := entry.Info()
 		if err != nil {
 			return nil
 		}
-		rel, _ := filepath.Rel(root, p) // ignore Rel error - path is under root.
+		rel, _ := filepath.Rel(root, fullPath) // ignore Rel error - path is under root.
 		out = append(out, extractedFile{path: rel, size: info.Size()})
 		return nil
 	})
