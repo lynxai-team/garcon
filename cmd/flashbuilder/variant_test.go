@@ -77,7 +77,7 @@ func TestIsCompressible(t *testing.T) {
 			t.Parallel()
 			b, a, w := variantEligibility(tt.mime)
 			if b != tt.expected.b || a != tt.expected.a || w != tt.expected.w {
-				t.Errorf("Expected %v, got b=%v a=%v w=%v", tt.expected, b, a, w)
+				t.Errorf("Want %v, got b=%v a=%v w=%v", tt.expected, b, a, w)
 			}
 		})
 	}
@@ -105,7 +105,7 @@ func TestIsImage(t *testing.T) {
 			t.Parallel()
 			result := isImage(tt.mime)
 			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
+				t.Errorf("Want %v, got %v", tt.expected, result)
 			}
 		})
 	}
@@ -282,7 +282,7 @@ func TestVariantEligibility(t *testing.T) {
 			t.Parallel()
 			b, a, w := variantEligibility(tt.mime)
 			if b != tt.expected.b || a != tt.expected.a || w != tt.expected.w {
-				t.Errorf("Expected %v, got b=%v a=%v w=%v", tt.expected, b, a, w)
+				t.Errorf("Want %v, got b=%v a=%v w=%v", tt.expected, b, a, w)
 			}
 		})
 	}
@@ -365,7 +365,7 @@ func TestGenerateShortcut(t *testing.T) {
 			t.Parallel()
 			result := generateShortcut(tt.inPath)
 			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
+				t.Errorf("Want %s, got %s", tt.expected, result)
 			}
 		})
 	}

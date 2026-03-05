@@ -92,7 +92,7 @@ func TestComputeMaxLen2(t *testing.T) {
 			}
 			result := computeMaxLenGet(assets)
 			if result != tt.expected {
-				t.Errorf("Expected %d, got %d", tt.expected, result)
+				t.Errorf("Want %d, got %d", tt.expected, result)
 			}
 		})
 	}
@@ -155,7 +155,7 @@ func TestComputeMaxLen(t *testing.T) {
 			}
 			result := computeMaxLenGet(assets)
 			if result != tt.expected {
-				t.Errorf("Expected %d, got %d", tt.expected, result)
+				t.Errorf("Want %d, got %d", tt.expected, result)
 			}
 		})
 	}
