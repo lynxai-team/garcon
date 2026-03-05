@@ -12,7 +12,7 @@ import (
 	"testing/fstest"
 )
 
-func TestDiscover(t *testing.T) {
+func TestDiscoverAssets(t *testing.T) {
 	t.Parallel()
 
 	input := fstest.MapFS{
@@ -21,20 +21,21 @@ func TestDiscover(t *testing.T) {
 		"script.js":  &fstest.MapFile{Data: []byte("console.log")},
 		"image.png":  &fstest.MapFile{Data: []byte("\x89PNG")},
 		"data.json":  &fstest.MapFile{Data: []byte("{}")},
+		"about.html": &fstest.MapFile{Data: []byte("<html><body>Hello</body></html>")},
+		"style2.css": &fstest.MapFile{Data: []byte("body { color: red; }")},
+		"script2.js": &fstest.MapFile{Data: []byte("console.log('test')")},
 	}
 
-	assets, err := discoverAssets(input, "")
+	assets, err := discoverAssets(input, "my default csp value")
 	if err != nil {
 		t.Fatalf("Discovery failed: %v", err)
 	}
 
 	// Verify count
-	if len(assets) != 5 {
+	if len(assets) != 8 {
 		t.Errorf("Expected 5 assets, got %d", len(assets))
 	}
 }
-
-
 
 // TestEstimateFrequencyScore tests frequency score calculation.
 func TestEstimateFrequencyScore(t *testing.T) {
@@ -116,34 +117,6 @@ func (f *MockFile) Read(p []byte) (n int, err error) {
 	// Simple implementation for io.ReaderAt
 	r := bytes.NewReader(f.data)
 	return r.Read(p)
-}
-
-// TestDiscover2 tests the concurrency and error handling of the discover function.
-func TestDiscover2(t *testing.T) {
-	t.Parallel()
-
-	// Setup mock filesystem
-	input := fstest.MapFS{
-		"index.html": &fstest.MapFile{Data: []byte("<html><body>Hello</body></html>")},
-		"style.css":  &fstest.MapFile{Data: []byte("body { color: red; }")},
-		"script.js":  &fstest.MapFile{Data: []byte("console.log('test')")},
-	}
-
-	// Call discover (this requires mocking fs.ReadFileFS, which we approximate with fs.FS)
-	// NOTE: The source code expects `fs.ReadFileFS`. We cast fstest.MapFS to it.
-	// Since fstest.MapFS implements Open(), it fits the pattern.
-	// We need to cast or wrap it.
-	// For testing purposes, we assume the provided interface is satisfied.
-
-	assets, err := discoverAssets(input, "")
-	if err != nil {
-		t.Fatalf("Discover failed: %v", err)
-	}
-
-	// Verify count
-	if len(assets) != 3 {
-		t.Errorf("Expected 3 assets, got %d", len(assets))
-	}
 }
 
 // TestDeduplicate tests the deduplication logic.
@@ -237,7 +210,7 @@ func TestProcessItem(t *testing.T) {
 	// Call processItem (mocking the io.ReaderAt for imohash)
 	// Since fstest.MapFile does not implement ReaderAt, computeImoHashEtag will fallback to io.ReadAll.
 	// We test the logic flow.
-	asset, err := newAsset(input, "test.txt", "csp")
+	asset, err := newAsset(input, "test.txt", "default csp value")
 	if err != nil {
 		t.Fatalf("ProcessItem failed: %v", err)
 	}
@@ -261,22 +234,61 @@ func TestProcessItem(t *testing.T) {
 func TestParseHTML(t *testing.T) {
 	t.Parallel()
 
-	htmlContent := []byte(`<html><head><meta http-equiv="Content-Security-Policy" content="default-src 'self'"></head><body><form action="/submit"></form></body></html>`)
+	const wantCSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+	const wantAPI = "api/submit"
+
+	test1 := []byte(`
+<html>
+<head>
+	<meta http-equiv="Content-Security-Policy" content="` + wantCSP + `">
+</head>
+<body>
+	<form action="/` + wantAPI + `"></form>
+</body>
+</html>`)
+
+	test2 := []byte(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Contact & Greetings</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy"
+          content="` + wantCSP + `">
+</head>
+<body>
+    <h1>Contact Us</h1>
+    <form action="/` + wantAPI + `" method="post">
+        <div>
+            <label for="greeting-text">What greeting do you want to say?</label>
+            <input type="text" id="greeting-text" name="say" value="Hi" required>
+        </div>
+        <div>
+            <label for="greeting-to">Who do you want to say it to?</label>
+            <input type="text" id="greeting-to" name="to" value="Mom" required>
+        </div>
+        <button type="submit">Send my greetings</button>
+    </form>
+</body>
+</html>`)
+
 	input := fstest.MapFS{
-		"test.html": &fstest.MapFile{Data: htmlContent},
+		"test1.html": &fstest.MapFile{Data: test1},
+		"test2.html": &fstest.MapFile{Data: test2},
 	}
 
-	csp, endpoints := parseHTML(input, "test.html")
-
-	if csp != "default-src 'self'" {
-		t.Errorf("Expected CSP extraction, got: %s", csp)
-	}
-
-	if len(endpoints) != 1 {
-		t.Errorf("Expected 1 endpoint, got %d", len(endpoints))
-	}
-	if _, ok := endpoints["submit"]; !ok {
-		t.Errorf("Expected 'submit' endpoint, but found different key")
+	for htmlFile := range input {
+		csp, endpoints := parseHTML(input, htmlFile)
+		if csp != wantCSP {
+			t.Errorf("Want CSP extraction, got %q", csp)
+		}
+		if len(endpoints) != 1 {
+			t.Fatalf("Want 1 endpoint, got %d", len(endpoints))
+		}
+		if _, ok := endpoints[wantAPI]; !ok {
+			t.Errorf("Want %q endpoint, but got %v", wantAPI, endpoints)
+		}
 	}
 }
 
