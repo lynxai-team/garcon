@@ -166,33 +166,43 @@ func generateLinkCopy(input fs.FS, a *asset, cli *flags, wwwDir, assetsDir strin
 
 // variantEligibility determines if content is eligible for Brotli / AVIF / WebP.
 func variantEligibility(mime string) (brotliEligible, avifEligible, webpEligible bool) {
-	// image/jpeg image/png image/apng image/gif image/webp image/avif image/x-icon image/vnd.microsoft.icon
-	for _, suffix := range []string{"jpeg", "png", "gif", "webp", "avif", "icon"} {
-		if strings.HasSuffix(mime, suffix) {
-			return false, true, true
-		}
-	}
-
-	// application/zip application/x-bzip application/x-bzip2 application/java-archive
-	// application/gzip application/epub+zip application/x-7z-compressed font/woff2
-	for _, suffix := range []string{"zip", "zip2", "compressed", "archive", "woff2"} {
-		if strings.HasSuffix(mime, suffix) {
-			return false, false, false
-		}
-	}
-
-	// text/css text/csv text/html text/calendar text/javascript text/plain
+	// text/xml text/css text/csv text/html text/calendar text/javascript text/plain
 	for _, prefix := range []string{"text"} {
 		if strings.HasPrefix(mime, prefix) {
 			return true, false, false
 		}
 	}
 
-	// image/svg+xml application/xml application/xhtml+xml application/vnd.apple.installer+xml text/xml
-	// application/manifest+json application/vnd.mozilla.xul+xml application/pdf application/ld+json
-	for _, suffix := range []string{"xml", "tar", "json", "pdf"} {
+	// image/jpeg image/png image/apng image/gif image/webp image/avif image/x-icon image/vnd.microsoft.icon
+	for _, suffix := range []string{"/jpeg", "/png", "/gif", "/webp", "/avif", "icon"} {
+		if strings.HasSuffix(mime, suffix) {
+			return false, true, true
+		}
+	}
+
+	// application/xml application/json image/svg+xml application/xhtml+xml
+	// application/vnd.apple.installer+xml application/vnd.mozilla.xul+xml application/ld+json
+	for _, format := range []string{"/xml", "/json", "+xml ", "+json"} {
+		if strings.Contains(mime, format) {
+			return true, false, false
+		}
+	}
+
+	// application/pdf application/x-tar
+	for _, suffix := range []string{"/pdf", "/x-tar"} {
 		if strings.HasSuffix(mime, suffix) {
 			return true, false, false
+		}
+	}
+
+	// returns same false as the ending return
+	if false {
+		// application/zip application/x-bzip application/x-bzip2 application/java-archive
+		// application/gzip application/epub+zip application/x-7z-compressed font/woff2
+		for _, suffix := range []string{"zip", "zip2", "compressed", "archive", "woff2"} {
+			if strings.HasSuffix(mime, suffix) {
+				return false, false, false
+			}
 		}
 	}
 
