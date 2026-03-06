@@ -21,10 +21,18 @@ func (s *Server) get{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
-	w.Write(header{{.Identifier}}{{$scheme}})
+	{{ if eq $scheme "HTTPS" }}
+	w.Write(header{{.Identifier}})
+	{{- else }}
+	const noAltSvc = len(altSvcHeader)
+	const noSTS = header{{.Identifier}}NoSTS
+	w.Write(header{{.Identifier}}[noAltSvc:noSTS])
+	{{- end }}
+
 	if r.Method != "" && r.Method[0] == 'H' {
 		return
 	}
+
 	w.Write(file{{.Identifier}})
 }
 

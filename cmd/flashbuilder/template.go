@@ -61,8 +61,7 @@ func generate(data templateData) error {
 
 	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "main.go") })
 	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "embed-assets.go") })
-	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "headers-http.go") })
-	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "headers-https.go") })
+	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "header-blocks.go") })
 	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "routes.go", "routes-http.go") })
 	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "routes.go", "routes-https.go") })
 	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "handlers-get.go", "handlers-get-http.go") })
