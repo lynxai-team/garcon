@@ -187,9 +187,9 @@ func variantEligibility(mime string) (brotliEligible, avifEligible, webpEligible
 		}
 	}
 
-	// application/xml application/json image/svg+xml application/xhtml+xml
+	// application/xml image/svg+xml application/xhtml+xml application/json
 	// application/vnd.apple.installer+xml application/vnd.mozilla.xul+xml application/ld+json
-	for _, format := range []string{"/xml", "/json", "+xml ", "+json"} {
+	for _, format := range []string{"xml", "json"} {
 		if strings.Contains(mime, format) {
 			return true, false, false
 		}
