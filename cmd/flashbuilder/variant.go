@@ -367,8 +367,8 @@ func getWebP(input fs.FS, a *asset, quality int, varDir string, useCache bool) (
 // compressBrotli streams a file from the provided fs.FS through a Brotli
 // encoder and writes the compressed output directly to path.
 // It returns the number of bytes written to the destination file.
-// Errors are returned to the caller; no logging, no temp‑file, no extra sync.
-func compressBrotli(input fs.FS, a *asset, quality int, dst io.Writer) (int64, error) {
+// Errors are returned to the caller; no logging, no temp-file, no extra sync.
+func compressBrotli(input fs.FS, a *asset, quality int, dst *os.File) (int64, error) {
 	// open source file: asset
 	src, err := input.Open(a.Route)
 	if err != nil {
@@ -379,10 +379,10 @@ func compressBrotli(input fs.FS, a *asset, quality int, dst io.Writer) (int64, e
 	// create Brotli writer that writes straight into dst
 	enc := cbrotli.NewWriter(dst, cbrotli.WriterOptions{Quality: quality})
 
-	// stream the data: io.Copy uses a 32 KB internal buffer
-	size, err := io.Copy(enc, src)
+	// stream the data: io.Copy uses a 32 KB internal buffer
+	_, err = io.Copy(enc, src)
 	if err != nil {
-		_ = enc.Close() // attempt graceful shutdown
+		enc.Close() // attempt graceful shutdown
 		return 0, fmt.Errorf("Brotli compress copy: %w", err)
 	}
 
@@ -392,7 +392,12 @@ func compressBrotli(input fs.FS, a *asset, quality int, dst io.Writer) (int64, e
 		return 0, fmt.Errorf("Brotli close: %w", err)
 	}
 
-	return size, nil
+	info, err := dst.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("encodeAVIF dst.Stat %w", err)
+	}
+
+	return info.Size(), nil
 }
 
 // transcodeAVIF transcodes an image asset into its AVIF variant.
