@@ -10,6 +10,7 @@ import (
 	"path"
 	"strconv"
 	"testing"
+	"testing/fstest"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -17,6 +18,17 @@ import (
 // TestValidateCompressionFlags tests compression flag validation.
 func TestValidateCompressionFlags(t *testing.T) {
 	t.Parallel()
+
+	input := fstest.MapFS{
+		"index.html": &fstest.MapFile{Data: []byte("<html></html>")},
+		"style.css":  &fstest.MapFile{Data: []byte("body {}")},
+		"script.js":  &fstest.MapFile{Data: []byte("console.log")},
+		"image.png":  &fstest.MapFile{Data: []byte("\x89PNG")},
+		"data.json":  &fstest.MapFile{Data: []byte("{}")},
+		"about.html": &fstest.MapFile{Data: []byte("<html><body>Hello</body></html>")},
+		"style2.css": &fstest.MapFile{Data: []byte("body { color: red; }")},
+		"script2.js": &fstest.MapFile{Data: []byte("console.log('test')")},
+	}
 
 	tests := []struct {
 		name      string
@@ -39,14 +51,14 @@ func TestValidateCompressionFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			flags := &flags{
-				InDir:  t.TempDir(),
+			cli := &flags{
+				InDir:  "fake input directory",
 				OutDir: t.TempDir(),
 				Brotli: tt.brotli,
 				AVIF:   tt.avif,
 				WebP:   tt.webp,
 			}
-			err := do(flags)
+			err := process(input, cli)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}

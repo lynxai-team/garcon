@@ -17,16 +17,16 @@ import (
 	_ "embed"
 )
 
-//go:embed images/logo-flash.avif
+//go:embed test-data/images/logo.avif
 var imageAVIF []byte
 
-//go:embed images/logo-flash.jpg
+//go:embed test-data/images/logo.jpg
 var imageJPG []byte
 
-//go:embed images/logo-flash.png
+//go:embed test-data/images/logo.png
 var imagePNG []byte
 
-//go:embed images/logo-flash.webp
+//go:embed test-data/images/logo.webp
 var imageWebP []byte
 
 // tinyPNG is a minimal 1×1 black PNG image (67 bytes).
@@ -51,25 +51,46 @@ var tinyPNG = []byte{
 func TestIsCompressible(t *testing.T) {
 	t.Parallel()
 
-	type expected struct{ b, a, w bool }
+	type want struct{ b, a, w bool }
 	tests := []struct {
-		expected expected
+		expected want
 		name     string
 		mime     string
 	}{
-		{expected{true, false, false}, "JS", "text/javascript"},
-		{expected{true, false, false}, "XML", "application/xml"},
-		{expected{true, false, false}, "CSS", "text/css"},
-		{expected{true, false, false}, "Markdown", "text/markdown"},
-		{expected{true, false, false}, "SVG", "image/svg+xml"},
-		{expected{true, false, false}, "HTML", "text/html"},
-		{expected{true, false, false}, "JSON", "application/json"},
-		{expected{false, true, true}, "JPEG", "image/jpeg"},
-		{expected{false, true, true}, "PNG", "image/png"},
-		{expected{false, true, true}, "GIF", "image/gif"},
-		{expected{false, true, true}, "AVIF", "image/avif"},
-		{expected{false, true, true}, "WebP", "image/webp"},
-		{expected{false, false, false}, "Binary", "application/octet-stream"},
+		{want{true, true, true}, "ICO", "image/x-icon"},
+		{want{false, true, true}, "avif", "image/avif"},
+		{want{false, true, true}, "AVIF", "image/avif"},
+		{want{false, true, true}, "gif", "image/gif"},
+		{want{false, true, true}, "GIF", "image/gif"},
+		{want{false, true, true}, "jpeg", "image/jpeg"},
+		{want{false, true, true}, "JPEG", "image/jpeg"},
+		{want{false, true, true}, "png", "image/png"},
+		{want{false, true, true}, "PNG", "image/png"},
+		{want{false, true, true}, "WebP", "image/webp"},
+		{want{true, false, false}, "CSS", "text/css; charset=utf-8"},
+		{want{true, false, false}, "css", "text/css"},
+		{want{true, false, false}, "CSS", "text/css"},
+		{want{true, false, false}, "CSV", "text/csv; charset=utf-8"},
+		{want{true, false, false}, "HTML", "text/html; charset=utf-8"},
+		{want{true, false, false}, "html", "text/html"},
+		{want{true, false, false}, "HTML", "text/html"},
+		{want{true, false, false}, "JS", "text/javascript; charset=utf-8"},
+		{want{true, false, false}, "JS", "text/javascript"},
+		{want{true, false, false}, "JSON", "application/json; charset=utf-8"},
+		{want{true, false, false}, "JSON", "application/json"},
+		{want{true, false, false}, "Markdown", "text/markdown; charset=utf-8"},
+		{want{true, false, false}, "Markdown", "text/markdown"},
+		{want{true, false, false}, "PDF", "application/pdf"},
+		{want{true, false, false}, "SVG", "image/svg+xml"},
+		{want{true, false, false}, "SVG", "image/svg+xml"},
+		{want{true, false, false}, "XML", "application/xml"},
+		{want{true, false, false}, "XML", "text/xml; charset=utf-8"},
+		{want{true, false, false}, "YAML", "text/x-yaml; charset=utf-8"},
+		{want{false, false, false}, "woff", "font/woff"},
+		{want{false, false, false}, "Binary", "application/octet-stream"},
+		{want{false, false, false}, "woff2", "font/woff2"},
+		{want{false, false, false}, "ms-font", "application/vnd.ms-fontobject"},
+		{want{false, false, false}, "ttf", "font/ttf"},
 	}
 
 	for _, tt := range tests {

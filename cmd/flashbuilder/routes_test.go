@@ -215,7 +215,7 @@ func TestAddShortcutPaths(t *testing.T) {
 		{Route: "font.ttf", MIME: "font/ttf", Identifier: "FontTtf"},
 		{Route: "index.md", MIME: "text/markdown; charset=utf-8", Identifier: "IndexMd"},
 		{Route: "doc.pdf", MIME: "application/pdf", Identifier: "DocPdf"},
-		// We expect 6 shortcuts
+		// We expect 8 shortcuts
 		{IsShortcut: true, Identifier: "ImgLogoAvif", Route: "img/logo", MIME: "image/avif"},
 		{IsShortcut: true, Identifier: "AboutHtml", Route: "about", MIME: "text/html; charset=utf-8"},
 		{IsShortcut: true, Identifier: "IndexHtml", Route: "", MIME: "text/html"},
@@ -236,8 +236,8 @@ func TestAddShortcutPaths(t *testing.T) {
 			count++
 		}
 	}
-	if count != 6 {
-		t.Errorf("got %d shortcuts, want 6", count)
+	if count != 8 {
+		t.Errorf("got %d shortcuts, want 8", count)
 	}
 
 	if !cmp.Equal(want, got) {
