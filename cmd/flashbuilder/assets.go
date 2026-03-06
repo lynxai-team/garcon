@@ -237,7 +237,7 @@ func parseHTML(input fs.FS, assetPath string) (csp string, endpoints map[string]
 		switch tt {
 		case html.ErrorToken:
 			err := z.Err()
-			if errors.Is(err, io.EOF) {
+			if !errors.Is(err, io.EOF) {
 				slog.Warn("parseHTML", "err", err, "asset", assetPath)
 			}
 			return csp, endpoints // EOF reached
