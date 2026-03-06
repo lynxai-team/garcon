@@ -150,6 +150,12 @@ func (c *Config) extractBloc(data []byte, start, stop int) {
 	// If overwriting is allowed, remove the existing file first (required on Windows).
 	if c.overwrite {
 		_ = os.Remove(cleanTarget)
+	} else {
+		info, err := os.Stat(cleanTarget)
+		if err == nil && info.Size() > 0 {
+			log.Warnf("cannot overwrite file %s - Skip %d lines lang=%s %s:%d", cleanTarget, stop-start, c.matcher.lang, c.mdPath, start)
+			return
+		}
 	}
 
 	err = os.WriteFile(cleanTarget, data, 0o600)
