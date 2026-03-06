@@ -6,9 +6,11 @@ package main
 
 import (
 	"fmt"
+	"path"
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // handlers is used to render the handlers and get array.
@@ -22,7 +24,7 @@ type handlers struct {
 func computeMaxLenGet(assets []asset) int {
 	maxLenG := 0
 	for _, asset := range assets {
-		maxLenG = max(maxLenG, len(asset.Path))
+		maxLenG = max(maxLenG, len(asset.Route))
 	}
 	return maxLenG
 }
@@ -134,7 +136,7 @@ func buildGetRoutesByLength(assets []asset, size int) [][]asset {
 
 	// group routes by length
 	for _, a := range assets {
-		routeLen := len(a.Path)
+		routeLen := len(a.Route)
 		routesByLen[routeLen] = append(routesByLen[routeLen], a)
 	}
 
@@ -161,13 +163,13 @@ func buildPostRoutesByLength(assets []asset, size int) [][]asset {
 			routeLen := len(route)
 
 			// skip duplicated routes
-			if slices.ContainsFunc(routesByLen[routeLen], func(a asset) bool { return route == a.Path }) {
+			if slices.ContainsFunc(routesByLen[routeLen], func(a asset) bool { return route == a.Route }) {
 				continue
 			}
 
 			modifiedAsset := a
 			modifiedAsset.Identifier = exist.generateIdentifier(route)
-			modifiedAsset.Path = route
+			modifiedAsset.Route = route
 			routesByLen[routeLen] = append(routesByLen[routeLen], modifiedAsset)
 		}
 	}
@@ -176,27 +178,63 @@ func buildPostRoutesByLength(assets []asset, size int) [][]asset {
 }
 
 func addShortcutRoutes(assets []asset) []asset {
+	// Sort by route length (from larger to smaller)
+	// to favor larger route in case of conflict.
+	// Example: "about" will be the shortcut of "about.html" rather than "about.md"
+	sort.Slice(assets, func(i, j int) bool {
+		if len(assets[i].Route) == len(assets[j].Route) {
+			return assets[i].Route < assets[j].Route // for deterministic result
+		}
+		return len(assets[i].Route) > len(assets[j].Route)
+	})
+
 	routes := make(map[string]struct{}, len(assets))
 	for _, asset := range assets {
-		routes[asset.Path] = struct{}{}
+		routes[asset.Route] = struct{}{}
 	}
 
 	shortcuts := make([]asset, 0, len(assets))
 	for a := range slices.Values(assets) {
-		switch a.MIME {
-		case "text/css", "text/javascript", "font/woff", "font/woff2", "font/ttf":
-			continue // no shortcut for CSS, JS and font files
+		if len(a.MIME) >= 8 { // this trick is to avoid complex checking
+			switch a.MIME[:8] { // in case of "charset=utf-8" presence
+			case "text/css", "text/jav", "font/wof", "font/ttf":
+				continue // no shortcut for CSS, JS and font files
+			}
 		}
 
-		shortPath := generateShortcut(a.Path)
+		shortPath := generateShortcut(a.Route)
 		_, found := routes[shortPath]
 		if !found {
 			a.IsShortcut = true
-			a.Path = ""
-			a.Path = shortPath
+			a.Route = ""
+			a.Route = shortPath
 			shortcuts = append(shortcuts, a)
 			routes[shortPath] = struct{}{}
 		}
 	}
 	return append(assets, shortcuts...)
+}
+
+// generateShortcut creates an extensionless shortcut and
+// clean URLs like:
+// - "about/index.html" -> "about"
+// - "about/index.md"   -> "about/index"
+// - "about/offer.html" -> "about/offer"
+// - "about/image.jpeg" -> "about/image"
+// Note that "/about/index" is never the shortcut of "/about/index.html".
+// The "/about/index" shortcut can be from another file like "/about/index.md".
+func generateShortcut(inPath string) string {
+	// Root index has no shortcut
+	if inPath == "index.html" {
+		return ""
+	}
+
+	// Index files in subdirectories
+	if before, ok := strings.CutSuffix(inPath, "/index.html"); ok {
+		return before
+	}
+
+	// Extensionless shortcuts
+	ext := path.Ext(inPath)
+	return inPath[:len(inPath)-len(ext)]
 }
