@@ -6,14 +6,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"fmt"
 	"math"
 	"os"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"golang.org/x/sync/errgroup"
 )
 
 //go:embed templates/*.go.gotmpl
@@ -21,12 +25,14 @@ var templateFS embed.FS
 
 // templateData aggregates all data for template rendering.
 type templateData struct {
+	outputDir string
 	CSP       string
 	HTTPSPort string
 	Scheme    string // "HTTP" or "HTTPS"
 	Assets    []asset
 	Get       []handlers
 	Post      []handlers
+	dryRun    bool
 }
 
 // parseTemplates parses and caches templates.
@@ -40,92 +46,73 @@ func parseTemplates() (*template.Template, error) {
 }
 
 // generate generates the Go code for the flash server.
-func generate(data templateData, output string, dryRun bool) error {
+func generate(data templateData) error {
 	tmpl, err := parseTemplates()
 	if err != nil {
 		return err
 	}
-	err = renderWriteCode(dryRun, data, tmpl, output, "main.go")
-	if err != nil {
-		return err
-	}
-	err = renderWriteCode(dryRun, data, tmpl, output, "embed.go")
-	if err != nil {
-		return err
-	}
-	err = renderWriteCode(dryRun, data, tmpl, output, "http-headers.go")
-	if err != nil {
-		return err
-	}
-	err = renderWriteCode(dryRun, data, tmpl, output, "https-headers.go")
-	if err != nil {
-		return err
-	}
-	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "http-server.go")
-	if err != nil {
-		return err
-	}
-	err = renderWriteCode(dryRun, data, tmpl, output, "server.go", "https-serve.go")
-	if err != nil {
-		return err
-	}
-	err = renderWriteCode(dryRun, data, tmpl, output, "get.go", "http-get.go")
-	if err != nil {
-		return err
-	}
-	err = renderWriteCode(dryRun, data, tmpl, output, "get.go", "https-get.go")
-	if err != nil {
-		return err
+
+	// Initialize errgroup with context for cancellation.
+	g, ctx := errgroup.WithContext(context.Background())
+
+	// Set the concurrency limit: ensure we do not spawn more than 'workers' goroutines.
+	workers := max(2, runtime.NumCPU()/2) // NumCPU = number of logical CPUs
+	g.SetLimit(workers)
+
+	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "main.go") })
+	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "embed-assets.go") })
+	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "headers-http.go") })
+	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "headers-https.go") })
+	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "routes.go", "routes-http.go") })
+	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "routes.go", "routes-https.go") })
+	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "handlers-get.go", "handlers-get-http.go") })
+	g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "handlers-get.go", "handlers-get-https.go") })
+
+	// do not generate empty Go files (only for web-form submit)
+	if len(data.Post) > 0 {
+		g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "handlers-post.go", "handlers-post-http.go") })
+		g.Go(func() error { return renderWriteCode(ctx, data, tmpl, "handlers-post.go", "handlers-post-https.go") })
 	}
 
-	if len(data.Post) == 0 {
-		return nil // no POST endpoints => do not generate empty Go files
-	}
-
-	err = renderWriteCode(dryRun, data, tmpl, output, "post.go", "http-post.go")
-	if err != nil {
-		return err
-	}
-	err = renderWriteCode(dryRun, data, tmpl, output, "post.go", "https-post.go")
-	if err != nil {
-		return err
-	}
-
-	return nil
+	// Wait for all outstanding goroutines to finish.
+	// g.Wait returns the first error (if any), canceling the context.
+	return g.Wait()
 }
 
-func renderWriteCode(dryRun bool, data templateData, tmpl *template.Template, output string, filename ...string) error {
+func renderWriteCode(ctx context.Context, data templateData, tmpl *template.Template, filename ...string) error {
 	templateDefine := filename[0]
 	goFile := filename[0]
 	if len(filename) > 1 {
 		goFile = filename[1]
 	}
 
+	localData := data // local copy because we change .Scheme
 	if strings.Contains(goFile, "https") {
-		data.Scheme = "HTTPS"
+		localData.Scheme = "HTTPS"
 	} else {
-		data.Scheme = "HTTP"
+		localData.Scheme = "HTTP"
 	}
 
 	// render source code from a template with data.
 	var code bytes.Buffer
-	err := tmpl.ExecuteTemplate(&code, templateDefine, data)
+	err := tmpl.ExecuteTemplate(&code, templateDefine, localData)
 	if err != nil {
 		return fmt.Errorf("Failed to render %q template: %w", templateDefine, err)
 	}
 
-	if dryRun {
+	// stop here if --dry-run or if the context is canceled by another worker
+	if data.dryRun || (ctx.Err() != nil) {
 		return nil
 	}
 
 	// ensure output directory exist
-	err = os.MkdirAll(output, 0o700)
+	err = os.MkdirAll(data.outputDir, 0o700)
 	if err != nil {
-		return fmt.Errorf("renderWriteCode MkdirAll %s: %w", output, err)
+		return fmt.Errorf("renderWriteCode MkdirAll %s: %w", data.outputDir, err)
 	}
 
 	// write Go file
-	goFile = path.Join(output, goFile)
+	goFile = path.Join(data.outputDir, goFile)
 	err = os.WriteFile(goFile, code.Bytes(), 0o600)
 	if err != nil {
 		return fmt.Errorf("renderWriteCode WriteFile %s: %w", goFile, err)

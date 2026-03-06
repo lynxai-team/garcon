@@ -1,4 +1,4 @@
-{{- define "get.go" -}}
+{{- define "handlers-get.go" -}}
 {{- $scheme := .Scheme -}}
 
 // This file is part of Flash, an ultra-fast web server embedding assets for best performance.
@@ -36,7 +36,7 @@ func (s *Server) get{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Re
 		{{- else }}
 
 func (s *Server) get{{.Identifier}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, {{.Path | quote}})
+	http.ServeFile(w, r, {{ $path := print .Route .VariantExt }}{{ $path | quote }})
 }
 
 		{{- end -}}

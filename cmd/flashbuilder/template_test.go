@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"testing"
 )
 
@@ -62,11 +63,16 @@ func TestRenderTemplate(t *testing.T) {
 	// This test requires template files to be present
 	// Skip if templates are not available
 	data := templateData{
+		outputDir: "outputDir",
+		Scheme:    "",
+		Get:       []handlers{},
+		Post:      []handlers{},
+		dryRun:    true,
 		CSP:       "default-src 'self'",
 		HTTPSPort: "8443",
 		Assets: []asset{
 			{
-				Path:            "style.css",
+				Route:           "style.css",
 				Size:            100,
 				MIME:            "text/css",
 				ETag:            `"etag123"`,
@@ -82,7 +88,7 @@ func TestRenderTemplate(t *testing.T) {
 	}
 
 	// Try to render main template (may fail if templates not present)
-	err = renderWriteCode(true, data, tmpl, "outputDir", "main")
+	err = renderWriteCode(context.Background(), data, tmpl, "main")
 	if err != nil {
 		t.Skip("Template rendering failed (templates may not be present)")
 	}

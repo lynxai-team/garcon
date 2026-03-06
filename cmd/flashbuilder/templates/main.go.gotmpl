@@ -115,7 +115,7 @@ func main() {
 	// Wait for termination signal (Ctrl+C)
 	stop := make(chan struct{})
 	go func() {
-		// Simple block – replace with signal.Notify for real apps
+		// Simple block - replace with signal.Notify for real apps
 		<-stop
 	}()
 

@@ -1,4 +1,4 @@
-{{- define "server.go" -}}
+{{- define "routes.go" -}}
 {{- $scheme := .Scheme -}}
 
 // This file is part of Flash, an ultra-fast web server embedding assets for best performance.
@@ -39,8 +39,8 @@ func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	pathNoSlash := r.URL.Path[1:]
 	truncated := pathNoSlash[:{{.Length}}] // here, routes are {{.Length}}-byte long
 	switch truncated {
-{{range .Routes}}	// traffic={{.Frequency}} {{.Size|human}}{{if .IsDuplicate}} Duplicate{{end}}{{if .IsShortcut}} Shortcut{{end}} {{.Path}}
-	case "{{.Path}}":
+{{range .Routes}}
+	case {{ .Route | quote }}: // traffic={{.Frequency}} {{.Size|human}}{{if .IsDuplicate}} Duplicate{{end}}{{if .IsShortcut}} Shortcut{{end}} {{.MIME}}
 		s.get{{.Identifier}}{{$scheme}}(w, r)
 {{end}}
 	default:
@@ -58,8 +58,8 @@ func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	pathNoSlash := r.URL.Path[1:]
 	truncated := pathNoSlash[:{{.Length}}] // here, routes are {{.Length}}-byte long
 	switch truncated {
-{{range .Routes}}	// <form> found in {{.Path}}
-	case "{{.Path}}":
+{{range .Routes}}
+	case {{ .Route | quote }}:
 		s.post{{.Identifier}}{{$scheme}}(w, r)
 {{end}}
 	default:
