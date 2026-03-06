@@ -12,10 +12,6 @@ import (
 	"net/http"
 )
 
-func (s *Server) notFound{{$scheme}}(w http.ResponseWriter, r *http.Request) {
-	http.NotFound(w, r)
-}
-
 {{- range .Assets -}}
 	{{- if and (not .IsDuplicate) (not .IsShortcut) -}}
 		{{- if .IsEmbedEligible }}

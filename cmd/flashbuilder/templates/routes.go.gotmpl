@@ -18,15 +18,27 @@ func newServer{{$scheme}}() *Server {
 	s := new(Server)
 
 	s.get = [maxLenG + 2]func(http.ResponseWriter, *http.Request){
-{{range .Get}}		s.{{.Entry}}{{$scheme}},
-{{end}}	}{{if .Post}}
+{{- range .Get -}}
+	{{- if eq .Entry "notFound" }}
+		http.NotFound,
+	{{- else}}
+		s.{{.Entry}}{{$scheme}},
+	{{- end -}}
+{{end}}
+	}{{if .Post}}
 
 	s.post = [maxLenP + 2]func(http.ResponseWriter, *http.Request){
-{{range .Post}}		s.{{.Entry}}{{$scheme}},
-{{end}}	}
+{{- range .Post -}}
+	{{- if eq .Entry "notFound" }}
+		http.NotFound,
+	{{- else}}
+		s.{{.Entry}}{{$scheme}},
+	{{- end -}}
+{{end}}
+	}
 
-	redirectURL := "#"
-	notifierURL := "https://example.com"
+	const redirectURL = "#"
+	const notifierURL = "https://example.com"
 	s.webForm = wf.NewContactForm(redirectURL, notifierURL){{end}}
 
 	return s
@@ -43,8 +55,9 @@ func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	case {{ .Route | quote }}: // traffic={{.Frequency}} {{.Size|human}}{{if .IsDuplicate}} Duplicate{{end}}{{if .IsShortcut}} Shortcut{{end}} {{.MIME}}
 		s.get{{.Identifier}}{{$scheme}}(w, r)
 {{end}}
-	default:
-		s.{{.PrevEntry}}{{$scheme}}(w, r)
+	default:{{ if eq .PrevEntry "notFound" }}
+		http.NotFound(w, r){{else}}
+		s.{{.PrevEntry}}{{$scheme}}(w, r){{end}}
 	}
 }
 
@@ -62,8 +75,9 @@ func (s *Server) {{.Entry}}{{$scheme}}(w http.ResponseWriter, r *http.Request) {
 	case {{ .Route | quote }}:
 		s.post{{.Identifier}}{{$scheme}}(w, r)
 {{end}}
-	default:
-		s.{{.PrevEntry}}{{$scheme}}(w, r)
+	default:{{ if eq .PrevEntry "notFound" }}
+		http.NotFound(w, r){{else}}
+		s.{{.PrevEntry}}{{$scheme}}(w, r){{end}}
 	}
 }
 
