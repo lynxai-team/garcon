@@ -14,7 +14,7 @@ import (
 // specific to most generic.
 type matcher struct {
 	exprs [10]*regexp.Regexp // compiled regexes
-	prev  [3]string          // buffer with two lines before + one line after
+	prev  [5]string          // buffer with two lines before + one line after
 	lang  string             // language tag of the opening fence
 	idx   int                // index of the next slot in prev
 }
