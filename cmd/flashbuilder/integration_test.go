@@ -107,9 +107,9 @@ func TestIntegration_BudgetAllocation(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{Path: "a.txt", Size: 100},
-		{Path: "b.txt", Size: 200},
-		{Path: "c.txt", Size: 300},
+		{Route: "a.txt", Size: 100},
+		{Route: "b.txt", Size: 200},
+		{Route: "c.txt", Size: 300},
 	}
 
 	// Budget of 250 should fit a + b, but not c
@@ -133,9 +133,9 @@ func TestIntegration_ShortcutGeneration(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{Path: "index.html", Identifier: "AssetIndex"},
-		{Path: "about/index.html", Identifier: "AssetAboutIndex"},
-		{Path: "style.css", Identifier: "AssetStyle"},
+		{Route: "index.html", Identifier: "AssetIndex"},
+		{Route: "about/index.html", Identifier: "AssetAboutIndex"},
+		{Route: "style.css", Identifier: "AssetStyle"},
 	}
 
 	// Build path maps
@@ -144,8 +144,8 @@ func TestIntegration_ShortcutGeneration(t *testing.T) {
 
 	for _, asset := range assets {
 		if !asset.IsDuplicate {
-			canonicalPaths[asset.Path] = asset.Identifier
-			shortcut := generateShortcut(asset.Path)
+			canonicalPaths[asset.Route] = asset.Identifier
+			shortcut := generateShortcut(asset.Route)
 			if shortcut != "" && canonicalPaths[shortcut] == "" {
 				shortcutPaths[shortcut] = asset.Identifier
 			}

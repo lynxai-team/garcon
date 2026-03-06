@@ -151,12 +151,12 @@ func generateLinkCopy(input fs.FS, a *asset, cli *flags, wwwDir, assetsDir strin
 		varDir = cli.CacheDir
 	}
 
-	varPath, ext, size := generateOneVariant(input, a, cli, varDir, useCache)
-	if varPath != "" {
+	varFullPath, ext, size := generateOneVariant(input, a, cli, varDir, useCache)
+	if varFullPath != "" {
 		a.VariantExt = ext // update the asset in place (safe because managed by one single goroutine)
 		a.Size = size
 		if useCache {
-			return linkCopyVariant(varPath, dstDir, a.Path+ext)
+			return linkCopyVariant(varFullPath, dstDir, a.Route+ext)
 		}
 		return nil // variant already in dstDir
 	}
@@ -211,97 +211,97 @@ func variantEligibility(mime string) (brotliEligible, avifEligible, webpEligible
 
 const sizeInit = math.MaxInt64
 
-func generateOneVariant(input fs.FS, a *asset, cli *flags, varDir string, useCache bool) (varPath, ext string, size int64) {
+func generateOneVariant(input fs.FS, a *asset, cli *flags, varDir string, useCache bool) (varFullPath, ext string, size int64) {
 	br, av, wp := variantEligibility(a.MIME)
 	size = sizeInit
 
 	if br {
-		varPath, ext, size = getBrotli(input, a, cli.Brotli, varDir, useCache)
+		varFullPath, ext, size = getBrotli(input, a, cli.Brotli, varDir, useCache)
 	}
 
 	if av {
 		p, e, s := getAVIF(input, a, cli.AVIF, varDir, useCache)
 		if size > s { // keep the smallest variant
-			varPath, ext, size = p, e, s
+			varFullPath, ext, size = p, e, s
 		}
 	}
 
 	if wp {
 		p, e, s := getWebP(input, a, cli.WebP, varDir, useCache)
 		if size > s { // keep the smallest variant
-			varPath, ext, size = p, e, s
+			varFullPath, ext, size = p, e, s
 		}
 	}
 
-	if varPath == "" {
+	if varFullPath == "" {
 		return "", "", 0
 	}
 
 	// Skip compression if the size reduction is too small.
-	// The variant must be 7 % smaller or 3 KB smaller.
+	// The variant must be 7% smaller or 3 KB smaller.
 	originalSize := a.Size
-	relativeLimit := originalSize * 15 / 16 // 93 % of the original
+	relativeLimit := originalSize * 15 / 16 // 93% of the original
 	absoluteLimit := originalSize - 3000
 	minAcceptable := max(relativeLimit, absoluteLimit)
 	if size > minAcceptable {
 		return "", "", sizeInit // If it doesn’t beat the threshold, keep the original asset.
 	}
 
-	return varPath, ext, size
+	return varFullPath, ext, size
 }
 
-func setupVariant(varDir string, useCache bool, a *asset, quality int, minSize, maxSize int64, ext string) (varPath string, size int64, wip string, dst *os.File) {
+func setupVariant(varDir string, useCache bool, a *asset, quality int, minSize, maxSize int64, ext string) (varFullPath string, size int64, wip string, dst *os.File) {
 	if quality < 0 {
 		return "", 0, "", nil
 	}
 
 	if a.Size < minSize {
-		slog.Debug("no variant for tiny", "asset", a.Path, "size", a.Size, "min", minSize)
+		slog.Debug("no variant for tiny", "asset", a.Route, "size", a.Size, "min", minSize)
 		return "", 0, "", nil
 	}
 
 	if a.Size > maxSize {
-		slog.Info("no variant for huge", "asset", a.Path, "size", toHuman(a.Size), "max", maxSize)
+		slog.Info("no variant for huge", "asset", a.Route, "size", toHuman(a.Size), "max", maxSize)
 		return "", 0, "", nil
 	}
 
-	varPath, size = variantFullPath(a, varDir, useCache, quality, ext)
+	varFullPath, size = variantFullPath(a, varDir, useCache, quality, ext)
 	if size > 0 {
-		return varPath, size, "", nil
+		return varFullPath, size, "", nil
 	}
 
-	wip = wipFullPath(varPath)
+	wip = wipFullPath(varFullPath)
 	dst, err := os.Create(wip)
 	if err != nil {
 		slog.Warn("createVariantFile Create", "err", err)
 		return "", 0, "", nil
 	}
 
-	return varPath, 0, wip, dst
+	return varFullPath, 0, wip, dst
 }
 
-func teardownVariant(varPath, wip string, size int64, ext string) (string, string, int64) {
-	err := os.Rename(wip, varPath)
+func teardownVariant(varFullPath, wip string, size int64, ext string) (string, string, int64) {
+	err := os.Rename(wip, varFullPath)
 	if err != nil {
 		os.Remove(wip)
 		return "", "", sizeInit
 	}
-	return varPath, ext, size
+	return varFullPath, ext, size
 }
 
 // getBrotli retrieves Brotli from cache or generates it for asset.
 // It writes to a WIP file first, then renames on success.
-func getBrotli(input fs.FS, a *asset, quality int, varDir string, useCache bool) (varPath, ext string, size int64) {
-	varPath, size, wip, dst := setupVariant(varDir, useCache, a, quality, brotliMinSize, brotliMaxSize, ".br")
+func getBrotli(input fs.FS, a *asset, quality int, varDir string, useCache bool) (varFullPath, ext string, size int64) {
+	varFullPath, size, wip, dst := setupVariant(varDir, useCache, a, quality, brotliMinSize, brotliMaxSize, ".br")
 	if size > 0 {
-		return varPath, ".br", size
+		return varFullPath, ".br", size
 	}
 	if dst == nil {
 		return "", "", sizeInit
 	}
 	defer dst.Close()
 
-	slog.Info("Brotli compress", "asset", a.Path, "wip", wip, "quality", quality)
+	slog.Info("Brotli compress", "asset", a.Route, "wip", wip, "quality", quality)
 
 	var err error
 	size, err = compressBrotli(input, a, quality, dst)
@@ -311,23 +311,23 @@ func getBrotli(input fs.FS, a *asset, quality int, varDir string, useCache bool)
 		return "", "", sizeInit
 	}
 
-	return teardownVariant(varPath, wip, size, ".br")
+	return teardownVariant(varFullPath, wip, size, ".br")
 }
 
 // getAVIF retrieves AVIF from cache or generates it for image asset.
 // Uses github.com/vegidio/avif-go (CGO required).
 // Writes to WIP file first, then renames.
-func getAVIF(input fs.FS, a *asset, quality int, varDir string, useCache bool) (varPath, ext string, size int64) {
-	varPath, size, wip, dst := setupVariant(varDir, useCache, a, quality, imgMinSize, imgMaxSize, ".avif")
+func getAVIF(input fs.FS, a *asset, quality int, varDir string, useCache bool) (varFullPath, ext string, size int64) {
+	varFullPath, size, wip, dst := setupVariant(varDir, useCache, a, quality, imgMinSize, imgMaxSize, ".avif")
 	if size > 0 {
-		return varPath, ".avif", size
+		return varFullPath, ".avif", size
 	}
 	if dst == nil {
 		return "", "", sizeInit
 	}
 	defer dst.Close()
 
-	slog.Info("AVIF encode", "asset", a.Path, "dst", varPath, "quality", quality)
+	slog.Info("AVIF encode", "asset", a.Route, "dst", varFullPath, "quality", quality)
 
 	var err error
 	size, err = transcodeAVIF(input, a, quality, dst)
@@ -336,23 +336,23 @@ func getAVIF(input fs.FS, a *asset, quality int, varDir string, useCache bool) (
 		return "", "", sizeInit
 	}
 
-	return teardownVariant(varPath, wip, size, ".avif")
+	return teardownVariant(varFullPath, wip, size, ".avif")
 }
 
 // getWebP generates WebP variant for image assets
 // Uses github.com/kolesa-team/go-webp/encoder (CGO required).
 // Writes to WIP file first, then renames.
-func getWebP(input fs.FS, a *asset, quality int, varDir string, useCache bool) (varPath, ext string, size int64) {
-	varPath, size, wip, dst := setupVariant(varDir, useCache, a, quality, imgMinSize, imgMaxSize, ".avif")
+func getWebP(input fs.FS, a *asset, quality int, varDir string, useCache bool) (varFullPath, ext string, size int64) {
+	varFullPath, size, wip, dst := setupVariant(varDir, useCache, a, quality, imgMinSize, imgMaxSize, ".avif")
 	if size > 0 {
-		return varPath, ".avif", size
+		return varFullPath, ".avif", size
 	}
 	if dst == nil {
 		return "", "", sizeInit
 	}
 	defer dst.Close()
 
-	slog.Info("WebP encode", "asset", a.Path, "dst", varPath, "quality", quality)
+	slog.Info("WebP encode", "asset", a.Route, "dst", varFullPath, "quality", quality)
 
 	var err error
 	size, err = transcodeWebP(input, a, quality, dst)
@@ -361,7 +361,7 @@ func getWebP(input fs.FS, a *asset, quality int, varDir string, useCache bool) (
 		return "", "", sizeInit
 	}
 
-	return teardownVariant(varPath, wip, size, ".avif")
+	return teardownVariant(varFullPath, wip, size, ".avif")
 }
 
 // compressBrotli streams a file from the provided fs.FS through a Brotli
@@ -370,7 +370,7 @@ func getWebP(input fs.FS, a *asset, quality int, varDir string, useCache bool) (
 // Errors are returned to the caller; no logging, no temp‑file, no extra sync.
 func compressBrotli(input fs.FS, a *asset, quality int, dst io.Writer) (int64, error) {
 	// open source file: asset
-	src, err := input.Open(a.Path)
+	src, err := input.Open(a.Route)
 	if err != nil {
 		return 0, fmt.Errorf("Brotli input.Open: %w", err)
 	}
@@ -457,7 +457,7 @@ func transcodeWebP(input fs.FS, a *asset, quality int, dst *os.File) (int64, err
 
 // decodeImage decodes an image file.
 func decodeImage(input fs.FS, a *asset) (image.Image, error) {
-	file, err := input.Open(a.Path)
+	file, err := input.Open(a.Route)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open image file: %w", err)
 	}
@@ -486,7 +486,7 @@ func decodeImage(input fs.FS, a *asset) (image.Image, error) {
 		img, _, decodeErr = image.Decode(file)
 	}
 	if decodeErr != nil {
-		return nil, fmt.Errorf("Decode %s (%s) %s: %w", a.Path, toHuman(a.Size), a.MIME, decodeErr)
+		return nil, fmt.Errorf("Decode %s (%s) %s: %w", a.Route, toHuman(a.Size), a.MIME, decodeErr)
 	}
 
 	return img, nil
@@ -504,7 +504,7 @@ func cleanCache(cacheDir string, maxSize int64) {
 	var files []fileInfo
 	var total int64
 
-	err := filepath.WalkDir(cacheDir, func(varPath string, entry fs.DirEntry, walkErr error) error {
+	err := filepath.WalkDir(cacheDir, func(varFullPath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil || entry.IsDir() {
 			return nil
 		}
@@ -513,11 +513,11 @@ func cleanCache(cacheDir string, maxSize int64) {
 			return nil
 		}
 		if info.Size() == 0 {
-			os.Remove(varPath)
+			os.Remove(varFullPath)
 			return nil
 		}
 		files = append(files, fileInfo{
-			path:    varPath,
+			path:    varFullPath,
 			size:    info.Size(),
 			modTime: info.ModTime(),
 		})
@@ -597,26 +597,26 @@ func wipFullPath(fullPath string) string {
 }
 
 func variantFullPath(a *asset, dir string, useCache bool, quality int, ext string) (string, int64) {
-	varPath := a.Path + ext // in the assets/ or www/ directory
+	varFullPath := a.Route + ext // in the assets/ or www/ directory
 	if useCache {
-		varPath = strconv.Itoa(quality) + a.ETag + ext // in the cache directory
+		varFullPath = strconv.Itoa(quality) + a.ETag + ext // in the cache directory
 	}
 
-	varPath = path.Join(dir, varPath)
-	info, err := os.Stat(varPath)
+	varFullPath = path.Join(dir, varFullPath)
+	info, err := os.Stat(varFullPath)
 	if err != nil {
-		return varPath, 0 // variant does not yet exist => generate it
+		return varFullPath, 0 // variant does not yet exist => generate it
 	}
 
 	size := info.Size()
 	if size == 0 {
-		os.Remove(varPath)
-		return varPath, 0
+		os.Remove(varFullPath)
+		return varFullPath, 0
 	}
 
 	// variant exists => reuse it
-	slog.Debug("reuse variant", "assetSize", toHuman(a.Size), "variantSize", toHuman(size), "asset", a.Path, "variant", varPath)
-	return varPath, size
+	slog.Debug("reuse variant", "assetSize", toHuman(a.Size), "variantSize", toHuman(size), "asset", a.Route, "variant", varFullPath)
+	return varFullPath, size
 }
 
 func linkCopyAsset(input fs.FS, inputDir, dstDir, assetPath string) error {

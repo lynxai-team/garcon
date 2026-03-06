@@ -38,22 +38,22 @@ const maxAssetSize = math.MaxInt32 // 2_147_483_647 Bytes = 2 GB
 // asset represents a static asset with all pre-computed metadata.
 type asset struct {
 	Identifier string // Go identifier (e.g., "assetFaviconIco")
-	Path       string // relative path to flags.Input used as Route
-	VariantExt string // the variant Path has an extra extension ".br" ".avif" ".webp"
+	Route      string // asset path relative to cli.Input used as route
+	VariantExt string // optional: variant extension: .br .avif .webp
 	MIME       string // Detected MIME type (e.g., "text/html"), used for Content-Type
 
 	API map[string]struct{} // API endpoints (contact-form found in HTML) for the POST routes
 
 	// headers
-	CSP       string  // Content-Security-Policy header value
-	ETag      string  // Base91 ETag for conditional GET (quoted)
-	Hash      uint128 // Content hash from imohash
-	Size      int64   // File size in bytes
-	Frequency int     // Request frequency score for switch ordering
+	CSP       string  // content-Security-Policy header value
+	ETag      string  // base91 ETag for conditional GET (quoted)
+	Hash      uint128 // content hash from ImoHash
+	Size      int64   // original file size in bytes
+	Frequency int     // request frequency score for switch ordering
 
-	IsEmbedEligible bool // Selected for embedding within budget
-	IsDuplicate     bool // Content matches another asset
-	IsShortcut      bool
+	IsEmbedEligible bool // selected for embedding within the compiled binary
+	IsDuplicate     bool // content matches another asset
+	IsShortcut      bool // shortcut examples: "about/index.html" -> "about/", "logo.png" -> "logo"
 
 	// HTML
 	IsHTML  bool // Is HTML content (for CSP injection)
@@ -156,7 +156,7 @@ func newAsset(input fs.FS, assetPath, csp string) (*asset, error) {
 	}
 
 	return &asset{
-		Path:      assetPath, // relative to input (also used as the request endpoint even if the variant is embedded)
+		Route:     assetPath, // relative to input (also used as the request endpoint even if the variant is embedded)
 		MIME:      mimeType,
 		Hash:      hash,
 		ETag:      etag,
@@ -371,7 +371,7 @@ func detectMIME(input fs.FS, assetPath string) string {
 func generateIdentifiers(assets []asset) {
 	identifiers := make(existing, len(assets))
 	for i := range assets {
-		assets[i].Identifier = identifiers.generateIdentifier(assets[i].Path)
+		assets[i].Identifier = identifiers.generateIdentifier(assets[i].Route)
 	}
 }
 
@@ -422,7 +422,7 @@ func deduplicate(assets []asset) []asset {
 
 	// Sort by route length
 	sort.Slice(assets, func(i, j int) bool {
-		return len(assets[i].Path) < len(assets[j].Path)
+		return len(assets[i].Route) < len(assets[j].Route)
 	})
 
 	// Group assets by hash
@@ -447,31 +447,13 @@ func deduplicate(assets []asset) []asset {
 	return assets
 }
 
-// generateShortcut creates an extensionless shortcut and
-// clean URLs like "/about" instead of "/about/index.html".
-func generateShortcut(inPath string) string {
-	// Root index has no shortcut
-	if inPath == "index.html" {
-		return ""
-	}
-
-	// Index files in subdirectories
-	if before, ok := strings.CutSuffix(inPath, "/index.html"); ok {
-		return before
-	}
-
-	// Extensionless shortcuts
-	ext := path.Ext(inPath)
-	return inPath[:len(inPath)-len(ext)]
-}
-
 type uint128 struct {
 	Hi, Lo uint64
 }
 
 // String stringifies uint128:
-// - returns 22‑character Base64‑URL filename‑safe.
-// - Zero‑allocation: only a fixed [22]byte lives on the stack.
+// - returns 22-character Base64-URL filename-safe.
+// - Zero-allocation: only a fixed [22]byte lives on the stack.
 func (u uint128) String() string {
 	var buf [16]byte
 	binary.BigEndian.PutUint64(buf[:8], u.Hi)
@@ -526,14 +508,14 @@ func computeImoHashEtag(input fs.FS, assetPath string) (hash uint128, etag strin
 
 // base91Alphabet contains 91 ASCII characters that are safe for POSIX filenames (Linux and macOS).
 // POSIX filename may contain any byte except NUL (\0) and the forward slash (/).
-// The printable ASCII range (0x20 – 0x7E) gives 95 characters.
+// The printable ASCII range (0x20 - 0x7E) gives 95 characters.
 // Removing the only forbidden character (/) leaves 94.
 // To reach exactly 91 distinct characters we drop three more printable ASCII characters that are rarely needed in an encoding:
 //   - a space ( )
-//   - a double‑quote (")
-//   - a back‑slash (\)
+//   - a double-quote (")
+//   - a back-slash (\)
 //
-// The remaining 91 characters are all pure ASCII (code points 0x21–0x7E, excluding the four omitted ones) and are therefore safe for any POSIX‑compliant filesystem.
+// The remaining 91 characters are all pure ASCII (code points 0x21–0x7E, excluding the four omitted ones) and are therefore safe for any POSIX-compliant filesystem.
 // Windows (NTFS, FAT, exFAT) is not supported because it forbids the characters < > : " / \ | ? * and the NUL byte (Windows: only 85 ASCII characters).
 const base91Alphabet = "!#$%&'()*+,-.0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 

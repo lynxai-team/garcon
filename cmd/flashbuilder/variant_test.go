@@ -179,9 +179,9 @@ func TestAllocateBudget2(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{Path: "small.txt", Size: 100},
-		{Path: "medium.txt", Size: 500},
-		{Path: "large.txt", Size: 1000},
+		{Route: "small.txt", Size: 100},
+		{Route: "medium.txt", Size: 500},
+		{Route: "large.txt", Size: 1000},
 	}
 
 	// Budget of 600 should fit small + medium, but not large
@@ -293,9 +293,9 @@ func TestAllocateBudget(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{Path: "small.txt", Size: 100},
-		{Path: "medium.txt", Size: 500},
-		{Path: "large.txt", Size: 1000},
+		{Route: "small.txt", Size: 100},
+		{Route: "medium.txt", Size: 500},
+		{Route: "large.txt", Size: 1000},
 	}
 
 	// Budget of 600 should fit small + medium, but not large
@@ -386,7 +386,7 @@ func TestIntegration_Variants(t *testing.T) {
 	}
 
 	assets := []asset{
-		{Path: "test.txt", MIME: "text/plain", IsEmbedEligible: true, Size: 16_000},
+		{Route: "test.txt", MIME: "text/plain", IsEmbedEligible: true, Size: 16_000},
 	}
 
 	cli := flags{
