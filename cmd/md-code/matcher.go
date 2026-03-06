@@ -26,8 +26,8 @@ func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
 		exprs: [10]*regexp.Regexp{
 			custom,
 			regexp.MustCompile(`\b[Ff]ile:\s+(` + fileRe + `)$`),
-			regexp.MustCompile(`^#+\s+(` + fileRe + `)$`),
-			regexp.MustCompile("^#+\\s+`(" + fileRe + ")`"),
+			regexp.MustCompile(`^#+\s+(` + fileRe + `)`),
+			regexp.MustCompile("^#+[\\s0-9.]*\\s+`(" + fileRe + ")`"),
 			regexp.MustCompile(`^//\s+(` + fileRe + `)$`),
 			regexp.MustCompile(`^//\s+(` + fileRe + `) - `),
 			regexp.MustCompile(`^#+\s+\((` + fileRe + `)\)$`),

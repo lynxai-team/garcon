@@ -24,7 +24,7 @@ import (
 const (
 	defaultFence  = "```"
 	defaultHeader = "## File: "
-	defaultRegex  = "[\\/A-Za-z0-9._-]*[A-Za-z0-9]"
+	defaultRegex  = "[\\/A-Za-z0-9._-]{3,}[A-Za-z0-9]\\b"
 
 	usage = `md-code - extract or generate fenced code blocs.
 
