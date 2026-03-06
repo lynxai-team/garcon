@@ -17,7 +17,7 @@ import (
 
 // extract reads the source markdown, finds fenced blocs, determines a
 // filename for each bloc and writes the bloc to disk (or simulates the
-// write when dry‑run is enabled).
+// write when dry-run is enabled).
 func (c *Config) extract() error {
 	log.Printf("Extracting code blocs from %q → %q", c.mdPath, c.folder)
 
@@ -100,13 +100,13 @@ func (c *Config) extractFromReader(reader io.Reader) error {
 	return nil
 }
 
-// extractBloc creates the target file atomically, respects dry‑run and
+// extractBloc creates the target file atomically, respects dry-run and
 // overwrite semantics and rejects any attempt to write outside of the output
-// folder (directory‑traversal protection).
+// folder (directory-traversal protection).
 func (c *Config) extractBloc(data []byte, start, stop int) {
 	filename := c.matcher.filename()
 	if filename == "" {
-		if c.all { // Auto‑generate a filename using the fence language tag.
+		if c.all { // Auto-generate a filename using the fence language tag.
 			filename = fmt.Sprintf("code-bloc-%d+%d.%s", start, stop-start, c.matcher.lang)
 		} else {
 			log.Warnf("Skip bloc without filename (%d lines) lang=%s %s:%d", stop-start, c.matcher.lang, c.mdPath, start)
@@ -133,7 +133,7 @@ func (c *Config) extractBloc(data []byte, start, stop int) {
 		return
 	}
 
-	// Dry‑run - nothing to write.
+	// Dry-run - nothing to write.
 	if c.dryRun {
 		log.Checkf("dry-run %s (%d lines) lang=%s %s:%d", filename, stop-start, c.matcher.lang, c.mdPath, start)
 		return

@@ -21,7 +21,7 @@ type matcher struct {
 
 // newMatcher builds a matcher based on the current Config.
 func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
-	// The header pattern uses the user‑supplied header text verbatim.
+	// The header pattern uses the user-supplied header text verbatim.
 	return &matcher{
 		exprs: [10]*regexp.Regexp{
 			custom,

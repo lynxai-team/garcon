@@ -29,7 +29,7 @@ var imagePNG []byte
 //go:embed images/logo-flash.webp
 var imageWebP []byte
 
-// tinyPNG is a minimal 1×1 black PNG image (67 bytes).
+// tinyPNG is a minimal 1×1 black PNG image (67 bytes).
 var tinyPNG = []byte{
 	0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
 	0x00, 0x00, 0x00, 0x0D, // IHDR header length = 13 ()
@@ -40,7 +40,7 @@ var tinyPNG = []byte{
 	0x90, 0x77, 0x53, 0xDE, // CRC for IHDR
 	0x00, 0x00, 0x00, 0x0A, // IDAT data length = 10
 	0x49, 0x44, 0x41, 0x54, // "IDAT"
-	0x78, 0x9C, 0x63, 0x60, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, // zlib‑compressed scanline: filter byte (0) + RGB = (0,0,0)
+	0x78, 0x9C, 0x63, 0x60, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, // zlib-compressed scanline: filter byte (0) + RGB = (0,0,0)
 	0xE5, 0x27, 0xD4, 0x5A, // CRC for IDAT
 	0x00, 0x00, 0x00, 0x00, // image trailer length = 0
 	0x49, 0x45, 0x4E, 0x44, // "IEND"
@@ -116,8 +116,7 @@ func isImage(mime string) bool {
 	return strings.HasPrefix(mime, "image/")
 }
 
-// TestGenerateVariants_SkipDuplicates tests that variants are skipped for duplicated assets.
-func TestGenerateVariants_SkipDuplicates(t *testing.T) {
+func TestLinkCopyAssetsVariants(t *testing.T) {
 	t.Parallel()
 
 	textFile := []byte("This is a text file ")
@@ -136,22 +135,22 @@ func TestGenerateVariants_SkipDuplicates(t *testing.T) {
 	}
 
 	assets := []asset{
-		{Path: "text.txt", MIME: "text/plain", IsEmbedEligible: true, IsDuplicate: false, Size: 16_000},
-		{Path: "large.png", MIME: "image/png", IsEmbedEligible: false, IsDuplicate: false, Size: 1000_000},
-		{Path: "small.png", MIME: "image/png", IsEmbedEligible: true, IsDuplicate: false, Size: 1000},
-		{Path: "duplicate.png", MIME: "image/png", IsEmbedEligible: true, IsDuplicate: true, Size: 1000_000},
-		{Path: "medium.jpeg", MIME: "image/jpeg", IsEmbedEligible: true, IsDuplicate: false, Size: 5000},
-		{Path: "medium.webp", MIME: "image/webp", IsEmbedEligible: true, IsDuplicate: false, Size: 5000},
-		{Path: "medium.avif", MIME: "image/avif", IsEmbedEligible: true, IsDuplicate: false, Size: 5000},
+		{MIME: "text/plain", IsEmbedEligible: true, Route: "text.txt", Size: 16_000},
+		{MIME: "image/png", IsEmbedEligible: false, Route: "large.png", Size: 1000_000},
+		{MIME: "image/png", IsEmbedEligible: true, Route: "small.png", Size: 1000},
+		{MIME: "image/png", IsEmbedEligible: true, Route: "duplicate.png", Size: 1000_000, IsDuplicate: true},
+		{MIME: "image/jpeg", IsEmbedEligible: true, Route: "medium.jpeg", Size: 5000},
+		{MIME: "image/webp", IsEmbedEligible: true, Route: "medium.webp", Size: 5000},
+		{MIME: "image/avif", IsEmbedEligible: true, Route: "medium.avif", Size: 5000},
 	}
 	expected := []asset{
-		{VariantExt: ".br", Path: "text.txt", MIME: "text/plain", Size: 53, IsEmbedEligible: true},
-		{VariantExt: ".avif", Path: "large.png", MIME: "image/png", Size: 1034},
-		{VariantExt: "", Path: "small.png", MIME: "image/png", Size: 1000, IsEmbedEligible: true},
-		{VariantExt: "", Path: "duplicate.png", MIME: "image/png", Size: 1000_000, IsEmbedEligible: true, IsDuplicate: true},
-		{VariantExt: ".avif", Path: "medium.jpeg", MIME: "image/jpeg", Size: 727, IsEmbedEligible: true},
-		{VariantExt: "", Path: "medium.webp", MIME: "image/webp", Size: 5000, IsEmbedEligible: true},
-		{VariantExt: ".avif", Path: "medium.avif", MIME: "image/avif", Size: 1037, IsEmbedEligible: true},
+		{MIME: "text/plain", IsEmbedEligible: true, Route: "text.txt", Size: 53, VariantExt: ".br"},
+		{MIME: "image/png", IsEmbedEligible: false, Route: "large.png", Size: 1034, VariantExt: ".avif"},
+		{MIME: "image/png", IsEmbedEligible: true, Route: "small.png", Size: 1000, VariantExt: ""},
+		{MIME: "image/png", IsEmbedEligible: true, Route: "duplicate.png", Size: 1000_000, VariantExt: "", IsDuplicate: true},
+		{MIME: "image/jpeg", IsEmbedEligible: true, Route: "medium.jpeg", Size: 727, VariantExt: ".avif"},
+		{MIME: "image/webp", IsEmbedEligible: true, Route: "medium.webp", Size: 727, VariantExt: ".avif"},
+		{MIME: "image/avif", IsEmbedEligible: true, Route: "medium.avif", Size: 727, VariantExt: ".avif"},
 	}
 
 	cli := flags{
@@ -160,8 +159,8 @@ func TestGenerateVariants_SkipDuplicates(t *testing.T) {
 		CacheDir: t.TempDir(),
 		CacheMax: 99_000_000,
 		Brotli:   5,
-		AVIF:     50,
-		WebP:     50,
+		AVIF:     55,
+		WebP:     55,
 	}
 
 	err := linkCopyAssetsVariants(input, assets, &cli)

@@ -102,7 +102,7 @@ func defaultConfig(arguments []string) *Config {
 	return c
 }
 
-// parseFlags parses command‑line flags, validates them and returns a ready‑to‑use Config.
+// parseFlags parses command-line flags, validates them and returns a ready-to-use Config.
 // It aborts the program with a helpful message on any error.
 func parseFlags(flags *flag.FlagSet, arguments []string) (bool, *Config) {
 	var (

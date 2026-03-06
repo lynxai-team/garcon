@@ -72,7 +72,7 @@ package main
 	}
 }
 
-// 3️⃣  Overwrite flag – existing file should be kept when Overwrite=false.
+// 3️⃣  Overwrite flag - existing file should be kept when Overwrite=false.
 func TestOverwriteFlag(t *testing.T) {
 	t.Parallel()
 	md := `
@@ -86,7 +86,7 @@ package main
 	mdPath := writeMD(t, md)
 	dest := t.TempDir()
 
-	// First run – creates the file.
+	// First run - creates the file.
 	c := defaultConfig([]string{mdPath, dest})
 	err := c.extract()
 	if err != nil {
@@ -99,7 +99,7 @@ package main
 
 ` + "```go" + `
 package main
-// second version – should be ignored
+// second version - should be ignored
 ` + "```" + "\n"
 
 	_ = writeMD(t, md2)
@@ -121,7 +121,7 @@ package main
 	}
 }
 
-// 4️⃣  Dry-run flag – no files should be written.
+// 4️⃣  Dry-run flag - no files should be written.
 func TestDryRun(t *testing.T) {
 	t.Parallel()
 	md := `
@@ -167,7 +167,7 @@ package main
 	assertNoFiles(t, dest)
 }
 
-// 8️⃣  All flag – extract blocs without filename.
+// 8️⃣  All flag - extract blocs without filename.
 func TestAllFlag(t *testing.T) {
 	t.Parallel()
 	md := `
@@ -204,7 +204,7 @@ func main() {}
 	}
 }
 
-// 9️⃣  No filename blocs – should be ignored when all=false.
+// 9️⃣  No filename blocs - should be ignored when all=false.
 func TestNoFilenameIgnored(t *testing.T) {
 	t.Parallel()
 	md := `
@@ -229,7 +229,7 @@ func main() {}
 	assertNoFiles(t, dest)
 }
 
-// 🔟  Empty fence – should skip blocs without language.
+// 🔟  Empty fence - should skip blocs without language.
 func TestEmptyFence(t *testing.T) {
 	t.Parallel()
 	md := `
@@ -306,9 +306,9 @@ This is the end of the README.
 	assertNoFiles(t, dest)
 }
 
-// 🆕  FuzzExtract – comprehensive fuzz testing.
+// 🆕  FuzzExtract - comprehensive fuzz testing.
 func FuzzExtract(f *testing.F) {
-	// Seed corpus – valid examples
+	// Seed corpus - valid examples
 	f.Add([]byte("**a.go**\n```go\npackage main\n```\n"))
 	f.Add([]byte("--- File: b.go\n```go\n// empty\n```\n"))
 	f.Add([]byte("\n```go\nfmt.Println(\"hello\")\n```\n")) // no filename → should be ignored
@@ -332,7 +332,7 @@ func FuzzExtract(f *testing.F) {
 			t.Fatalf("write md: %v", err)
 		}
 
-		// Run the extractor – any error is acceptable, but it must not panic.
+		// Run the extractor - any error is acceptable, but it must not panic.
 		c := defaultConfig([]string{mdPath, dir})
 		c.dryRun = true
 		err = c.extract()
@@ -366,13 +366,13 @@ truc/
 ├── main.go
 ├── version.go
 ├── templates/
-│   ├── embed.gotmpl
+│   ├── embed-assets.gotmpl
 │   ├── main.gotmpl
 │   └── handlers.gotmpl
 └── generated/
     └── flash/
         ├── assets/
-        │   └── embed.go
+        │   └── embed-assets.go
         ├── www/
         │   └── ...
         ├── main.go

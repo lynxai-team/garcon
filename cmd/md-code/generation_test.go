@@ -156,9 +156,9 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-// 🆕  FuzzGenerate – fuzz testing for reverse mode.
+// 🆕  FuzzGenerate - fuzz testing for reverse mode.
 func FuzzGenerate(f *testing.F) {
-	// Seed corpus – valid directory structures
+	// Seed corpus - valid directory structures
 	testFiles := map[string]string{
 		"main.go":          "package main\nfunc main() {}\n",
 		"utils.go":         "package utils\nfunc helper() {}\n",
@@ -180,7 +180,7 @@ func FuzzGenerate(f *testing.F) {
 		// Create destination markdown file
 		md := filepath.Join(src, "output.md")
 
-		// Run reverse mode – any error is acceptable, but it must not panic.
+		// Run reverse mode - any error is acceptable, but it must not panic.
 		c := defaultConfig([]string{"-gen", md, src})
 		c.dryRun = true
 		err := c.generateMarkdown()

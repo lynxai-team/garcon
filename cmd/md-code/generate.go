@@ -145,7 +145,7 @@ var (
 
 // generateMarkdown walks c.folder and writes a markdown document that
 // contains each file as a fenced code bloc.  The output is streamed directly
-// to the destination file (or discarded in dry‑run mode) to keep memory usage low.
+// to the destination file (or discarded in dry-run mode) to keep memory usage low.
 func (c *Config) generateMarkdown() error {
 	log.Printf("Generating markdown %s from folder %s", c.mdPath, c.folder)
 
@@ -214,7 +214,7 @@ func (c *Config) generateMarkdown() error {
 			log.Stopf("SKIP file %q is binary (first bytes are not UTF-8)", path)
 			return nil
 		}
-		// Compute a forward‑slash relative path for markdown.
+		// Compute a forward-slash relative path for markdown.
 		rel, err := filepath.Rel(c.folder, path)
 		if err != nil {
 			log.Stopf("SKIP file %q has a weird path filepath.Rel=%s", path, err)
@@ -380,7 +380,7 @@ func printSummary(results []extractedFile) {
 		check = "✓"
 	)
 	for _, r := range results {
-		// Use a narrow no‑break space (U+202F) to keep the size column aligned.
+		// Use a narrow no-break space (U+202F) to keep the size column aligned.
 		fmt.Printf("%s%s %s (%d\u202F"+"bytes)%s\n", green, check, r.path, r.size, reset)
 	}
 }

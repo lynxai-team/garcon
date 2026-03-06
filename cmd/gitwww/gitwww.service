@@ -1,7 +1,7 @@
 # /etc/systemd/system/gitwww.service
 [Unit]
 Description=GitWWW: automatic static-site builder
-Documentation=exec:/var/opt/gitwww/gitwww -doc
+Documentation=exec:/var/opt/gitwww/gitwww -d
 After=network.target docker.service
 Requires=docker.service
 
@@ -16,9 +16,9 @@ Requires=docker.service
 [Service]
 Type=simple
 User=root
-Environment="GITWWW_CFG="
-Environment="GITWWW_WWW="
-Environment="GITWWW_LOG="
+Environment="GITWWW_CFG=/var/opt/gitwww"
+Environment="GITWWW_WWW=www"
+Environment="GITWWW_LOG=INFO"
 ExecStart=/var/opt/gitwww/gitwww
 
 # -------------------------------------------------
