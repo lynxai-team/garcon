@@ -805,6 +805,8 @@ Both generator and generated server must remain easy to read, reason about, and 
 ## 16. PERFORMANCE CONSTRAINTS
 
 **Hot-path requirements:**
+- Use `[]byte` instead of `string` where possible
+- Drop leading slash for faster byte comparison
 - Zero heap allocations per request for embed-eligible assets
 - One array lookup (`dispatch[len(path)]`)
 - One switch (per-length handler)
