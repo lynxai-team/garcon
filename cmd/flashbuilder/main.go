@@ -19,8 +19,8 @@ import (
 )
 
 type flags struct {
-	Input  string `env:"FLASHBUILDER_INPUT"  type:"path" arg:"input"  help:"Path to asset tree"`
-	Output string `env:"FLASHBUILDER_OUTPUT" type:"path" arg:"output" help:"Destination for generated files"`
+	InDir  string `env:"FLASHBUILDER_INPUT_DIR"  type:"path" arg:"input"  help:"Path to asset tree"`
+	OutDir string `env:"FLASHBUILDER_OUTPUT_DIR" type:"path" arg:"output" help:"Destination for generated files"`
 
 	// Content-Security-Policy header value
 	CSP string `env:"FLASHBUILDER_CSP" default:"default-src 'self'"`
@@ -55,18 +55,18 @@ func validateInputs(cli *flags) (*flags, error) {
 		cli.CacheDir = getDefaultCacheDir()
 	}
 
-	cli.Input, err = filepath.Abs(cli.Input)
+	cli.InDir, err = filepath.Abs(cli.InDir)
 	if err != nil {
 		return nil, fmt.Errorf("path.Abs(input) %w", err)
 	}
 
-	cli.Output, err = filepath.Abs(cli.Output)
+	cli.OutDir, err = filepath.Abs(cli.OutDir)
 	if err != nil {
 		return nil, fmt.Errorf("path.Abs(output) %w", err)
 	}
 
 	// Security check for input/output equality
-	if cli.Input == cli.Output {
+	if cli.InDir == cli.OutDir {
 		return nil, errors.New("Input and output must differ")
 	}
 
@@ -83,7 +83,7 @@ func do(cli *flags) error {
 
 	// use fs.FS to access the assets files
 	// this simplifies the tests mocking (fstest)
-	input := os.DirFS(cli.Input)
+	input := os.DirFS(cli.InDir)
 
 	return process(input, cli)
 }
@@ -115,35 +115,37 @@ func process(input fs.FS, cli *flags) error {
 
 	// Generate Go code
 	data := templateData{
+		outputDir: cli.OutDir,
+		dryRun:    cli.DryRun,
 		CSP:       cli.CSP,
 		HTTPSPort: "8443",
 		Assets:    assets,
 		Get:       get,
 		Post:      post,
 	}
-	err = generate(data, cli.Output, cli.DryRun)
+	err = generate(data)
 	if err != nil {
 		return err
 	}
 
 	if !cli.DryRun {
-		err = runGoModInit(cli.Output)
+		err = runGoModInit(cli.OutDir)
 		if err != nil {
 			return fmt.Errorf("Failed to run go mod tidy: %w", err)
 		}
 
-		err = runGoModTidy(cli.Output)
+		err = runGoModTidy(cli.OutDir)
 		if err != nil {
 			return fmt.Errorf("Failed to run go mod tidy: %w", err)
 		}
 
-		err = runGoBuild(cli.Output)
+		err = runGoBuild(cli.OutDir)
 		if err != nil {
 			return fmt.Errorf("Failed to build binary: %w", err)
 		}
 
 		if cli.Test {
-			err = runTests(cli.Output)
+			err = runTests(cli.OutDir)
 			if err != nil {
 				return fmt.Errorf("Test suite failed: %w", err)
 			}

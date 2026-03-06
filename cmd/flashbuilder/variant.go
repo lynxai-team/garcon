@@ -48,12 +48,12 @@ const (
 
 func ensureDirectoriesExist(cli *flags) (assetsDir, wwwDir string, useCache bool, _ error) {
 	// Ensure assets/ and www/ directories are present (remains synchronous)
-	assetsDir = path.Join(cli.Output, assetsBase)
+	assetsDir = path.Join(cli.OutDir, assetsBase)
 	err := os.MkdirAll(assetsDir, 0o700)
 	if err != nil {
 		return "", "", false, fmt.Errorf("Failed to create assets directory %s: %w", assetsDir, err)
 	}
-	wwwDir = path.Join(cli.Output, wwwBase)
+	wwwDir = path.Join(cli.OutDir, wwwBase)
 	err = os.MkdirAll(wwwDir, 0o700)
 	if err != nil {
 		return "", "", false, fmt.Errorf("Failed to create www directory %s: %w", wwwDir, err)
@@ -161,7 +161,7 @@ func generateLinkCopy(input fs.FS, a *asset, cli *flags, wwwDir, assetsDir strin
 		return nil // variant already in dstDir
 	}
 
-	return linkCopyAsset(input, cli.Input, dstDir, a.Path)
+	return linkCopyAsset(input, cli.InDir, dstDir, a.Route)
 }
 
 // variantEligibility determines if content is eligible for Brotli / AVIF / WebP.

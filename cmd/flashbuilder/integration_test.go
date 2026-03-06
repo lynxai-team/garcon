@@ -37,8 +37,8 @@ func TestIntegration_DiscoverToGet(t *testing.T) {
 
 	// Generate variants
 	cli := flags{
-		Input:    t.TempDir(),
-		Output:   t.TempDir(),
+		InDir:    t.TempDir(),
+		OutDir:   t.TempDir(),
 		CacheDir: t.TempDir(),
 		CacheMax: 99_000_000,
 		Brotli:   5,

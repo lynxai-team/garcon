@@ -155,8 +155,8 @@ func TestGenerateVariants_SkipDuplicates(t *testing.T) {
 	}
 
 	cli := flags{
-		Input:    t.TempDir(),
-		Output:   t.TempDir(),
+		InDir:    t.TempDir(),
+		OutDir:   t.TempDir(),
 		CacheDir: t.TempDir(),
 		CacheMax: 99_000_000,
 		Brotli:   5,
@@ -390,8 +390,8 @@ func TestIntegration_Variants(t *testing.T) {
 	}
 
 	cli := flags{
-		Input:    t.TempDir(),
-		Output:   t.TempDir(),
+		InDir:    t.TempDir(),
+		OutDir:   t.TempDir(),
 		CacheDir: t.TempDir(),
 		CacheMax: 99_000_000,
 		Brotli:   5, // Enable Brotli

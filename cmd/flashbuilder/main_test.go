@@ -40,8 +40,8 @@ func TestValidateCompressionFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			flags := &flags{
-				Input:  t.TempDir(),
-				Output: t.TempDir(),
+				InDir:  t.TempDir(),
+				OutDir: t.TempDir(),
 				Brotli: tt.brotli,
 				AVIF:   tt.avif,
 				WebP:   tt.webp,
@@ -107,8 +107,8 @@ import (
 	_ "embed"
 )
 `, flags{
-		Input:       "",
-		Output:      "",
+		InDir:       "",
+		OutDir:      "",
 		CSP:         "",
 		CacheDir:    "",
 		EmbedBudget: 0,
@@ -130,8 +130,8 @@ import (
 	_ "embed"
 )
 `, flags{
-		Input:       "",
-		Output:      "",
+		InDir:       "",
+		OutDir:      "",
 		CSP:         "",
 		CacheDir:    "",
 		EmbedBudget: 1,
@@ -148,12 +148,12 @@ import (
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Parallel()
 
-			tt.flags.Input = t.TempDir()
-			os.WriteFile(path.Join(tt.flags.Input, "index.html"), []byte("<html><body>Hey!</body></html>"), 0o600)
-			os.WriteFile(path.Join(tt.flags.Input, "favicon.svg"), []byte(`<svg><rect x1="1" x1="2" y1="3" y1="4"/></svg>`), 0o600)
+			tt.flags.InDir = t.TempDir()
+			os.WriteFile(path.Join(tt.flags.InDir, "index.html"), []byte("<html><body>Hey!</body></html>"), 0o600)
+			os.WriteFile(path.Join(tt.flags.InDir, "favicon.svg"), []byte(`<svg><rect x1="1" x1="2" y1="3" y1="4"/></svg>`), 0o600)
 
-			tt.flags.Output = t.TempDir()
-			t.Log("flags.Output = ", tt.flags.Output)
+			tt.flags.OutDir = t.TempDir()
+			t.Log("flags.Output = ", tt.flags.OutDir)
 
 			err := do(&tt.flags)
 			if err != nil {
@@ -161,12 +161,12 @@ import (
 			}
 
 			want := []byte(tt.want)
-			got, err := os.ReadFile(path.Join(tt.flags.Output, "embed.go"))
+			got, err := os.ReadFile(path.Join(tt.flags.OutDir, "embed-assets.go"))
 			if err != nil {
-				t.Fatalf("Miss embed.go error=%v", err)
+				t.Fatalf("Miss embed-assets.go error=%v", err)
 			}
 			if !bytes.Equal(got, want) {
-				t.Errorf("embed.go differ: %v", cmp.Diff(want, got))
+				t.Errorf("embed-assets.go differ: %v", cmp.Diff(want, got))
 				t.Errorf("got:"+"\n"+"%s", got)
 			}
 		})
@@ -185,8 +185,8 @@ func TestValidateInputs(t *testing.T) {
 	// We will rely on the logic: if absInput == absOutput -> error.
 	// We can simulate this by providing the same path for both.
 	cliSame := &flags{
-		Input:  inputDir, // Use same path
-		Output: inputDir,
+		InDir:  inputDir, // Use same path
+		OutDir: inputDir,
 	}
 	_, err := validateInputs(cliSame)
 	if err == nil {
