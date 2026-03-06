@@ -34,8 +34,10 @@ var header{{.Identifier}}HTTPS = []byte("" +
 	"Vary: Accept" + "\r\n" +{{else}}
 	"Content-Type: {{.MIME}}" + "\r\n" +{{end}}{{end}}{{end}}
 	"ETag: \"{{.ETag}}\"" + "\r\n" +
-	"Strict-Transport-Security: max-age=31536000" + "\r\n" +
-	"X-Content-Type-Options: nosniff" + "\r\n")
+	"Strict-Transport-Security: max-age=31536000" + "\r\n"
+	{{- if ne .MIME "application/octet-stream"}} +
+	"X-Content-Type-Options: nosniff" + "\r\n"
+	{{- end}})
 
 	{{- end -}}
 {{ end }}
