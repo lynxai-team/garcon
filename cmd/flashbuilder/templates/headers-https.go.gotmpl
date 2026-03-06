@@ -16,13 +16,16 @@
 
 package main
 
-{{- $port := .HTTPSPort -}}
+{{- $port := .HTTPSPort }}
+
+// only for HTTP/1.1/2 using TLS: HTTP/3 should not advertize h3. ma=30days, persist in cache
+const altSvcHeader = `Alt-Svc: h3=":{{$port}}"; ma=2592000; persist=1` + "\r\n"
 
 {{- range .Assets -}}
 	{{- if and .IsEmbedEligible (not .IsDuplicate) (not .IsShortcut) }}
 
 var header{{.Identifier}}HTTPS = []byte("" +
-	`Alt-Svc: h3=":{{$port}}"; ma=2592000` + "\r\n" +
+	altSvcHeader +
 	"Cache-Control: public, max-age=31536000, immutable{{if .IsIndex}}, must-revalidate{{end}}" + "\r\n" +
 	"Content-Length: {{.Size}}" + "\r\n" +{{if .CSP}}
 	"Content-Security-Policy: {{.CSP}}" + "\r\n" +{{end}}{{if eq .VariantExt ".br"}}
