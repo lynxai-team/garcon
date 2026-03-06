@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Contact & Greetings</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+
+    <meta http-equiv="Content-Security-Policy" content="skip this second CSP">
+
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            margin: 2rem;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Contact Us</h1>
+
+    <!-- File upload form -->
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <div>
+            <label for="file-input">Choose a file</label>
+            <input type="file" id="file-input" name="myFile" required>
+        </div>
+        <button type="submit">Send the file</button>
+    </form>
+
+    <!-- Greeting form (POST) -->
+    <form action="/greet" method="post">
+        <div>
+            <label for="greeting-text">What greeting do you want to say?</label>
+            <input type="text" id="greeting-text" name="say" value="Hi" required>
+        </div>
+        <div>
+            <label for="greeting-to">Who do you want to say it to?</label>
+            <input type="text" id="greeting-to" name="to" value="Mom" required>
+        </div>
+        <button type="submit">Send my greetings</button>
+    </form>
+
+    <!-- Greeting form (GET) -->
+    <form action="/submit" method="get">
+        <div>
+            <label for="greeting-get-text">What greeting do you want to say?</label>
+            <input type="text" id="greeting-get-text" name="say" value="Hi" required>
+        </div>
+        <div>
+            <label for="greeting-get-to">Who do you want to say it to?</label>
+            <input type="text" id="greeting-get-to" name="to" value="Mom" required>
+        </div>
+        <button type="submit">Send my greetings</button>
+    </form>
+</body>
+
+</html>
