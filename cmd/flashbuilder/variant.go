@@ -173,10 +173,17 @@ func variantEligibility(mime string) (brotliEligible, avifEligible, webpEligible
 		}
 	}
 
-	// image/jpeg image/png image/apng image/gif image/webp image/avif image/x-icon image/vnd.microsoft.icon
-	for _, suffix := range []string{"/jpeg", "/png", "/gif", "/webp", "/avif", "icon"} {
+	// image/jpeg image/png image/apng image/gif image/webp image/avif
+	for _, suffix := range []string{"/jpeg", "/png", "/gif", "/webp", "/avif"} {
 		if strings.HasSuffix(mime, suffix) {
 			return false, true, true
+		}
+	}
+
+	// image/x-icon image/vnd.microsoft.icon
+	for _, suffix := range []string{"icon"} {
+		if strings.HasSuffix(mime, suffix) {
+			return true, true, true
 		}
 	}
 
