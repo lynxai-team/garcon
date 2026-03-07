@@ -13,7 +13,7 @@ import (
 // in the two lines preceding a fenced bloc.  The patterns are ordered from most
 // specific to most generic.
 type matcher struct {
-	exprs [10]*regexp.Regexp // compiled regexes
+	exprs [11]*regexp.Regexp // compiled regexes
 	prev  [5]string          // buffer with two lines before + one line after
 	lang  string             // language tag of the opening fence
 	idx   int                // index of the next slot in prev
@@ -23,7 +23,7 @@ type matcher struct {
 func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
 	// The header pattern uses the user-supplied header text verbatim.
 	return &matcher{
-		exprs: [10]*regexp.Regexp{
+		exprs: [11]*regexp.Regexp{
 			custom,
 			regexp.MustCompile(`\b[Ff]ile:\s+(` + fileRe + `)$`),
 			regexp.MustCompile(`^#+\s+(` + fileRe + `)`),
@@ -34,6 +34,7 @@ func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
 			regexp.MustCompile("`(" + fileRe + ")`[^.]$"),
 			regexp.MustCompile("`(" + fileRe + ")`$"),
 			regexp.MustCompile(`^#*\s*\*\*(` + fileRe + `)\*\*`),
+			regexp.MustCompile(`^\*\*` + "`(" + fileRe + ")`" + `\*\*$`),
 		},
 	}
 }
@@ -42,6 +43,12 @@ func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
 func (m *matcher) store(line string) {
 	m.prev[m.idx] = line
 	m.idx = (m.idx + 1) % len(m.prev)
+}
+
+func (m *matcher) reset() {
+	for i := range m.prev {
+		m.prev[i] = ""
+	}
 }
 
 // filename scans the stored lines for a filename using the compiled regexes.

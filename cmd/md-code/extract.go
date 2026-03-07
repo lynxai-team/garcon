@@ -59,6 +59,7 @@ func (c *Config) extractFromReader(reader io.Reader) error {
 					// change state: zero start means outside of a code bloc
 					start = 0
 					buf.Reset()
+					c.matcher.reset()
 				}
 				continue
 			}
