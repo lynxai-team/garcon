@@ -52,6 +52,7 @@ func TestIsCompressible(t *testing.T) {
 	t.Parallel()
 
 	type want struct{ b, a, w bool }
+	//nolint:govet // do not optimize test functions
 	tests := []struct {
 		want want
 		name string
@@ -233,6 +234,7 @@ func TestCleanCache2(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create test files with different ages
+	//nolint:govet // do not optimize test functions
 	files := []struct {
 		name    string
 		modTime time.Time
@@ -277,6 +279,7 @@ func TestVariantEligibility(t *testing.T) {
 	t.Parallel()
 
 	type want struct{ b, a, w bool }
+	//nolint:govet // do not optimize test functions
 	tests := []struct {
 		want want
 		name string
