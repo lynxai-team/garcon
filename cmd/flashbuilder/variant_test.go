@@ -53,9 +53,9 @@ func TestIsCompressible(t *testing.T) {
 
 	type want struct{ b, a, w bool }
 	tests := []struct {
-		expected want
-		name     string
-		mime     string
+		want want
+		name string
+		mime string
 	}{
 		{want{true, true, true}, "ICO", "image/x-icon"},
 		{want{false, true, true}, "avif", "image/avif"},
@@ -97,8 +97,8 @@ func TestIsCompressible(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			b, a, w := variantEligibility(tt.mime)
-			if b != tt.expected.b || a != tt.expected.a || w != tt.expected.w {
-				t.Errorf("Want %v, got b=%v a=%v w=%v", tt.expected, b, a, w)
+			if b != tt.want.b || a != tt.want.a || w != tt.want.w {
+				t.Errorf("Want %v, got b=%v a=%v w=%v", tt.want, b, a, w)
 			}
 		})
 	}
@@ -109,9 +109,9 @@ func TestIsImage(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		mime     string
-		expected bool
+		name string
+		mime string
+		want bool
 	}{
 		{"PNG", "image/png", true},
 		{"JPEG", "image/jpeg", true},
@@ -124,9 +124,9 @@ func TestIsImage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := isImage(tt.mime)
-			if result != tt.expected {
-				t.Errorf("Want %v, got %v", tt.expected, result)
+			got := isImage(tt.mime)
+			if got != tt.want {
+				t.Errorf("Want %v, got %v", tt.want, got)
 			}
 		})
 	}
@@ -276,33 +276,33 @@ func TestCleanCache2(t *testing.T) {
 func TestVariantEligibility(t *testing.T) {
 	t.Parallel()
 
-	type expected struct{ b, a, w bool }
+	type want struct{ b, a, w bool }
 	tests := []struct {
-		expected expected
-		name     string
-		mime     string
+		want want
+		name string
+		mime string
 	}{
-		{expected{true, false, false}, "JS", "text/javascript"},
-		{expected{true, false, false}, "XML", "application/xml"},
-		{expected{true, false, false}, "CSS", "text/css"},
-		{expected{true, false, false}, "Markdown", "text/markdown"},
-		{expected{true, false, false}, "SVG", "image/svg+xml"},
-		{expected{true, false, false}, "HTML", "text/html"},
-		{expected{true, false, false}, "JSON", "application/json"},
-		{expected{false, true, true}, "JPEG", "image/jpeg"},
-		{expected{false, true, true}, "PNG", "image/png"},
-		{expected{false, true, true}, "GIF", "image/gif"},
-		{expected{false, true, true}, "AVIF", "image/avif"},
-		{expected{false, true, true}, "WebP", "image/webp"},
-		{expected{false, false, false}, "Binary", "application/octet-stream"},
+		{want{true, false, false}, "JS", "text/javascript"},
+		{want{true, false, false}, "XML", "application/xml"},
+		{want{true, false, false}, "CSS", "text/css"},
+		{want{true, false, false}, "Markdown", "text/markdown"},
+		{want{true, false, false}, "SVG", "image/svg+xml"},
+		{want{true, false, false}, "HTML", "text/html"},
+		{want{true, false, false}, "JSON", "application/json"},
+		{want{false, true, true}, "JPEG", "image/jpeg"},
+		{want{false, true, true}, "PNG", "image/png"},
+		{want{false, true, true}, "GIF", "image/gif"},
+		{want{false, true, true}, "AVIF", "image/avif"},
+		{want{false, true, true}, "WebP", "image/webp"},
+		{want{false, false, false}, "Binary", "application/octet-stream"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			b, a, w := variantEligibility(tt.mime)
-			if b != tt.expected.b || a != tt.expected.a || w != tt.expected.w {
-				t.Errorf("Want %v, got b=%v a=%v w=%v", tt.expected, b, a, w)
+			if b != tt.want.b || a != tt.want.a || w != tt.want.w {
+				t.Errorf("Want %v, got b=%v a=%v w=%v", tt.want, b, a, w)
 			}
 		})
 	}
@@ -369,9 +369,9 @@ func TestGenerateShortcut(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		inPath   string
-		expected string
+		name   string
+		inPath string
+		want   string
 	}{
 		{"Root index", "index.html", ""},
 		{"Subdir index", "about/index.html", "about"},
@@ -383,9 +383,9 @@ func TestGenerateShortcut(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := generateShortcut(tt.inPath)
-			if result != tt.expected {
-				t.Errorf("Want %s, got %s", tt.expected, result)
+			got := generateShortcut(tt.inPath)
+			if got != tt.want {
+				t.Errorf("Want %s, got %s", tt.want, got)
 			}
 		})
 	}
