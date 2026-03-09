@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/lynxai-team/emo"
+
 	"github.com/lynxai-team/garcon/gg"
 )
 
@@ -35,7 +36,7 @@ func NewNotifier(notifierURL string) Notifier {
 		emo.Info("URL has the Telegram prefix: " + notifierURL)
 		p := gg.SplitClean(notifierURL)
 		if len(p) == 2 {
-			return NewTelegramNotifier(string(p[0]), string(p[1]))
+			return NewTelegramNotifier(p[0], p[1])
 		}
 
 		emo.Error("Cannot retrieve ChatID from %v", p)
@@ -104,7 +105,7 @@ func (n MattermostNotifier) Notify(msg []byte) error {
 // - Retains only important UTF-8 characters (Graphic and essential Markdown characters).
 // - JSON compatibility: Escape some characters: newline, tab, double-quote.
 // AppendCurateEscape does not quote: it does not surround with double-quotes.
-func AppendCurateEscape(buf []byte, s []byte) []byte {
+func AppendCurateEscape(buf, s []byte) []byte {
 	for len(s) > 0 {
 		// Decode the next rune. utf8.DecodeRune handles multi-byte correctly.
 		r, width := utf8.DecodeRune(s)

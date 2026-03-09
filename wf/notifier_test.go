@@ -38,7 +38,7 @@ func TestNotify_Functional2(t *testing.T) {
 	// Setup a mock server to verify the request body and control the response.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify the request method and content type.
-		if r.Method != "POST" {
+		if r.Method != http.MethodPost {
 			t.Errorf("Expected POST request, got %s", r.Method)
 		}
 		if r.Header.Get("Content-Type") != "application/json" {
@@ -93,8 +93,8 @@ func TestNotify_Functional2(t *testing.T) {
 func TestAppendCuratedEscaped_Unit2(t *testing.T) {
 	tests := []struct {
 		name  string
+		want  string
 		input []byte
-		want  string // Expected output after quoting
 	}{
 		{name: "Empty", input: []byte(""), want: ``},
 		{name: "Simple ASCII", input: []byte("Hello World"), want: `Hello World`},
@@ -138,7 +138,8 @@ func FuzzAppendCuratedEscaped2(f *testing.F) {
 		// We check by wrapping it in a JSON struct.
 		jsonStr := fmt.Sprintf(`{"key": "%s"}`, string(res))
 		var m map[string]any
-		if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
+		err := json.Unmarshal([]byte(jsonStr), &m)
+		if err != nil {
 			t.Errorf("Output produced invalid JSON: %v, Input: %v", res, data)
 		}
 
@@ -153,7 +154,7 @@ func TestNotify_Functional(t *testing.T) {
 	// Setup a mock server to verify the request body and control the response.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify the request method and content type.
-		if r.Method != "POST" {
+		if r.Method != http.MethodPost {
 			t.Errorf("Expected POST request, got %s", r.Method)
 		}
 		if r.Header.Get("Content-Type") != "application/json" {
@@ -208,8 +209,8 @@ func TestNotify_Functional(t *testing.T) {
 func TestAppendCuratedEscaped_Unit(t *testing.T) {
 	tests := []struct {
 		name  string
+		want  string
 		input []byte
-		want  string // Expected output string (including quotes)
 	}{
 		{name: "Empty", input: []byte(""), want: ``},
 		{name: "Simple ASCII", input: []byte("Hello World"), want: `Hello World`},
@@ -236,7 +237,7 @@ func TestAppendCuratedEscaped_Unit(t *testing.T) {
 // TestAppendCuratedEscaped_ValidJSON verifies the output is always valid JSON.
 func TestAppendCuratedEscaped_ValidJSON(t *testing.T) {
 	// Seed with some random data.
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		// Generate random byte slice.
 		size := rand.Intn(100) // Random size up to 100 bytes.
 		input := make([]byte, size)
@@ -252,7 +253,8 @@ func TestAppendCuratedEscaped_ValidJSON(t *testing.T) {
 
 		// Try to unmarshal. If it fails, the output was invalid.
 		var m map[string]any
-		if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
+		err := json.Unmarshal([]byte(jsonStr), &m)
+		if err != nil {
 			t.Errorf("Failed to unmarshal JSON for input %v: %v", input, err)
 		}
 	}
@@ -281,7 +283,8 @@ func FuzzAppendCuratedEscaped(f *testing.F) {
 		// We check by wrapping it in a JSON struct.
 		jsonStr := fmt.Sprintf(`{"key": "%s"}`, string(res))
 		var m map[string]any
-		if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
+		err := json.Unmarshal([]byte(jsonStr), &m)
+		if err != nil {
 			t.Errorf("Output produced invalid JSON: %v, Input: %v", res, data)
 		}
 
@@ -296,7 +299,7 @@ func TestNotify_Functional3(t *testing.T) {
 	// Setup a mock server to verify the request body and control the response.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify the request method and content type.
-		if r.Method != "POST" {
+		if r.Method != http.MethodPost {
 			t.Errorf("Expected POST request, got %s", r.Method)
 		}
 		if r.Header.Get("Content-Type") != "application/json" {
@@ -350,8 +353,8 @@ func TestNotify_Functional3(t *testing.T) {
 func TestAppendCuratedEscaped_Unit3(t *testing.T) {
 	tests := []struct {
 		name  string
+		want  string
 		input []byte
-		want  string // Expected output string (including quotes)
 	}{
 		{name: "Empty", input: []byte(""), want: ``},
 		{name: "Simple ASCII", input: []byte("Hello World"), want: `Hello World`},
@@ -382,7 +385,7 @@ func TestAppendCuratedEscaped_ValidJSON3(t *testing.T) {
 	// Seed with some random data.
 	rand.New(rand.NewSource(0)) // Use a deterministic seed for reproducibility.
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		// Generate random byte slice.
 		size := rand.Intn(100) // Random size up to 100 bytes.
 		input := make([]byte, size)
@@ -398,7 +401,8 @@ func TestAppendCuratedEscaped_ValidJSON3(t *testing.T) {
 
 		// Try to unmarshal. If it fails, the output was invalid.
 		var m map[string]any
-		if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
+		err := json.Unmarshal([]byte(jsonStr), &m)
+		if err != nil {
 			t.Errorf("Failed to unmarshal JSON for input %v: %v", input, err)
 		}
 	}
@@ -428,7 +432,8 @@ func FuzzAppendCuratedEscaped3(f *testing.F) {
 		// We check by wrapping it in a JSON struct.
 		jsonStr := fmt.Sprintf(`{"key": "%s"}`, string(res))
 		var m map[string]any
-		if err := json.Unmarshal([]byte(jsonStr), &m); err != nil {
+		err := json.Unmarshal([]byte(jsonStr), &m)
+		if err != nil {
 			t.Errorf("Output produced invalid JSON: %v, Input: %v", res, data)
 		}
 
