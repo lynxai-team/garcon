@@ -58,7 +58,7 @@ func TestValidateCompressionFlags(t *testing.T) {
 				AVIF:   tt.avif,
 				WebP:   tt.webp,
 			}
-			err := process(input, cli)
+			err := do(input, cli)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -167,9 +167,15 @@ import (
 			tt.flags.OutDir = t.TempDir()
 			t.Log("flags.Output = ", tt.flags.OutDir)
 
-			err := do(&tt.flags)
+			setLogLevel(tt.flags.Verbosity)
+			err := validateInputs(&tt.flags)
 			if err != nil {
-				t.Errorf("expected success but got error=%v", err)
+				t.Errorf("validateInputs: want success but got error: %s", err)
+			}
+			input := os.DirFS(tt.flags.InDir)
+			err = do(input, &tt.flags)
+			if err != nil {
+				t.Errorf("do: want success but got error=%v", err)
 			}
 
 			want := []byte(tt.want)
@@ -200,7 +206,7 @@ func TestValidateInputs(t *testing.T) {
 		InDir:  inputDir, // Use same path
 		OutDir: inputDir,
 	}
-	_, err := validateInputs(cliSame)
+	err := validateInputs(cliSame)
 	if err == nil {
 		t.Error("Expected error for same input and output paths")
 	}

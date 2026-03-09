@@ -72,7 +72,7 @@ func TestRenderTemplate(t *testing.T) {
 		HTTPSPort: "8443",
 		Assets: []asset{
 			{
-				Route:           "style.css",
+				Path:            "style.css",
 				Size:            100,
 				MIME:            "text/css",
 				ETag:            `"etag123"`,

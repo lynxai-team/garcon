@@ -38,7 +38,8 @@ const maxAssetSize = math.MaxInt32 // 2_147_483_647 Bytes = 2 GB
 // asset represents a static asset with all pre-computed metadata.
 type asset struct {
 	Identifier string // Go identifier (e.g., "assetFaviconIco")
-	Route      string // asset path relative to cli.Input used as route
+	Path       string // asset path relative to cli.Input used
+	Route      string // escaped route (path separators preserved).
 	VariantExt string // optional: variant extension: .br .avif .webp
 	MIME       string // Detected MIME type (e.g., "text/html"), used for Content-Type
 
@@ -156,7 +157,7 @@ func newAsset(input fs.FS, assetPath, csp string) (*asset, error) {
 	}
 
 	return &asset{
-		Route:     assetPath, // relative to input (also used as the request endpoint even if the variant is embedded)
+		Path:      assetPath, // relative to input (also used as the request endpoint even if the variant is embedded)
 		MIME:      mimeType,
 		Hash:      hash,
 		ETag:      etag,
@@ -371,7 +372,7 @@ func detectMIME(input fs.FS, assetPath string) string {
 func generateIdentifiers(assets []asset) {
 	identifiers := make(existing, len(assets))
 	for i := range assets {
-		assets[i].Identifier = identifiers.generateIdentifier(assets[i].Route)
+		assets[i].Identifier = identifiers.generateIdentifier(assets[i].Path)
 	}
 }
 
@@ -422,7 +423,7 @@ func deduplicate(assets []asset) []asset {
 
 	// Sort by route length
 	sort.Slice(assets, func(i, j int) bool {
-		return len(assets[i].Route) < len(assets[j].Route)
+		return len(assets[i].Path) < len(assets[j].Path)
 	})
 
 	// Group assets by hash

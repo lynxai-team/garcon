@@ -12,46 +12,30 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/lynxai-team/emo"
 	"github.com/lynxai-team/garcon/gg"
 )
 
-type (
-	// Notifier interface for sending messages.
-	Notifier interface {
-		Notify(message string) error
-	}
-
-	// LogNotifier implements a Notifier interface that logs the received notifications.
-	// LogNotifier can be used as a mocked Notifier or for debugging purpose
-	// or as a fallback when a real Notifier cannot be created for whatever reason.
-	LogNotifier struct{}
-
-	// MattermostNotifier for sending messages to a Mattermost server.
-	MattermostNotifier struct {
-		endpoint string
-	}
-)
-
-// NewMattermostNotifier creates a MattermostNotifier given a Mattermost server endpoint (see mattermost hooks).
-func NewMattermostNotifier(endpoint string) MattermostNotifier {
-	return MattermostNotifier{endpoint}
+// Notifier interface for sending messages.
+type Notifier interface {
+	Notify(message []byte) error
 }
 
 // NewNotifier selects the Notifier type depending on the parameter pattern.
-func NewNotifier(dataSourceName string) Notifier {
-	if dataSourceName == "" {
-		emo.Info("empty dataSourceName => use the LogNotifier")
+func NewNotifier(notifierURL string) Notifier {
+	if len(notifierURL) == 0 {
+		emo.Info("empty dataSourceName => only log the received messages (LogNotifier)")
 		return NewLogNotifier()
 	}
 
 	const telegramPrefix = "https://api.telegram.org/bot"
-	if strings.HasPrefix(dataSourceName, telegramPrefix) {
-		emo.Info("URL has the Telegram prefix: " + dataSourceName)
-		p := gg.SplitClean(dataSourceName)
+	if strings.HasPrefix(notifierURL, telegramPrefix) {
+		emo.Info("URL has the Telegram prefix: " + notifierURL)
+		p := gg.SplitClean(notifierURL)
 		if len(p) == 2 {
-			return NewTelegramNotifier(p[0], p[1])
+			return NewTelegramNotifier(string(p[0]), string(p[1]))
 		}
 
 		emo.Error("Cannot retrieve ChatID from %v", p)
@@ -59,8 +43,13 @@ func NewNotifier(dataSourceName string) Notifier {
 	}
 
 	// default
-	return NewMattermostNotifier(dataSourceName)
+	return NewMattermostNotifier(notifierURL)
 }
+
+// LogNotifier implements a Notifier interface that logs the received notifications.
+// LogNotifier can be used as a mocked Notifier or for debugging purpose
+// or as a fallback when a real Notifier cannot be created for whatever reason.
+type LogNotifier struct{}
 
 // NewLogNotifier creates a LogNotifier.
 func NewLogNotifier() LogNotifier {
@@ -68,18 +57,37 @@ func NewLogNotifier() LogNotifier {
 }
 
 // Notify prints the messages to the logs.
-func (n LogNotifier) Notify(msg string) error {
-	emo.State("LogNotifier:", gg.Sanitize(msg))
+func (n LogNotifier) Notify(msg []byte) error {
+	emo.State("LogNotifier:", gg.SanitizeBytes(msg))
 	return nil
 }
 
-// Notify sends a message to a Mattermost server.
-func (n MattermostNotifier) Notify(msg string) error {
-	buf := strconv.AppendQuoteToGraphic([]byte(`{"text":`), msg)
-	buf = append(buf, byte('}'))
-	body := bytes.NewBuffer(buf)
+// MattermostNotifier for sending messages to a Mattermost server.
+type MattermostNotifier struct {
+	endpoint string
+}
 
-	resp, err := http.Post(n.endpoint, "application/json", body)
+// NewMattermostNotifier creates a MattermostNotifier given a Mattermost server endpoint (see mattermost hooks).
+func NewMattermostNotifier(endpoint string) MattermostNotifier {
+	return MattermostNotifier{endpoint}
+}
+
+// Notify sends a message to a Mattermost server.
+// It constructs the JSON payload directly with a curated and escaped string.
+func (n MattermostNotifier) Notify(msg []byte) error {
+	// Allocate a buffer to avoid reallocations (some special characters are escaped such as newlines and tabs).
+	buf := make([]byte, 0, len(msg)+len(`{"text":"`)+2+len(msg)/16)
+
+	buf = append(buf, `{"text":"`...)
+
+	// Append sanitized and escaped content in one pass.
+	buf = AppendCurateEscape(buf, msg)
+
+	// Close the JSON structure.
+	buf = append(buf, '"', '}')
+
+	// Send the request using bytes.NewReader for zero-allocation reading.
+	resp, err := http.Post(n.endpoint, "application/json", bytes.NewReader(buf))
 	if err != nil {
 		return fmt.Errorf("MattermostNotifier: %w from host=%s", err, n.host())
 	}
@@ -89,6 +97,50 @@ func (n MattermostNotifier) Notify(msg string) error {
 		return fmt.Errorf("MattermostNotifier: %s from host=%s", resp.Status, n.host())
 	}
 	return nil
+}
+
+// AppendCurateEscape processes the input slice in a single pass:
+// - Sanitizes the input by skipping invalid UTF-8 sequences and unnecessary code-points.
+// - Retains only important UTF-8 characters (Graphic and essential Markdown characters).
+// - JSON compatibility: Escape some characters: newline, tab, double-quote.
+// AppendCurateEscape does not quote: it does not surround with double-quotes.
+func AppendCurateEscape(buf []byte, s []byte) []byte {
+	for len(s) > 0 {
+		// Decode the next rune. utf8.DecodeRune handles multi-byte correctly.
+		r, width := utf8.DecodeRune(s)
+
+		// Security & Curation: Skip invalid UTF-8 sequences.
+		// utf8.DecodeRune returns width=1 and r==RuneError for invalid bytes.
+		if width == 1 && r == utf8.RuneError {
+			s = s[1:]
+			continue
+		}
+
+		// Switch for essential JSON and Markdown escaping.
+		switch r {
+		case '"': // Escape double quote for JSON.
+			buf = append(buf, '\\', '"')
+		case '\\': // Escape backslash for JSON.
+			buf = append(buf, '\\', '\\')
+		case '\n': // Escape newline for JSON (Markdown needs newlines).
+			buf = append(buf, '\\', 'n')
+		case '\t': // Escape tab for JSON.
+			buf = append(buf, '\\', 't')
+		default:
+			// Retain only graphic = letters, numbers, punctuation, symbols, and spaces.
+			// This ensures we only transmit useful characters for the contact form.
+			if strconv.IsGraphic(r) {
+				buf = append(buf, s[:width]...)
+			} else {
+				// Skip non-graphic, non-essential runes (security/performance curation).
+				// This drops control characters and zero-width chars.
+			}
+		}
+
+		// Advance the slice by the width of the consumed rune.
+		s = s[width:]
+	}
+	return buf
 }
 
 func (n MattermostNotifier) host() string {
@@ -114,12 +166,12 @@ func NewTelegramNotifier(endpoint, chatID string) TelegramNotifier {
 }
 
 // Notify sends a message to the Telegram server.
-func (n TelegramNotifier) Notify(msg string) error {
+func (n TelegramNotifier) Notify(msg []byte) error {
 	response, err := http.PostForm(
 		n.endpoint,
 		url.Values{
 			"chat_id": {n.chatID},
-			"text":    {msg},
+			"text":    {string(msg)},
 		})
 	if err != nil {
 		return fmt.Errorf("TelegramNotifier chat_id=%s: %w", n.chatID, err)

@@ -14,7 +14,7 @@ import (
 {{- range .Assets -}}
 	{{- if and .IsEmbedEligible (not .IsDuplicate) (not .IsShortcut)}}
 
-//go:embed assets/{{ .Route }}{{ .VariantExt }}
+//go:embed assets/{{ .Path }}{{ .VariantExt }}
 var file{{.Identifier}} []byte // {{ .Size | human }} {{.MIME}}
 
 	{{- end -}}

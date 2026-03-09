@@ -156,22 +156,22 @@ func TestLinkCopyAssetsVariants(t *testing.T) {
 	}
 
 	assets := []asset{
-		{MIME: "text/plain", IsEmbedEligible: true, Route: "text.txt", Size: 16_000},
-		{MIME: "image/png", IsEmbedEligible: false, Route: "large.png", Size: 1000_000},
-		{MIME: "image/png", IsEmbedEligible: true, Route: "small.png", Size: 1000},
-		{MIME: "image/png", IsEmbedEligible: true, Route: "duplicate.png", Size: 1000_000, IsDuplicate: true},
-		{MIME: "image/jpeg", IsEmbedEligible: true, Route: "medium.jpeg", Size: 5000},
-		{MIME: "image/webp", IsEmbedEligible: true, Route: "medium.webp", Size: 5000},
-		{MIME: "image/avif", IsEmbedEligible: true, Route: "medium.avif", Size: 5000},
+		{MIME: "text/plain", IsEmbedEligible: true, Path: "text.txt", Size: 16_000},
+		{MIME: "image/png", IsEmbedEligible: false, Path: "large.png", Size: 1000_000},
+		{MIME: "image/png", IsEmbedEligible: true, Path: "small.png", Size: 1000},
+		{MIME: "image/png", IsEmbedEligible: true, Path: "duplicate.png", Size: 1000_000, IsDuplicate: true},
+		{MIME: "image/jpeg", IsEmbedEligible: true, Path: "medium.jpeg", Size: 5000},
+		{MIME: "image/webp", IsEmbedEligible: true, Path: "medium.webp", Size: 5000},
+		{MIME: "image/avif", IsEmbedEligible: true, Path: "medium.avif", Size: 5000},
 	}
 	expected := []asset{
-		{MIME: "text/plain", IsEmbedEligible: true, Route: "text.txt", Size: 53, VariantExt: ".br"},
-		{MIME: "image/png", IsEmbedEligible: false, Route: "large.png", Size: 1034, VariantExt: ".avif"},
-		{MIME: "image/png", IsEmbedEligible: true, Route: "small.png", Size: 1000, VariantExt: ""},
-		{MIME: "image/png", IsEmbedEligible: true, Route: "duplicate.png", Size: 1000_000, VariantExt: "", IsDuplicate: true},
-		{MIME: "image/jpeg", IsEmbedEligible: true, Route: "medium.jpeg", Size: 727, VariantExt: ".avif"},
-		{MIME: "image/webp", IsEmbedEligible: true, Route: "medium.webp", Size: 727, VariantExt: ".avif"},
-		{MIME: "image/avif", IsEmbedEligible: true, Route: "medium.avif", Size: 727, VariantExt: ".avif"},
+		{MIME: "text/plain", IsEmbedEligible: true, Path: "text.txt", Size: 53, VariantExt: ".br"},
+		{MIME: "image/png", IsEmbedEligible: false, Path: "large.png", Size: 1034, VariantExt: ".avif"},
+		{MIME: "image/png", IsEmbedEligible: true, Path: "small.png", Size: 1000, VariantExt: ""},
+		{MIME: "image/png", IsEmbedEligible: true, Path: "duplicate.png", Size: 1000_000, VariantExt: "", IsDuplicate: true},
+		{MIME: "image/jpeg", IsEmbedEligible: true, Path: "medium.jpeg", Size: 727, VariantExt: ".avif"},
+		{MIME: "image/webp", IsEmbedEligible: true, Path: "medium.webp", Size: 727, VariantExt: ".avif"},
+		{MIME: "image/avif", IsEmbedEligible: true, Path: "medium.avif", Size: 727, VariantExt: ".avif"},
 	}
 
 	cli := flags{
@@ -199,9 +199,9 @@ func TestAllocateBudget2(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{Route: "small.txt", Size: 100},
-		{Route: "medium.txt", Size: 500},
-		{Route: "large.txt", Size: 1000},
+		{Path: "small.txt", Size: 100},
+		{Path: "medium.txt", Size: 500},
+		{Path: "large.txt", Size: 1000},
 	}
 
 	// Budget of 600 should fit small + medium, but not large
@@ -313,9 +313,9 @@ func TestAllocateBudget(t *testing.T) {
 	t.Parallel()
 
 	assets := []asset{
-		{Route: "small.txt", Size: 100},
-		{Route: "medium.txt", Size: 500},
-		{Route: "large.txt", Size: 1000},
+		{Path: "small.txt", Size: 100},
+		{Path: "medium.txt", Size: 500},
+		{Path: "large.txt", Size: 1000},
 	}
 
 	// Budget of 600 should fit small + medium, but not large
@@ -406,7 +406,7 @@ func TestIntegration_Variants(t *testing.T) {
 	}
 
 	assets := []asset{
-		{Route: "test.txt", MIME: "text/plain", IsEmbedEligible: true, Size: 16_000},
+		{Path: "test.txt", MIME: "text/plain", IsEmbedEligible: true, Size: 16_000},
 	}
 
 	cli := flags{

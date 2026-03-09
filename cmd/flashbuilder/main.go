@@ -40,14 +40,26 @@ type flags struct {
 func main() {
 	var cli flags
 	kong.Parse(&cli)
-	err := do(&cli)
+	setLogLevel(cli.Verbosity)
+
+	err := validateInputs(&cli)
+	if err != nil {
+		slog.Error("Invalid flags", "error", err)
+		os.Exit(1)
+	}
+
+	// use fs.FS to access the assets files
+	// this simplifies the tests mocking (fstest)
+	input := os.DirFS(cli.InDir)
+
+	err = do(input, &cli)
 	if err != nil {
 		slog.Error("Application failed", "error", err)
-		os.Exit(1)
+		os.Exit(2)
 	}
 }
 
-func validateInputs(cli *flags) (*flags, error) {
+func validateInputs(cli *flags) error {
 	var err error
 
 	// Set default cache directory
@@ -57,38 +69,23 @@ func validateInputs(cli *flags) (*flags, error) {
 
 	cli.InDir, err = filepath.Abs(cli.InDir)
 	if err != nil {
-		return nil, fmt.Errorf("path.Abs(input) %w", err)
+		return fmt.Errorf("path.Abs(input) %w", err)
 	}
 
 	cli.OutDir, err = filepath.Abs(cli.OutDir)
 	if err != nil {
-		return nil, fmt.Errorf("path.Abs(output) %w", err)
+		return fmt.Errorf("path.Abs(output) %w", err)
 	}
 
 	// Security check for input/output equality
 	if cli.InDir == cli.OutDir {
-		return nil, errors.New("Input and output must differ")
+		return errors.New("Input and output must differ")
 	}
 
-	return cli, nil
+	return nil
 }
 
-func do(cli *flags) error {
-	setLogLevel(cli.Verbosity)
-
-	cli, err := validateInputs(cli)
-	if err != nil {
-		return err
-	}
-
-	// use fs.FS to access the assets files
-	// this simplifies the tests mocking (fstest)
-	input := os.DirFS(cli.InDir)
-
-	return process(input, cli)
-}
-
-func process(input fs.FS, cli *flags) error {
+func do(input fs.FS, cli *flags) error {
 	assets, err := discoverAssets(input, cli.CSP)
 	if err != nil {
 		return err
@@ -107,6 +104,8 @@ func process(input fs.FS, cli *flags) error {
 	}
 
 	assets = addShortcutRoutes(assets)
+
+	escapeRoutes(assets)
 
 	get, post, err := buildGetPostDispatch(assets)
 	if err != nil {

@@ -111,7 +111,7 @@ func (wf *WebForm) Notify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	md := wf.toMarkdown(r)
-	err = wf.Notifier.Notify(md)
+	err = wf.Notifier.Notify([]byte(md))
 	if err != nil {
 		log.Warn("WebForm Notify:", err)
 	}

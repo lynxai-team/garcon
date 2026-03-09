@@ -124,8 +124,8 @@ func TestDeduplicate(t *testing.T) {
 	t.Parallel()
 
 	// Create two assets with the same hash (simulated)
-	asset1 := asset{Route: "a.txt", Hash: uint128{Hi: 1, Lo: 1}, IsDuplicate: false}
-	asset2 := asset{Route: "b.txt", Hash: uint128{Hi: 1, Lo: 1}, IsDuplicate: false}
+	asset1 := asset{Path: "a.txt", Hash: uint128{Hi: 1, Lo: 1}, IsDuplicate: false}
+	asset2 := asset{Path: "b.txt", Hash: uint128{Hi: 1, Lo: 1}, IsDuplicate: false}
 	assets := []asset{asset1, asset2}
 
 	result := deduplicate(assets)
@@ -216,8 +216,8 @@ func TestProcessItem(t *testing.T) {
 	}
 	asset.Size = 11
 
-	if asset.Route != "test.txt" {
-		t.Errorf("Expected path 'test.txt', got %s", asset.Route)
+	if asset.Path != "test.txt" {
+		t.Errorf("Expected path 'test.txt', got %s", asset.Path)
 	}
 	if asset.MIME != "text/plain" { // DetectMIME should fallback to sniffing or extension
 		// Note: DetectContentType returns "text/html" for "Hello World" often.

@@ -156,12 +156,12 @@ func generateLinkCopy(input fs.FS, a *asset, cli *flags, wwwDir, assetsDir strin
 		a.VariantExt = ext // update the asset in place (safe because managed by one single goroutine)
 		a.Size = size
 		if useCache {
-			return linkCopyVariant(varFullPath, dstDir, a.Route+ext)
+			return linkCopyVariant(varFullPath, dstDir, a.Path+ext)
 		}
 		return nil // variant already in dstDir
 	}
 
-	return linkCopyAsset(input, cli.InDir, dstDir, a.Route)
+	return linkCopyAsset(input, cli.InDir, dstDir, a.Path)
 }
 
 // variantEligibility determines if content is eligible for Brotli / AVIF / WebP.
@@ -263,12 +263,12 @@ func setupVariant(varDir string, useCache bool, a *asset, quality int, minSize, 
 	}
 
 	if a.Size < minSize {
-		slog.Debug("no variant for tiny", "asset", a.Route, "size", a.Size, "min", minSize)
+		slog.Debug("no variant for tiny", "asset", a.Path, "size", a.Size, "min", minSize)
 		return "", 0, "", nil
 	}
 
 	if a.Size > maxSize {
-		slog.Info("no variant for huge", "asset", a.Route, "size", toHuman(a.Size), "max", maxSize)
+		slog.Info("no variant for huge", "asset", a.Path, "size", toHuman(a.Size), "max", maxSize)
 		return "", 0, "", nil
 	}
 
@@ -308,7 +308,7 @@ func getBrotli(input fs.FS, a *asset, quality int, varDir string, useCache bool)
 	}
 	defer dst.Close()
 
-	slog.Info("Brotli compress", "asset", a.Route, "wip", wip, "quality", quality)
+	slog.Info("Brotli compress", "asset", a.Path, "wip", wip, "quality", quality)
 
 	var err error
 	size, err = compressBrotli(input, a, quality, dst)
@@ -334,7 +334,7 @@ func getAVIF(input fs.FS, a *asset, quality int, varDir string, useCache bool) (
 	}
 	defer dst.Close()
 
-	slog.Info("AVIF encode", "asset", a.Route, "dst", varFullPath, "quality", quality)
+	slog.Info("AVIF encode", "asset", a.Path, "dst", varFullPath, "quality", quality)
 
 	var err error
 	size, err = transcodeAVIF(input, a, quality, dst)
@@ -359,7 +359,7 @@ func getWebP(input fs.FS, a *asset, quality int, varDir string, useCache bool) (
 	}
 	defer dst.Close()
 
-	slog.Info("WebP encode", "asset", a.Route, "dst", varFullPath, "quality", quality)
+	slog.Info("WebP encode", "asset", a.Path, "dst", varFullPath, "quality", quality)
 
 	var err error
 	size, err = transcodeWebP(input, a, quality, dst)
@@ -377,7 +377,7 @@ func getWebP(input fs.FS, a *asset, quality int, varDir string, useCache bool) (
 // Errors are returned to the caller; no logging, no temp-file, no extra sync.
 func compressBrotli(input fs.FS, a *asset, quality int, dst *os.File) (int64, error) {
 	// open source file: asset
-	src, err := input.Open(a.Route)
+	src, err := input.Open(a.Path)
 	if err != nil {
 		return 0, fmt.Errorf("Brotli input.Open: %w", err)
 	}
@@ -469,7 +469,7 @@ func transcodeWebP(input fs.FS, a *asset, quality int, dst *os.File) (int64, err
 
 // decodeImage decodes an image file.
 func decodeImage(input fs.FS, a *asset) (image.Image, error) {
-	file, err := input.Open(a.Route)
+	file, err := input.Open(a.Path)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open image file: %w", err)
 	}
@@ -498,7 +498,7 @@ func decodeImage(input fs.FS, a *asset) (image.Image, error) {
 		img, _, decodeErr = image.Decode(file)
 	}
 	if decodeErr != nil {
-		return nil, fmt.Errorf("Decode %s (%s) %s: %w", a.Route, toHuman(a.Size), a.MIME, decodeErr)
+		return nil, fmt.Errorf("Decode %s (%s) %s: %w", a.Path, toHuman(a.Size), a.MIME, decodeErr)
 	}
 
 	return img, nil
@@ -609,7 +609,7 @@ func wipFullPath(fullPath string) string {
 }
 
 func variantFullPath(a *asset, dir string, useCache bool, quality int, ext string) (string, int64) {
-	varFullPath := a.Route + ext // in the assets/ or www/ directory
+	varFullPath := a.Path + ext // in the assets/ or www/ directory
 	if useCache {
 		varFullPath = strconv.Itoa(quality) + a.ETag + ext // in the cache directory
 	}
@@ -627,7 +627,7 @@ func variantFullPath(a *asset, dir string, useCache bool, quality int, ext strin
 	}
 
 	// variant exists => reuse it
-	slog.Debug("reuse variant", "assetSize", toHuman(a.Size), "variantSize", toHuman(size), "asset", a.Route, "variant", varFullPath)
+	slog.Debug("reuse variant", "assetSize", toHuman(a.Size), "variantSize", toHuman(size), "asset", a.Path, "variant", varFullPath)
 	return varFullPath, size
 }
 

@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"path"
 	"slices"
 	"sort"
@@ -182,15 +183,15 @@ func addShortcutRoutes(assets []asset) []asset {
 	// to favor larger route in case of conflict.
 	// Example: "about" will be the shortcut of "about.html" rather than "about.md"
 	sort.Slice(assets, func(i, j int) bool {
-		if len(assets[i].Route) == len(assets[j].Route) {
-			return assets[i].Route < assets[j].Route // for deterministic result
+		if len(assets[i].Path) == len(assets[j].Path) {
+			return assets[i].Path < assets[j].Path // for deterministic result
 		}
-		return len(assets[i].Route) > len(assets[j].Route)
+		return len(assets[i].Path) > len(assets[j].Path)
 	})
 
 	routes := make(map[string]struct{}, len(assets))
 	for _, asset := range assets {
-		routes[asset.Route] = struct{}{}
+		routes[asset.Path] = struct{}{}
 	}
 
 	shortcuts := make([]asset, 0, len(assets))
@@ -202,12 +203,12 @@ func addShortcutRoutes(assets []asset) []asset {
 			}
 		}
 
-		shortPath := generateShortcut(a.Route)
+		shortPath := generateShortcut(a.Path)
 		_, found := routes[shortPath]
 		if !found {
 			a.IsShortcut = true
-			a.Route = ""
-			a.Route = shortPath
+			a.Path = ""
+			a.Path = shortPath
 			shortcuts = append(shortcuts, a)
 			routes[shortPath] = struct{}{}
 		}
@@ -237,4 +238,74 @@ func generateShortcut(inPath string) string {
 	// Extensionless shortcuts
 	ext := path.Ext(inPath)
 	return inPath[:len(inPath)-len(ext)]
+}
+
+func escapeRoutes(assets []asset) {
+	for i := range assets {
+		assets[i].Route = escapePathSegmentsPerf(assets[i].Path)
+	}
+}
+
+// escapePathSegments splits the path into
+// segments, escapes each segment individually, and joins them back.
+func escapePathSegments(path string) string {
+	segments := strings.Split(path, "/")
+	for i := range segments {
+		segments[i] = url.PathEscape(segments[i])
+	}
+	return strings.Join(segments, "/")
+}
+
+// escapePathSegmentsPerf escapes individual segments of a provided route,
+// preserving the path separators '/'. It uses a zero-allocation fast path
+// for clean paths and a strings.Builder for dirty paths.
+// This function is high-performant and adheres to RFC 3986 for path segments.
+func escapePathSegmentsPerf(path string) string {
+	// Fast path: check if any escaping is needed.
+	// We scan for any character that is NOT a separator '/' and NOT an unreserved character.
+	// Unreserved characters (RFC 3986): a-z, A-Z, 0-9, '-', '.', '_', '~'.
+	for i := range len(path) {
+		c := path[i]
+		if c == '/' {
+			continue // Separator, keep it.
+		}
+		// Check safe characters (unreserved set).
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+			c == '-' || c == '.' || c == '_' || c == '~' {
+			continue
+		}
+		// Found a character that needs escaping.
+		// Fall through to the slow path (building).
+		goto build
+	}
+	// Path is already safe (or empty), return the original string (zero allocation).
+	return path
+
+build:
+	// Slow path: build a new string with escaping.
+	var b strings.Builder
+	// Estimate capacity (worst case: every char needs %XX -> 3x length).
+	b.Grow(len(path) + len(path)) // Allocate a bit more to reduce chance of growing.
+
+	// Hex table for percent encoding.
+	const hex = "0123456789ABCDEF"
+
+	for i := range len(path) {
+		c := path[i]
+		if c == '/' {
+			b.WriteByte('/')
+			continue
+		}
+		// Check safe
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+			c == '-' || c == '.' || c == '_' || c == '~' {
+			b.WriteByte(c)
+			continue
+		}
+		// Escape unsafe character.
+		b.WriteByte('%')
+		b.WriteByte(hex[c>>4])
+		b.WriteByte(hex[c&0xF])
+	}
+	return b.String()
 }
