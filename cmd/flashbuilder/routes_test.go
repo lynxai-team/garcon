@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -262,35 +263,39 @@ func TestEscapePathSegments_Unit(t *testing.T) {
 		input string
 		want  string
 	}{
-		// 1. Empty string
-		{name: "Empty", input: "", want: ""},
-		// 2. Clean path (no escaping needed)
-		{name: "Clean Path", input: "a/b/c/d", want: "a/b/c/d"},
-		// 3. Path with spaces (common case)
-		{name: "Spaces", input: "a b/c d", want: "a%20b/c%20d"},
-		// 4. Path with reserved URL chars (should be escaped)
-		{name: "QueryChar", input: "a?b/c#d", want: "a%3Fb/c%23d"},
-		// 5. Path with percent sign (needs escaping to be safe)
-		{name: "PercentSign", input: "a%b/c%d", want: "a%25b/c%25d"},
-		// 6. Path with unreserved chars (should NOT be escaped)
-		{name: "Unreserved", input: "a-b.c_d~e", want: "a-b.c_d~e"},
-		// 7. Path with multiple slashes
-		{name: "DoubleSlash", input: "a//b", want: "a//b"},
-		// 8. Path with UTF-8 characters (Bytes will be escaped)
-		// "日" (U+65E5) in UTF-8 is \xE6\x97\xA5
-		{name: "UTF8", input: "日/本", want: "%E6%97%A5/%E6%9C%AC"},
-		// 9. Path with null byte (should be escaped)
-		{name: "NullByte", input: "a\x00b", want: "a%00b"},
-		// 10. Path with high-byte chars
+		{name: "Empty string", input: "", want: ""},
+		{name: "Clean path (no escaping needed)", input: "a/b/c/d", want: "a/b/c/d"},
+		{name: "Spaces (common case)", input: "a b/c d", want: "a%20b/c%20d"},
+		{name: "QueryChar: reserved URL chars should be escaped", input: "a?b/c#d", want: "a%3Fb/c%23d"},
+		{name: "Percent sign need escaping", input: "a%b/c%d", want: "a%25b/c%25d"},
+		{name: "unreserved chars should NOT be escaped", input: "a-b.c_d~e", want: "a-b.c_d~e"},
+		{name: "multiple slashes", input: "a//b", want: "a//b"},
+		{name: "UTF8 should be escaped: 日 (U+65E5) in UTF-8 is \xE6\x97\xA5", input: "日/本", want: "%E6%97%A5/%E6%9C%AC"},
+		{name: "NullByte should be escaped", input: "a\x00b", want: "a%00b"},
 		{name: "HighByte", input: "a\xFEB", want: "a%FEB"},
+		{name: "Accents", input: "/Hawaï_(île)/Géopélie/zébrée", want: "/Hawa%C3%AF_%28%C3%AEle%29/G%C3%A9op%C3%A9lie/z%C3%A9br%C3%A9e"},
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run("Simple "+tc.name, func(t *testing.T) {
 			t.Parallel()
-			result := escapePathSegments(tc.input)
-			if result != tc.want {
-				t.Errorf("escapePathSegments(%q) = %q; want %q", tc.input, result, tc.want)
+			got := escapePathSegmentsSimple(tc.input)
+			if got != tc.want {
+				t.Errorf("escapePathSegmentsSimple(%q) = %q; want %q", tc.input, got, tc.want)
+			}
+		})
+		t.Run("Perf "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := escapePathSegmentsPerf1(tc.input)
+			if got != tc.want {
+				t.Errorf("escapePathSegments(%q) = %q; want %q", tc.input, got, tc.want)
+			}
+		})
+		t.Run("Perf2 "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := escapePathSegmentsPerf2(tc.input)
+			if got != tc.want {
+				t.Errorf("escapePathSegmentsP2(%q) = %q; want %q", tc.input, got, tc.want)
 			}
 		})
 	}
@@ -303,12 +308,13 @@ func FuzzEscapePathSegments(f *testing.F) {
 	f.Add("a/b/c")
 	f.Add("a b")
 	f.Add("日")
+	f.Add("/c'est/café/frappé")
 	f.Add("a?b#c")
 	f.Add("%")
 	f.Add("/")
 
 	f.Fuzz(func(t *testing.T, input string) {
-		result := escapePathSegments(input)
+		result := escapePathSegmentsSimple(input)
 
 		// Invariant 1: Separators '/' in the input must be preserved in the output.
 		// We count slashes in input and ensure count matches output.
@@ -385,7 +391,7 @@ func TestEscapePathSegments_Oracle(t *testing.T) {
 	// For each path, split by '/', escape each segment with stdlib, rejoin.
 	for range 100 {
 		input := generateRandomPath(20)
-		ourResult := escapePathSegments(input)
+		ourResult := escapePathSegmentsSimple(input)
 
 		// Build expected result using stdlib (slower but correct oracle)
 		segments := strings.Split(input, "/")
@@ -451,12 +457,12 @@ func TestEscapePathSegments_Comparison(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Simple function is the oracle (expected correct behavior)
-			expected := escapePathSegments(tc.input)
+			expected := escapePathSegmentsSimple(tc.input)
 			// Fast function is the candidate
-			result := escapePathSegmentsPerf(tc.input)
+			result := escapePathSegmentsPerf2(tc.input)
 
 			if result != expected {
-				t.Errorf("escapePathSegmentsPerf(%q) = %q; want %q", tc.input, result, expected)
+				t.Errorf("escapePathSegmentsP2(%q) = %q; want %q", tc.input, result, expected)
 			}
 		})
 	}
@@ -480,9 +486,9 @@ func TestSimpleEscapePathSegments_Unit(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			result := escapePathSegments(tc.input)
+			result := escapePathSegmentsSimple(tc.input)
 			if result != tc.want {
-				t.Errorf("escapePathSegments(%q) = %q; want %q", tc.input, result, tc.want)
+				t.Errorf("escapePathSegmentsSimple(%q) = %q; want %q", tc.input, result, tc.want)
 			}
 		})
 	}
@@ -500,9 +506,9 @@ func FuzzEscapePathSegments2(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, input string) {
 		// Fast function
-		result := escapePathSegmentsPerf(input)
+		result := escapePathSegmentsPerf2(input)
 		// Simple function (oracle)
-		expected := escapePathSegments(input)
+		expected := escapePathSegmentsSimple(input)
 
 		if result != expected {
 			t.Errorf("Mismatch: got %q, want %q", result, expected)
@@ -533,30 +539,211 @@ func BenchmarkEscapePathSegments(b *testing.B) {
 			// Random length up to 20 chars
 			chars := make([]byte, rng.Intn(20))
 			for k := range chars {
-				// Random byte from 0-255 (includes unsafe chars)
-				chars[k] = byte(rng.Intn(256))
+				switch rng.Intn(10) {
+				case 0:
+					// 10% of the cases = Random byte from 0-255 (includes many unsafe chars)
+					chars[k] = byte(rng.Intn(256))
+				case 1:
+					// 10% of the cases = Random byte from 48-122 (includes some unsafe chars)
+					chars[k] = 48 + byte(rng.Intn(122-48))
+				default:
+					// 80% of the cases = Random byte from 65-90 = from A to Z (only unreserved chars)
+					chars[k] = 65 + byte(rng.Intn(90-65))
+				}
 			}
 			segments[j] = string(chars)
 		}
 		paths[i] = strings.Join(segments, "/")
 	}
 
-	b.Run("Fast", func(b *testing.B) {
+	b.Run("Perf1", func(b *testing.B) {
 		var _ string
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			for _, p := range paths {
 				// escapePathSegmentsPerf(p)
-				_ = escapePathSegmentsPerf(p)
+				_ = escapePathSegmentsPerf1(p)
+			}
+		}
+	})
+
+	b.Run("Perf2", func(b *testing.B) {
+		var _ string
+		for range b.N {
+			for _, p := range paths {
+				// escapePathSegmentsPerf(p)
+				_ = escapePathSegmentsPerf2(p)
 			}
 		}
 	})
 
 	b.Run("Simple", func(b *testing.B) {
 		var _ string
-		for i := 0; i < b.N; i++ {
+		for range b.N {
 			for _, p := range paths {
-				_ = escapePathSegments(p)
+				_ = escapePathSegmentsSimple(p)
 			}
+		}
+	})
+}
+
+// 2.1  Small hand‑picked table of typical cases.
+var tableTests = []struct {
+	c  byte
+	ok bool
+}{
+	{'a', true},
+	{'Z', true},
+	{'0', true},
+	{'9', true},
+	{'-', true},
+	{'.', true},
+	{'_', true},
+	{'~', true},
+	{' ', false},
+	{'+', false},
+	{'/', false},
+	{'%', false},
+	{'\n', false},
+	{0x7F, false}, // DEL
+	{0x80, false}, // non‑ASCII start
+	{0xFF, false},
+}
+
+func TestIsUnreserved_Table(t *testing.T) {
+	t.Parallel()
+	for _, tt := range tableTests {
+		if got := isUnreservedSimple(tt.c); got != tt.ok {
+			t.Errorf("isUnreservedSimple(%#02x) = %v, want %v", tt.c, got, tt.ok)
+		}
+		if got := isUnreserved(tt.c); got != tt.ok {
+			t.Errorf("isUnreserved(%#02x) = %v, want %v", tt.c, got, tt.ok)
+		}
+		if got := isUnreservedMask(tt.c); got != tt.ok {
+			t.Errorf("isUnreservedMask(%#02x) = %v, want %v", tt.c, got, tt.ok)
+		}
+		if got := isUnreservedMask4(tt.c); got != tt.ok {
+			t.Errorf("isUnreservedMask(%#02x) = %v, want %v", tt.c, got, tt.ok)
+		}
+	}
+}
+
+// 2.2  Exhaustive check for every possible byte value.
+func TestAllBytesAgreement(t *testing.T) {
+	t.Parallel()
+
+	for i := range 256 {
+		b := byte(i)
+		simple := isUnreservedSimple(b)
+		fast := isUnreserved(b)
+		mask := isUnreservedMask(b)
+		mask4 := isUnreservedMask4(b)
+
+		if simple != fast {
+			t.Errorf("disagreement at %d (0x%02X) %q: isUnreservedSimple=%v, isUnreserved=%v", i, i, string([]byte{byte(i)}), simple, fast)
+		}
+		if simple != mask {
+			t.Errorf("disagreement at %d (0x%02X) %q: isUnreserved=%v, isUnreservedMask=%v", i, i, string([]byte{byte(i)}), simple, mask)
+		}
+		if simple != mask4 {
+			t.Errorf("disagreement at %d (0x%02X) %q: isUnreserved=%v, isUnreservedMask4=%v", i, i, string([]byte{byte(i)}), simple, mask4)
+		}
+	}
+}
+
+// 3.1  Fuzzing – the reference implementation is the oracle.
+func FuzzIsUnreserved(f *testing.F) {
+	// Seed the fuzzer with a few interesting bytes.
+	seeds := []byte{'a', 'Z', '0', '-', '.', '_', '~', ' ', '%', 0x80}
+	for _, b := range seeds {
+		f.Add(b)
+	}
+
+	f.Fuzz(func(t *testing.T, b byte) {
+		want := isUnreserved(b)
+		got := isUnreservedMask4(b)
+		if want != got {
+			t.Fatalf("mismatch for %d (0x%02X): isUnreserved=%v, isUnreservedMask=%v",
+				b, b, want, got)
+		}
+	})
+}
+
+// 4.1  Helper that runs a function over a large random buffer.
+func benchHelper(b *testing.B, fn func(byte) bool) {
+	b.Helper()
+
+	const bufSize = 1 << 16 // 64 KiB – large enough to defeat tiny‑loop optimisations
+	data := make([]byte, bufSize)
+
+	// Deterministic pseudo‑random data → reproducible benchmarks
+	src := rand.New(rand.NewSource(123456789))
+	for i := range data {
+		data[i] = byte(src.Intn(256))
+	}
+
+	b.ResetTimer()
+	for range b.N {
+		// Walk the whole buffer; the compiler can inline fn, making the inner loop
+		// essentially a tight branch‑free hot‑path.
+		for _, c := range data {
+			_ = fn(c)
+		}
+	}
+}
+
+// 4.2  Sequential benchmarks.
+func BenchmarkIsUnreserved(b *testing.B)       { benchHelper(b, isUnreserved) }
+func BenchmarkIsUnreservedMask(b *testing.B)   { benchHelper(b, isUnreservedMask) }
+func BenchmarkIsUnreservedMask4(b *testing.B)  { benchHelper(b, isUnreservedMask4) }
+func BenchmarkIsUnreservedSimple(b *testing.B) { benchHelper(b, isUnreservedSimple) }
+
+// 4.3  Parallel benchmarks – simulate a realistic concurrent workload.
+func BenchmarkIsUnreserved_Parallel(b *testing.B) {
+	const bufSize = 1 << 12 // 4 KiB – small enough to stay in L1 cache
+	data := make([]byte, bufSize)
+	src := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := range data {
+		data[i] = byte(src.Intn(256))
+	}
+	b.RunParallel(func(pb *testing.PB) {
+		// Each goroutine picks a random index on every iteration,
+		// avoiding perfect cache‑line sharing.
+		localSrc := rand.New(rand.NewSource(time.Now().UnixNano()))
+		for pb.Next() {
+			idx := localSrc.Intn(bufSize)
+			_ = isUnreserved(data[idx])
+		}
+	})
+}
+
+func BenchmarkIsUnreservedMask_Parallel(b *testing.B) {
+	const bufSize = 1 << 12
+	data := make([]byte, bufSize)
+	src := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := range data {
+		data[i] = byte(src.Intn(256))
+	}
+	b.RunParallel(func(pb *testing.PB) {
+		localSrc := rand.New(rand.NewSource(time.Now().UnixNano()))
+		for pb.Next() {
+			idx := localSrc.Intn(bufSize)
+			_ = isUnreservedMask(data[idx])
+		}
+	})
+}
+
+func BenchmarkIsUnreservedMask4_Parallel(b *testing.B) {
+	const bufSize = 1 << 12
+	data := make([]byte, bufSize)
+	src := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := range data {
+		data[i] = byte(src.Intn(256))
+	}
+	b.RunParallel(func(pb *testing.PB) {
+		localSrc := rand.New(rand.NewSource(time.Now().UnixNano()))
+		for pb.Next() {
+			idx := localSrc.Intn(bufSize)
+			_ = isUnreservedMask4(data[idx])
 		}
 	})
 }

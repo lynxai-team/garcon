@@ -242,13 +242,13 @@ func generateShortcut(inPath string) string {
 
 func escapeRoutes(assets []asset) {
 	for i := range assets {
-		assets[i].Route = escapePathSegmentsPerf(assets[i].Path)
+		assets[i].Route = escapePathSegmentsPerf1(assets[i].Path)
 	}
 }
 
-// escapePathSegments splits the path into
+// escapePathSegmentsSimple splits the path into
 // segments, escapes each segment individually, and joins them back.
-func escapePathSegments(path string) string {
+func escapePathSegmentsSimple(path string) string {
 	segments := strings.Split(path, "/")
 	for i := range segments {
 		segments[i] = url.PathEscape(segments[i])
@@ -256,11 +256,11 @@ func escapePathSegments(path string) string {
 	return strings.Join(segments, "/")
 }
 
-// escapePathSegmentsPerf escapes individual segments of a provided route,
-// preserving the path separators '/'. It uses a zero-allocation fast path
-// for clean paths and a strings.Builder for dirty paths.
+// escapePathSegmentsPerf1 is the high-performant variation of [escapePathSegmentsSimple].
+// It escapes individual segments of a provided route, preserving the path separators '/'.
+// It uses a zero-allocation fast path for clean paths and a strings.Builder for dirty paths.
 // This function is high-performant and adheres to RFC 3986 for path segments.
-func escapePathSegmentsPerf(path string) string {
+func escapePathSegmentsPerf1(path string) string {
 	// Fast path: check if any escaping is needed.
 	// We scan for any character that is NOT a separator '/' and NOT an unreserved character.
 	// Unreserved characters (RFC 3986): a-z, A-Z, 0-9, '-', '.', '_', '~'.
@@ -270,22 +270,21 @@ func escapePathSegmentsPerf(path string) string {
 			continue // Separator, keep it.
 		}
 		// Check safe characters (unreserved set).
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-			c == '-' || c == '.' || c == '_' || c == '~' {
+		if isUnreservedMask4(c) {
 			continue
 		}
 		// Found a character that needs escaping.
 		// Fall through to the slow path (building).
-		goto build
+		goto slowPath
 	}
 	// Path is already safe (or empty), return the original string (zero allocation).
 	return path
 
-build:
+slowPath:
 	// Slow path: build a new string with escaping.
 	var b strings.Builder
-	// Estimate capacity (worst case: every char needs %XX -> 3x length).
-	b.Grow(len(path) + len(path)) // Allocate a bit more to reduce chance of growing.
+	// Allocate more to reduce chance of growing (worst case: every char needs %XX -> 3x length).
+	b.Grow(len(path) * 2)
 
 	// Hex table for percent encoding.
 	const hex = "0123456789ABCDEF"
@@ -297,8 +296,7 @@ build:
 			continue
 		}
 		// Check safe
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-			c == '-' || c == '.' || c == '_' || c == '~' {
+		if isUnreservedMask4(c) {
 			b.WriteByte(c)
 			continue
 		}
@@ -308,4 +306,131 @@ build:
 		b.WriteByte(hex[c&0xF])
 	}
 	return b.String()
+}
+
+// escapePathSegments is the high-performant variation of [escapePathSegmentsSimple].
+// It escapes individual segments of a provided route, preserving the path separators '/'.
+// It uses a zero-allocation fast path for clean paths and a strings.Builder for dirty paths.
+// This function is high-performant and adheres to RFC 3986 for path segments.
+func escapePathSegmentsPerf2(path string) string {
+	// Hex table for percent encoding.
+	const hex = "0123456789ABCDEF"
+	// Buffer for slow path
+	var b strings.Builder
+
+	// Fast path: check if any escaping is needed.
+	// We scan for any character that is NOT a separator '/' and NOT an unreserved character.
+	// Unreserved characters (RFC 3986): a-z, A-Z, 0-9, '-', '.', '_', '~'.
+	var i int
+	for i = range len(path) {
+		c := path[i]
+		if c == '/' {
+			continue // Separator, keep it.
+		}
+		// Check safe characters (unreserved set).
+		if isUnreservedMask4(c) {
+			continue
+		}
+		// Found a character that needs escaping.
+		// Fall through to the slow path (building).
+		// Allocate more to reduce chance of growing (worst case: every char needs %XX -> 3x length).
+		b.Grow(len(path) * 2)
+		b.WriteString(path[:i])
+		// Escape unsafe character.
+		b.WriteByte('%')
+		b.WriteByte(hex[c>>4])
+		b.WriteByte(hex[c&0xF])
+		i++
+		goto slowPath
+	}
+	// Path is already safe (or empty), return the original string (zero allocation).
+	return path
+
+slowPath: // build a new string with escaping.
+
+	for ; i < len(path); i++ {
+		c := path[i]
+		if c == '/' {
+			b.WriteByte('/')
+			continue
+		}
+		// Check safe
+		if isUnreservedMask4(c) {
+			b.WriteByte(c)
+			continue
+		}
+		// Escape unsafe character.
+		b.WriteByte('%')
+		b.WriteByte(hex[c>>4])
+		b.WriteByte(hex[c&0xF])
+	}
+	return b.String()
+}
+
+func isUnreservedSimple(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '~'
+}
+
+// isUnreserved reports whether c is an “unreserved” character according to RFC‑3986.
+// The function works for any byte value; values ≥ 128 are automatically rejected.
+func isUnreserved(c byte) bool {
+	// 0‑9
+	if c >= '0' && c <= '9' {
+		return true
+	}
+
+	// A‑Z and a‑z share the same range once bit 0x20 (the 6‑th bit) is forced to 1.
+	//   'A' = 0x41 → 0x61  (a)
+	//   'Z' = 0x5A → 0x7A  (z)
+	//   'a' = 0x61 → 0x61  (a)
+	//   'z' = 0x7A → 0x7A  (z)
+	if lc := c | 0x20; lc >= 'a' && lc <= 'z' {
+		return true
+	}
+
+	// '-' (0x2D) and '.' (0x2E) are consecutive.
+	if c >= '-' && c <= '.' {
+		return true
+	}
+
+	// The only remaining ASCII symbols that are allowed.
+	return c == '_' || c == '~'
+}
+
+// mask0 holds the bits for ASCII values 0‑63.
+// Bits that are set: 0x2D ('-'), 0x2E ('.'), 0x30‑0x39 ('0'‑'9').
+const mask0 uint64 = 0x03FF600000000000
+
+// mask1 holds the bits for ASCII values 64‑127.
+// Bits that are set: 0x41‑0x5A ('A'‑'Z'), 0x5F ('_'), 0x61‑0x7A ('a'‑'z'), 0x7E ('~').
+const mask1 uint64 = 0x47FFFFFE87FFFFFE
+
+// unreservedMask is a two‑element array where the first element contains the
+// bitmap for values 0‑63 and the second element for 64‑127.
+var unreservedMask = [2]uint64{mask0, mask1}
+
+// isUnreservedMask is a branch‑free test that works for any byte value.
+// Values ≥128 are automatically rejected because they fall outside the 128‑bit bitmap.
+func isUnreservedMask(c byte) bool {
+	if c >= 128 { // outside the pre‑computed range
+		return false
+	}
+	// c>>6 selects the half (0 for 0‑63, 1 for 64‑127),
+	// c&0x3F gives the bit position inside that half.
+	return ((unreservedMask[c>>6] >> (c & 0x3F)) & 1) != 0
+}
+
+// 256‑bit bitmap of RFC‑3986 “unreserved” characters.
+// Entry 0 → bytes 0‑63, entry 1 → bytes 64‑127, entries 2‑3 (128‑255) are zero.
+var unreservedMask4 = [4]uint64{
+	mask0, // '-' '.' '0'‑'9' (bits 45,46,48‑57)
+	mask1, // 'A'‑'Z' '_' 'a'‑'z' '~' (bits 1‑26,31,33‑58,62)
+	0, 0,  // 128‑255: none are unreserved
+}
+
+// isUnreservedMask reports whether c is an RFC‑3986 unreserved byte.
+// The test is completely branch‑free: the 256‑bit bitmap is indexed by the
+// high 2 bits (c>>6) and the result is a simple shift‑and‑test.
+func isUnreservedMask4(c byte) bool {
+	return ((unreservedMask4[c>>6] >> (c & 0x3F)) & 1) != 0
 }
