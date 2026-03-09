@@ -1,3 +1,7 @@
+// Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
+// SPDX-License-Identifier: MIT
+
 package pp
 
 import (
@@ -15,7 +19,7 @@ type testCase struct {
 	val uint64
 }
 
-// Helper slice to access slices by length
+// Helper slice to access slices by length.
 var numbersByDigitsCount [19][]testCase
 
 func init() {
@@ -39,19 +43,20 @@ func generateRandomASCIINumbers(digitsCount int) []testCase {
 		}
 		v, err := strconv.ParseUint(string(b), 10, 0)
 		if err != nil {
-			log.Fatalf("generateRandomASCIINumbers strconv.Atoi: %v", err)
+			log.Fatalf("generateRandomASCIINumbers strconv.ParseUint: %v", err)
 		}
 		numbers = append(numbers, testCase{buf: b, val: v})
 	}
 	return numbers
 }
 
-// globalSink prevents compiler from eliminating the function calls
+// globalSink prevents compiler from eliminating the function calls.
 var globalSink int
 
 // bench runs a sub-benchmark for a specific parser function.
-// this permit to guarantee all benchmark are implemented in the same way.
+// This permit to guarantee all benchmark are implemented in the same way.
 func bench(b *testing.B, fn func([]byte) int, minDigits, maxDigits int) {
+	b.Helper()
 	// zero maxDigits is a shortcut for max authorized value
 	if maxDigits <= 0 || maxDigits >= len(numbersByDigitsCount) {
 		maxDigits = len(numbersByDigitsCount) - 1
@@ -79,7 +84,7 @@ func bench(b *testing.B, fn func([]byte) int, minDigits, maxDigits int) {
 
 		run := name + "-" + strconv.Itoa(digitsCount) + "-digits"
 		b.Run(run, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for i := range b.N {
 				asciiDigits := numbers[i%len(numbers)].buf
 				globalSink = fn(asciiDigits)
 			}
@@ -87,8 +92,9 @@ func bench(b *testing.B, fn func([]byte) int, minDigits, maxDigits int) {
 	}
 }
 
-// test mirrors the [bench] function
+// test mirrors the [bench] function.
 func test(t *testing.T, fn func([]byte) int, minDigits, maxDigits int) {
+	t.Helper()
 	if maxDigits <= 0 || maxDigits >= len(numbersByDigitsCount) {
 		maxDigits = len(numbersByDigitsCount) - 1
 	}
@@ -145,14 +151,14 @@ var tests = []struct {
 	{dm: 0, dM: 0, fn: parseUnsigned},
 	{dm: 0, dM: 0, fn: parseDigitsSelect},
 	{dm: 0, dM: 0, fn: strconvParseUint},
+	{dm: 0, dM: 0, fn: parseDigits},
 	// Parsers that panic: index out of range
-	{dm: 0, dM: 9, fn: parseMax9DigitsUnsafe},
 	{dm: 0, dM: len(parseFuncSelector), fn: parseDigitsSelectUnsafe},
-	//TODO // Experimental parsers
-	// {dm: 1, dM: 1, fn: parseUnsignedASM},
-	// {dm: 8, dM: 8, fn: parse8DigitsSWAR},
-	// {dm: 8, dM: 8, fn: parse816DigitsBitwiseMaskPureGo},
-	// {dm: 16,dM:  16, fn: parse816DigitsBitwiseMaskPureGo},
+	// TODO // Experimental parsers
+	// {dm: 1, dM:  1, fn: parseUnsignedASM},
+	// {dm: 8, dM:  8, fn: parse8DigitsSWAR},
+	// {dm: 8, dM:  8, fn: parse816DigitsBitwiseMaskPureGo},
+	// {dm: 16,dM: 16, fn: parse816DigitsBitwiseMaskPureGo},
 }
 
 func BenchmarkParsers(b *testing.B) {
@@ -189,8 +195,8 @@ func TestGenericParsers(t *testing.T) {
 
 	// Functions that are safe and generic (variable length)
 	parsers := []struct {
-		name string
 		fn   func([]byte) int
+		name string
 	}{
 		{"parseUnsignedSafe", parseUnsigned},
 		{"parseDigitsOnly", parseDigitsOnly},
