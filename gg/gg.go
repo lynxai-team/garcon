@@ -6,6 +6,7 @@
 package gg
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -83,9 +84,28 @@ func SplitClean(values string, separators ...rune) []string {
 	return result
 }
 
+// SplitCleanBytes splits the string into sanitized tokens.
+func SplitCleanBytes(values []byte, separators ...rune) [][]byte {
+	list := SplitBytes(values, separators...)
+	result := make([][]byte, 0, len(list))
+	for _, v := range list {
+		v = bytes.TrimSpace(v)
+		v = SanitizeBytes(v)
+		if len(v) > 0 {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
 func Split(values string, separators ...rune) []string {
 	f := separatorFunc(separators...)
 	return strings.FieldsFunc(values, f)
+}
+
+func SplitBytes(values []byte, separators ...rune) [][]byte {
+	f := separatorFunc(separators...)
+	return bytes.FieldsFunc(values, f)
 }
 
 func separatorFunc(separators ...rune) func(rune) bool {
@@ -607,6 +627,17 @@ func Sanitize(slice ...string) string {
 	return "[" + sanitize(str) + "]"
 }
 
+func SanitizeBytes(slice ...[]byte) []byte {
+	// most common case: one single string
+	if len(slice) == 1 {
+		return sanitizeBytes(slice[0])
+	}
+
+	// other cases: zero or multiple strings => use the slice representation
+	buf := bytes.Join(slice, []byte(", "))
+	return append(append([]byte("["), sanitizeBytes(buf)...), ']')
+}
+
 // The code points in the surrogate range are not valid for UTF-8.
 const (
 	SurrogateMin = 0xD800
@@ -615,6 +646,24 @@ const (
 
 func sanitize(str string) string {
 	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\t':
+			return ' '
+		case SurrogateMin <= r && r <= SurrogateMax, r > utf8.MaxRune:
+			// The replacement character U+FFFD indicates an invalid UTF-8 character.
+			return '�'
+		case unicode.IsPrint(r):
+			return r
+		default: // r < 32, r == 127
+			// The empty box (tofu) symbolizes the .notdef character
+			// indicating a valid but not rendered character.
+			return '􏿮'
+		}
+	}, str)
+}
+
+func sanitizeBytes(str []byte) []byte {
+	return bytes.Map(func(r rune) rune {
 		switch {
 		case r == '\t':
 			return ' '
