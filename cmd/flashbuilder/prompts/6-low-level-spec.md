@@ -889,7 +889,7 @@ func parseTemplates() (*template.Template, error) {
 ### 8.4 Template Rendering
 
 ```go
-func renderTemplate(name string, data interface{}) (string, error) {
+func renderTemplate(name string, data any) (string, error) {
     tmpl, err := parseTemplates()
     if err != nil {
         return "", err
