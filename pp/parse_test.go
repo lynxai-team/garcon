@@ -134,15 +134,25 @@ var tests = []struct {
 	dm, dM int              // min/max digitsCount = number of digits (length in bytes of the []byte buffer passed to the parser)
 }{
 	// Fixed Length Parsers
-	{dm: 1, dM: 1, fn: parse1Digit},
-	{dm: 2, dM: 2, fn: parse2Digits},
-	{dm: 3, dM: 3, fn: parse3Digits},
-	{dm: 4, dM: 4, fn: parse4Digits},
-	{dm: 5, dM: 5, fn: parse5Digits},
-	{dm: 6, dM: 6, fn: parse6Digits},
-	{dm: 7, dM: 7, fn: parse7Digits},
-	{dm: 8, dM: 8, fn: parse8Digits},
-	{dm: 9, dM: 9, fn: parse9Digits},
+	{dm: 1, dM: 1, fn: parse1digit},
+	{dm: 2, dM: 2, fn: parse2digits},
+	{dm: 3, dM: 3, fn: parse3digits},
+	{dm: 4, dM: 4, fn: parse4digits},
+	{dm: 5, dM: 5, fn: parse5digits},
+	{dm: 6, dM: 6, fn: parse6digits},
+	{dm: 7, dM: 7, fn: parse7digits},
+	{dm: 8, dM: 8, fn: parse8digits},
+	{dm: 9, dM: 9, fn: parse9digits},
+	{dm: 10, dM: 10, fn: parse10digits},
+	{dm: 11, dM: 11, fn: parse11digits},
+	{dm: 12, dM: 12, fn: parse12digits},
+	{dm: 13, dM: 13, fn: parse13digits},
+	{dm: 14, dM: 14, fn: parse14digits},
+	{dm: 15, dM: 15, fn: parse15digits},
+	{dm: 16, dM: 16, fn: parse16digits},
+	{dm: 17, dM: 17, fn: parse17digits},
+	{dm: 18, dM: 18, fn: parse18digits},
+	{dm: 19, dM: 19, fn: parse19digits},
 	// Generic Parsers
 	{dm: 0, dM: 0, fn: parseDigitsSwitch},
 	{dm: 0, dM: 0, fn: parseDigitsInline},
@@ -151,7 +161,8 @@ var tests = []struct {
 	{dm: 0, dM: 0, fn: parseUnsigned},
 	{dm: 0, dM: 0, fn: parseDigitsSelect},
 	{dm: 0, dM: 0, fn: strconvParseUint},
-	{dm: 0, dM: 0, fn: parseDigits},
+	{dm: 0, dM: 0, fn: ParseDigits},
+	{dm: 0, dM: 0, fn: parseDigitsBCE},
 	// Parsers that panic: index out of range
 	{dm: 0, dM: len(parseFuncSelector), fn: parseDigitsSelectUnsafe},
 	// TODO // Experimental parsers
@@ -198,13 +209,13 @@ func TestGenericParsers(t *testing.T) {
 		fn   func([]byte) int
 		name string
 	}{
-		{"parseUnsignedSafe", parseUnsigned},
-		{"parseDigitsOnly", parseDigitsOnly},
-		{"parseDigitsSwitch", parseDigitsSwitch},
-		{"parseDigitsInline", parseDigitsInline},
-		{"parseDigitsSelect", parseDigitsSelect},
-		{"parseDigitsSelectSafe", parseDigitsSelect},
-		{"parseDigitsFallthrough", parseDigitsFallthrough},
+		{parseUnsigned, "parseUnsignedSafe"},
+		{parseDigitsOnly, "parseDigitsOnly"},
+		{parseDigitsSwitch, "parseDigitsSwitch"},
+		{parseDigitsInline, "parseDigitsInline"},
+		{parseDigitsSelect, "parseDigitsSelect"},
+		{parseDigitsSelect, "parseDigitsSelectSafe"},
+		{parseDigitsFallthrough, "parseDigitsFallthrough"},
 	}
 
 	for _, p := range parsers {
@@ -222,58 +233,58 @@ func TestGenericParsers(t *testing.T) {
 
 func TestFixedLengthParsers(t *testing.T) {
 	t.Run("parse1Digit", func(t *testing.T) {
-		if parse1Digit([]byte("1")) != 1 {
+		if parse1digit([]byte("1")) != 1 {
 			t.Error("parse1Digit failed")
 		}
-		if parse1Digit([]byte("5")) != 5 {
+		if parse1digit([]byte("5")) != 5 {
 			t.Error("parse1Digit failed")
 		}
 	})
 
 	t.Run("parse2Digits", func(t *testing.T) {
-		if parse2Digits([]byte("12")) != 12 {
+		if parse2digits([]byte("12")) != 12 {
 			t.Error("parse2Digits failed")
 		}
 	})
 
 	t.Run("parse3Digits", func(t *testing.T) {
-		if parse3Digits([]byte("123")) != 123 {
+		if parse3digits([]byte("123")) != 123 {
 			t.Error("parse3Digits failed")
 		}
 	})
 
 	t.Run("parse4Digits", func(t *testing.T) {
-		if parse4Digits([]byte("1234")) != 1234 {
+		if parse4digits([]byte("1234")) != 1234 {
 			t.Error("parse4Digits failed")
 		}
 	})
 
 	t.Run("parse5Digits", func(t *testing.T) {
-		if parse5Digits([]byte("12345")) != 12345 {
+		if parse5digits([]byte("12345")) != 12345 {
 			t.Error("parse5Digits failed")
 		}
 	})
 
 	t.Run("parse6Digits", func(t *testing.T) {
-		if parse6Digits([]byte("123456")) != 123456 {
+		if parse6digits([]byte("123456")) != 123456 {
 			t.Error("parse6Digits failed")
 		}
 	})
 
 	t.Run("parse7Digits", func(t *testing.T) {
-		if parse7Digits([]byte("1234567")) != 1234567 {
+		if parse7digits([]byte("1234567")) != 1234567 {
 			t.Error("parse7Digits failed")
 		}
 	})
 
 	t.Run("parse8Digits", func(t *testing.T) {
-		if parse8Digits([]byte("12345678")) != 12345678 {
+		if parse8digits([]byte("12345678")) != 12345678 {
 			t.Error("parse8Digits failed")
 		}
 	})
 
 	t.Run("parse9Digits", func(t *testing.T) {
-		if parse9Digits([]byte("123456789")) != 123456789 {
+		if parse9digits([]byte("123456789")) != 123456789 {
 			t.Error("parse9Digits failed")
 		}
 	})

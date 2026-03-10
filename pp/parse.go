@@ -2,6 +2,13 @@
 // This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
+// This file uses the `_ = b[n]` pattern.
+// This is a manual Bounds Check Elimination (BCE) hint.
+// It signals to the compiler that the slice length > n,
+// so it removes bounds checks for subsequent accesses,
+// optimizing performance without needing the `unsafe` package.
+// Warning: The caller must guarantee sufficient buffer size.
+
 package pp
 
 import (
@@ -26,25 +33,43 @@ func parseDigitsSwitch(b []byte) int {
 	case 0:
 		return 0
 	case 1:
-		return parse1Digit(b)
+		return parse1digit(b)
 	case 2:
-		return parse2Digits(b)
+		return parse2digits(b)
 	case 3:
-		return parse3Digits(b)
+		return parse3digits(b)
 	case 4:
-		return parse4Digits(b)
+		return parse4digits(b)
 	case 5:
-		return parse5Digits(b)
+		return parse5digits(b)
 	case 6:
-		return parse6Digits(b)
+		return parse6digits(b)
 	case 7:
-		return parse7Digits(b)
+		return parse7digits(b)
 	case 8:
-		return parse8Digits(b)
+		return parse8digits(b)
 	case 9:
-		return parse9Digits(b)
+		return parse9digits(b)
+	case 10:
+		return parse10digits(b)
+	case 11:
+		return parse11digits(b)
+	case 12:
+		return parse12digits(b)
+	case 13:
+		return parse13digits(b)
+	case 14:
+		return parse14digits(b)
+	case 15:
+		return parse15digits(b)
+	case 16:
+		return parse16digits(b)
+	case 17:
+		return parse17digits(b)
+	case 18:
+		return parse18digits(b)
 	default:
-		return parseDigitsOnly(b)
+		return parse19digits(b)
 	}
 }
 
@@ -71,47 +96,67 @@ func parseDigitsInline(b []byte) int {
 			10*int(b[3]-'0') +
 			100*int(b[2]-'0') +
 			1000*int(b[1]-'0') +
-			10_000*int(b[0]-'0')
+			10000*int(b[0]-'0')
 	case 6:
 		return int(b[5]-'0') +
 			10*int(b[4]-'0') +
 			100*int(b[3]-'0') +
 			1000*int(b[2]-'0') +
-			10_000*int(b[1]-'0') +
-			100_000*int(b[0]-'0')
+			10000*int(b[1]-'0') +
+			100000*int(b[0]-'0')
 	case 7:
 		return int(b[6]-'0') +
 			10*int(b[5]-'0') +
 			100*int(b[4]-'0') +
 			1000*int(b[3]-'0') +
-			10_000*int(b[2]-'0') +
-			100_000*int(b[1]-'0') +
-			1000_000*int(b[0]-'0')
+			10000*int(b[2]-'0') +
+			100000*int(b[1]-'0') +
+			1000000*int(b[0]-'0')
 	case 8:
 		return int(b[7]-'0') +
 			10*int(b[6]-'0') +
 			100*int(b[5]-'0') +
 			1000*int(b[4]-'0') +
-			10_000*int(b[3]-'0') +
-			100_000*int(b[2]-'0') +
-			1000_000*int(b[1]-'0') +
-			10_000_000*int(b[0]-'0')
+			10000*int(b[3]-'0') +
+			100000*int(b[2]-'0') +
+			1000000*int(b[1]-'0') +
+			10000000*int(b[0]-'0')
 	case 9:
 		return int(b[8]-'0') +
 			10*int(b[7]-'0') +
 			100*int(b[6]-'0') +
 			1000*int(b[5]-'0') +
-			10_000*int(b[4]-'0') +
-			100_000*int(b[3]-'0') +
-			1000_000*int(b[2]-'0') +
-			10_000_000*int(b[1]-'0') +
-			100_000_000*int(b[0]-'0')
+			10000*int(b[4]-'0') +
+			100000*int(b[3]-'0') +
+			1000000*int(b[2]-'0') +
+			10000000*int(b[1]-'0') +
+			100000000*int(b[0]-'0')
+	case 10:
+		return parse10digits(b)
+	case 11:
+		return parse11digits(b)
+	case 12:
+		return parse12digits(b)
+	case 13:
+		return parse13digits(b)
+	case 14:
+		return parse14digits(b)
+	case 15:
+		return parse15digits(b)
+	case 16:
+		return parse16digits(b)
+	case 17:
+		return parse17digits(b)
+	case 18:
+		return parse18digits(b)
+	case 19:
+		return parse19digits(b)
 	default:
 		return parseDigitsOnly(b)
 	}
 }
 
-func parseDigits(b []byte) int {
+func ParseDigits(b []byte) int {
 	switch len(b) {
 	case 0:
 		return 0
@@ -134,205 +179,450 @@ func parseDigits(b []byte) int {
 			10*int(b[3]-'0') +
 			100*int(b[2]-'0') +
 			1000*int(b[1]-'0') +
-			10_000*int(b[0]-'0')
+			10000*int(b[0]-'0')
 	case 6:
 		return int(b[5]-'0') +
 			10*int(b[4]-'0') +
 			100*int(b[3]-'0') +
 			1000*int(b[2]-'0') +
-			10_000*int(b[1]-'0') +
-			100_000*int(b[0]-'0')
+			10000*int(b[1]-'0') +
+			100000*int(b[0]-'0')
 	case 7:
 		return int(b[6]-'0') +
 			10*int(b[5]-'0') +
 			100*int(b[4]-'0') +
 			1000*int(b[3]-'0') +
-			10_000*int(b[2]-'0') +
-			100_000*int(b[1]-'0') +
-			1000_000*int(b[0]-'0')
+			10000*int(b[2]-'0') +
+			100000*int(b[1]-'0') +
+			1000000*int(b[0]-'0')
 	case 8:
 		return int(b[7]-'0') +
 			10*int(b[6]-'0') +
 			100*int(b[5]-'0') +
 			1000*int(b[4]-'0') +
-			10_000*int(b[3]-'0') +
-			100_000*int(b[2]-'0') +
-			1000_000*int(b[1]-'0') +
-			10_000_000*int(b[0]-'0')
+			10000*int(b[3]-'0') +
+			100000*int(b[2]-'0') +
+			1000000*int(b[1]-'0') +
+			10000000*int(b[0]-'0')
 	case 9:
 		return int(b[8]-'0') +
 			10*int(b[7]-'0') +
 			100*int(b[6]-'0') +
 			1000*int(b[5]-'0') +
-			10_000*int(b[4]-'0') +
-			100_000*int(b[3]-'0') +
-			1000_000*int(b[2]-'0') +
-			10_000_000*int(b[1]-'0') +
-			100_000_000*int(b[0]-'0')
+			10000*int(b[4]-'0') +
+			100000*int(b[3]-'0') +
+			1000000*int(b[2]-'0') +
+			10000000*int(b[1]-'0') +
+			100000000*int(b[0]-'0')
 	case 10:
 		return 0 +
 			int(b[9]-'0') + 10*
 			int(b[8]-'0') + 100*
 			int(b[7]-'0') + 1000*
-			int(b[6]-'0') + 10_000*
-			int(b[5]-'0') + 100_000*
-			int(b[4]-'0') + 1000_000*
-			int(b[3]-'0') + 10_000_000*
-			int(b[2]-'0') + 100_000_000*
-			int(b[1]-'0') + 1000_000_000*
+			int(b[6]-'0') + 10000*
+			int(b[5]-'0') + 100000*
+			int(b[4]-'0') + 1000000*
+			int(b[3]-'0') + 10000000*
+			int(b[2]-'0') + 100000000*
+			int(b[1]-'0') + 1000000000*
 			int(b[0]-'0')
 	case 11:
 		return 0 +
 			int(b[10]-'0') + 10*
 			int(b[9]-'0') + 100*
 			int(b[8]-'0') + 1000*
-			int(b[7]-'0') + 10_000*
-			int(b[6]-'0') + 100_000*
-			int(b[5]-'0') + 1000_000*
-			int(b[4]-'0') + 10_000_000*
-			int(b[3]-'0') + 100_000_000*
-			int(b[2]-'0') + 1000_000_000*
-			int(b[1]-'0') + 10_000_000_000*
+			int(b[7]-'0') + 10000*
+			int(b[6]-'0') + 100000*
+			int(b[5]-'0') + 1000000*
+			int(b[4]-'0') + 10000000*
+			int(b[3]-'0') + 100000000*
+			int(b[2]-'0') + 1000000000*
+			int(b[1]-'0') + 10000000000*
 			int(b[0]-'0')
 	case 12:
 		return 0 +
 			int(b[11]-'0') + 10*
 			int(b[10]-'0') + 100*
-			int(b[9]-'0') + 1000*
-			int(b[8]-'0') + 10_000*
-			int(b[7]-'0') + 100_000*
-			int(b[6]-'0') + 1000_000*
-			int(b[5]-'0') + 10_000_000*
-			int(b[4]-'0') + 100_000_000*
-			int(b[3]-'0') + 1000_000_000*
-			int(b[2]-'0') + 10_000_000_000*
-			int(b[1]-'0') + 100_000_000_000*
+			int(b[9]-'0') + 1_000*
+			int(b[8]-'0') + 1_0000*
+			int(b[7]-'0') + 1_00000*
+			int(b[6]-'0') + 1_000000*
+			int(b[5]-'0') + 1_0000000*
+			int(b[4]-'0') + 1_00000000*
+			int(b[3]-'0') + 1_000000000*
+			int(b[2]-'0') + 1_0000000000*
+			int(b[1]-'0') + 1_00000000000*
 			int(b[0]-'0')
 	case 13:
 		return 0 +
 			int(b[12]-'0') + 10*
 			int(b[11]-'0') + 100*
 			int(b[10]-'0') + 1000*
-			int(b[9]-'0') + 10_000*
-			int(b[8]-'0') + 100_000*
-			int(b[7]-'0') + 1000_000*
-			int(b[6]-'0') + 10_000_000*
-			int(b[5]-'0') + 100_000_000*
-			int(b[4]-'0') + 1000_000_000*
-			int(b[3]-'0') + 10_000_000_000*
-			int(b[2]-'0') + 100_000_000_000*
-			int(b[1]-'0') + 100_000_000_000*
+			int(b[9]-'0') + 1_0000*
+			int(b[8]-'0') + 1_00000*
+			int(b[7]-'0') + 1_000000*
+			int(b[6]-'0') + 1_0000000*
+			int(b[5]-'0') + 1_00000000*
+			int(b[4]-'0') + 1_000000000*
+			int(b[3]-'0') + 1_0000000000*
+			int(b[2]-'0') + 1_00000000000*
+			int(b[1]-'0') + 1_000000000000*
 			int(b[0]-'0')
 	case 14:
 		return 0 +
 			int(b[13]-'0') + 10*
 			int(b[12]-'0') + 100*
 			int(b[11]-'0') + 1000*
-			int(b[10]-'0') + 10_000*
-			int(b[9]-'0') + 100_000*
-			int(b[8]-'0') + 1000_000*
-			int(b[7]-'0') + 10_000_000*
-			int(b[6]-'0') + 100_000_000*
-			int(b[5]-'0') + 1000_000_000*
-			int(b[4]-'0') + 10_000_000_000*
-			int(b[3]-'0') + 100_000_000_000*
-			int(b[2]-'0') + 100_000_000_000*
-			int(b[1]-'0') + 1000_000_000_000*
+			int(b[10]-'0') + 10000*
+			int(b[9]-'0') + 1_00000*
+			int(b[8]-'0') + 1_000000*
+			int(b[7]-'0') + 1_0000000*
+			int(b[6]-'0') + 1_00000000*
+			int(b[5]-'0') + 1_000000000*
+			int(b[4]-'0') + 1_0000000000*
+			int(b[3]-'0') + 1_00000000000*
+			int(b[2]-'0') + 1_000000000000*
+			int(b[1]-'0') + 1_0000000000000*
 			int(b[0]-'0')
 	case 15:
 		return 0 +
 			int(b[14]-'0') + 10*
 			int(b[13]-'0') + 100*
 			int(b[12]-'0') + 1000*
-			int(b[11]-'0') + 10_000*
-			int(b[10]-'0') + 100_000*
-			int(b[9]-'0') + 1000_000*
-			int(b[8]-'0') + 10_000_000*
-			int(b[7]-'0') + 100_000_000*
-			int(b[6]-'0') + 1000_000_000*
-			int(b[5]-'0') + 10_000_000_000*
-			int(b[4]-'0') + 100_000_000_000*
-			int(b[3]-'0') + 100_000_000_000*
-			int(b[2]-'0') + 1000_000_000_000*
-			int(b[1]-'0') + 10_000_000_000_000*
+			int(b[11]-'0') + 10000*
+			int(b[10]-'0') + 100000*
+			int(b[9]-'0') + 1_000000*
+			int(b[8]-'0') + 1_0000000*
+			int(b[7]-'0') + 1_00000000*
+			int(b[6]-'0') + 1_000000000*
+			int(b[5]-'0') + 1_0000000000*
+			int(b[4]-'0') + 1_00000000000*
+			int(b[3]-'0') + 1_000000000000*
+			int(b[2]-'0') + 1_0000000000000*
+			int(b[1]-'0') + 1_00000000000000*
 			int(b[0]-'0')
 	case 16:
 		return 0 +
 			int(b[15]-'0') + 10*
 			int(b[14]-'0') + 100*
 			int(b[13]-'0') + 1000*
-			int(b[12]-'0') + 10_000*
-			int(b[11]-'0') + 100_000*
-			int(b[10]-'0') + 1000_000*
-			int(b[9]-'0') + 10_000_000*
-			int(b[8]-'0') + 100_000_000*
-			int(b[7]-'0') + 1000_000_000*
-			int(b[6]-'0') + 10_000_000_000*
-			int(b[5]-'0') + 100_000_000_000*
-			int(b[4]-'0') + 100_000_000_000*
-			int(b[3]-'0') + 1000_000_000_000*
-			int(b[2]-'0') + 10_000_000_000_000*
-			int(b[1]-'0') + 100_000_000_000_000*
+			int(b[12]-'0') + 10000*
+			int(b[11]-'0') + 100000*
+			int(b[10]-'0') + 1000000*
+			int(b[9]-'0') + 1_0000000*
+			int(b[8]-'0') + 1_00000000*
+			int(b[7]-'0') + 1_000000000*
+			int(b[6]-'0') + 1_0000000000*
+			int(b[5]-'0') + 1_00000000000*
+			int(b[4]-'0') + 1_000000000000*
+			int(b[3]-'0') + 1_0000000000000*
+			int(b[2]-'0') + 1_00000000000000*
+			int(b[1]-'0') + 1_000000000000000*
 			int(b[0]-'0')
 	case 17:
 		return 0 +
 			int(b[16]-'0') + 10*
 			int(b[15]-'0') + 100*
 			int(b[14]-'0') + 1000*
-			int(b[13]-'0') + 10_000*
-			int(b[12]-'0') + 100_000*
-			int(b[11]-'0') + 1000_000*
-			int(b[10]-'0') + 10_000_000*
-			int(b[9]-'0') + 100_000_000*
-			int(b[8]-'0') + 1000_000_000*
-			int(b[7]-'0') + 10_000_000_000*
-			int(b[6]-'0') + 100_000_000_000*
-			int(b[5]-'0') + 100_000_000_000*
-			int(b[4]-'0') + 1000_000_000_000*
-			int(b[3]-'0') + 10_000_000_000_000*
-			int(b[2]-'0') + 100_000_000_000_000*
-			int(b[1]-'0') + 1000_000_000_000_000*
+			int(b[13]-'0') + 10000*
+			int(b[12]-'0') + 100000*
+			int(b[11]-'0') + 1000000*
+			int(b[10]-'0') + 10000000*
+			int(b[9]-'0') + 1_00000000*
+			int(b[8]-'0') + 1_000000000*
+			int(b[7]-'0') + 1_0000000000*
+			int(b[6]-'0') + 1_00000000000*
+			int(b[5]-'0') + 1_000000000000*
+			int(b[4]-'0') + 1_0000000000000*
+			int(b[3]-'0') + 1_00000000000000*
+			int(b[2]-'0') + 1_000000000000000*
+			int(b[1]-'0') + 1_0000000000000000*
 			int(b[0]-'0')
 	case 18:
 		return 0 +
 			int(b[17]-'0') + 10*
 			int(b[16]-'0') + 100*
 			int(b[15]-'0') + 1000*
-			int(b[14]-'0') + 10_000*
-			int(b[13]-'0') + 100_000*
-			int(b[12]-'0') + 1000_000*
-			int(b[11]-'0') + 10_000_000*
-			int(b[10]-'0') + 100_000_000*
-			int(b[9]-'0') + 1000_000_000*
-			int(b[8]-'0') + 10_000_000_000*
-			int(b[7]-'0') + 100_000_000_000*
-			int(b[6]-'0') + 100_000_000_000*
-			int(b[5]-'0') + 1000_000_000_000*
-			int(b[4]-'0') + 10_000_000_000_000*
-			int(b[3]-'0') + 100_000_000_000_000*
-			int(b[2]-'0') + 1000_000_000_000_000*
-			int(b[1]-'0') + 10_000_000_000_000_000*
+			int(b[14]-'0') + 10000*
+			int(b[13]-'0') + 100000*
+			int(b[12]-'0') + 1000000*
+			int(b[11]-'0') + 10000000*
+			int(b[10]-'0') + 100000000*
+			int(b[9]-'0') + 1_000000000*
+			int(b[8]-'0') + 1_0000000000*
+			int(b[7]-'0') + 1_00000000000*
+			int(b[6]-'0') + 1_000000000000*
+			int(b[5]-'0') + 1_0000000000000*
+			int(b[4]-'0') + 1_00000000000000*
+			int(b[3]-'0') + 1_000000000000000*
+			int(b[2]-'0') + 1_0000000000000000*
+			int(b[1]-'0') + 1_00000000000000000*
 			int(b[0]-'0')
 	default:
 		return 0 +
 			int(b[18]-'0') + 10*
 			int(b[17]-'0') + 100*
 			int(b[16]-'0') + 1000*
-			int(b[15]-'0') + 10_000*
-			int(b[14]-'0') + 100_000*
-			int(b[13]-'0') + 1000_000*
-			int(b[12]-'0') + 10_000_000*
-			int(b[11]-'0') + 100_000_000*
-			int(b[10]-'0') + 1000_000_000*
-			int(b[9]-'0') + 10_000_000_000*
-			int(b[8]-'0') + 100_000_000_000*
-			int(b[7]-'0') + 100_000_000_000*
-			int(b[6]-'0') + 1000_000_000_000*
-			int(b[5]-'0') + 10_000_000_000_000*
-			int(b[4]-'0') + 100_000_000_000_000*
-			int(b[3]-'0') + 1000_000_000_000_000*
-			int(b[2]-'0') + 10_000_000_000_000_000*
-			int(b[1]-'0') + 10_000_000_000_000_000*
+			int(b[15]-'0') + 10000*
+			int(b[14]-'0') + 100000*
+			int(b[13]-'0') + 1000000*
+			int(b[12]-'0') + 10000000*
+			int(b[11]-'0') + 100000000*
+			int(b[10]-'0') + 1000000000*
+			int(b[9]-'0') + 1_0000000000*
+			int(b[8]-'0') + 1_00000000000*
+			int(b[7]-'0') + 1_000000000000*
+			int(b[6]-'0') + 1_0000000000000*
+			int(b[5]-'0') + 1_00000000000000*
+			int(b[4]-'0') + 1_000000000000000*
+			int(b[3]-'0') + 1_0000000000000000*
+			int(b[2]-'0') + 1_00000000000000000*
+			int(b[1]-'0') + 1_000000000000000000*
+			int(b[0]-'0')
+	}
+}
+
+func parseDigitsBCE(b []byte) int {
+	switch len(b) {
+	case 0:
+		return 0
+	case 1:
+		_ = b[0]
+		return int(b[0] - '0')
+	case 2:
+		_ = b[1]
+		return int(b[1]-'0') +
+			10*int(b[0]-'0')
+	case 3:
+		_ = b[2]
+		return int(b[2]-'0') +
+			10*int(b[1]-'0') +
+			100*int(b[0]-'0')
+	case 4:
+		_ = b[3]
+		return int(b[3]-'0') +
+			10*int(b[2]-'0') +
+			100*int(b[1]-'0') +
+			1000*int(b[0]-'0')
+	case 5:
+		_ = b[4]
+		return int(b[4]-'0') +
+			10*int(b[3]-'0') +
+			100*int(b[2]-'0') +
+			1000*int(b[1]-'0') +
+			10000*int(b[0]-'0')
+	case 6:
+		_ = b[5]
+		return int(b[5]-'0') +
+			10*int(b[4]-'0') +
+			100*int(b[3]-'0') +
+			1000*int(b[2]-'0') +
+			10000*int(b[1]-'0') +
+			100000*int(b[0]-'0')
+	case 7:
+		_ = b[6]
+		return int(b[6]-'0') +
+			10*int(b[5]-'0') +
+			100*int(b[4]-'0') +
+			1000*int(b[3]-'0') +
+			10000*int(b[2]-'0') +
+			100000*int(b[1]-'0') +
+			1000000*int(b[0]-'0')
+	case 8:
+		_ = b[7]
+		return int(b[7]-'0') +
+			10*int(b[6]-'0') +
+			100*int(b[5]-'0') +
+			1000*int(b[4]-'0') +
+			10000*int(b[3]-'0') +
+			100000*int(b[2]-'0') +
+			1000000*int(b[1]-'0') +
+			10000000*int(b[0]-'0')
+	case 9:
+		_ = b[8]
+		return int(b[8]-'0') +
+			10*int(b[7]-'0') +
+			100*int(b[6]-'0') +
+			1000*int(b[5]-'0') +
+			10000*int(b[4]-'0') +
+			100000*int(b[3]-'0') +
+			1000000*int(b[2]-'0') +
+			10000000*int(b[1]-'0') +
+			100000000*int(b[0]-'0')
+	case 10:
+		_ = b[9]
+		return 0 +
+			int(b[9]-'0') + 10*
+			int(b[8]-'0') + 100*
+			int(b[7]-'0') + 1000*
+			int(b[6]-'0') + 10000*
+			int(b[5]-'0') + 100000*
+			int(b[4]-'0') + 1000000*
+			int(b[3]-'0') + 10000000*
+			int(b[2]-'0') + 100000000*
+			int(b[1]-'0') + 1000000000*
+			int(b[0]-'0')
+	case 11:
+		_ = b[10]
+		return 0 +
+			int(b[10]-'0') + 10*
+			int(b[9]-'0') + 100*
+			int(b[8]-'0') + 1000*
+			int(b[7]-'0') + 10000*
+			int(b[6]-'0') + 100000*
+			int(b[5]-'0') + 1000000*
+			int(b[4]-'0') + 10000000*
+			int(b[3]-'0') + 100000000*
+			int(b[2]-'0') + 1000000000*
+			int(b[1]-'0') + 10000000000*
+			int(b[0]-'0')
+	case 12:
+		_ = b[11]
+		return 0 +
+			int(b[11]-'0') + 10*
+			int(b[10]-'0') + 100*
+			int(b[9]-'0') + 1_000*
+			int(b[8]-'0') + 1_0000*
+			int(b[7]-'0') + 1_00000*
+			int(b[6]-'0') + 1_000000*
+			int(b[5]-'0') + 1_0000000*
+			int(b[4]-'0') + 1_00000000*
+			int(b[3]-'0') + 1_000000000*
+			int(b[2]-'0') + 1_0000000000*
+			int(b[1]-'0') + 1_00000000000*
+			int(b[0]-'0')
+	case 13:
+		_ = b[12]
+		return 0 +
+			int(b[12]-'0') + 10*
+			int(b[11]-'0') + 100*
+			int(b[10]-'0') + 1000*
+			int(b[9]-'0') + 1_0000*
+			int(b[8]-'0') + 1_00000*
+			int(b[7]-'0') + 1_000000*
+			int(b[6]-'0') + 1_0000000*
+			int(b[5]-'0') + 1_00000000*
+			int(b[4]-'0') + 1_000000000*
+			int(b[3]-'0') + 1_0000000000*
+			int(b[2]-'0') + 1_00000000000*
+			int(b[1]-'0') + 1_000000000000*
+			int(b[0]-'0')
+	case 14:
+		_ = b[13]
+		return 0 +
+			int(b[13]-'0') + 10*
+			int(b[12]-'0') + 100*
+			int(b[11]-'0') + 1000*
+			int(b[10]-'0') + 10000*
+			int(b[9]-'0') + 1_00000*
+			int(b[8]-'0') + 1_000000*
+			int(b[7]-'0') + 1_0000000*
+			int(b[6]-'0') + 1_00000000*
+			int(b[5]-'0') + 1_000000000*
+			int(b[4]-'0') + 1_0000000000*
+			int(b[3]-'0') + 1_00000000000*
+			int(b[2]-'0') + 1_000000000000*
+			int(b[1]-'0') + 1_0000000000000*
+			int(b[0]-'0')
+	case 15:
+		_ = b[14]
+		return 0 +
+			int(b[14]-'0') + 10*
+			int(b[13]-'0') + 100*
+			int(b[12]-'0') + 1000*
+			int(b[11]-'0') + 10000*
+			int(b[10]-'0') + 100000*
+			int(b[9]-'0') + 1_000000*
+			int(b[8]-'0') + 1_0000000*
+			int(b[7]-'0') + 1_00000000*
+			int(b[6]-'0') + 1_000000000*
+			int(b[5]-'0') + 1_0000000000*
+			int(b[4]-'0') + 1_00000000000*
+			int(b[3]-'0') + 1_000000000000*
+			int(b[2]-'0') + 1_0000000000000*
+			int(b[1]-'0') + 1_00000000000000*
+			int(b[0]-'0')
+	case 16:
+		_ = b[15]
+		return 0 +
+			int(b[15]-'0') + 10*
+			int(b[14]-'0') + 100*
+			int(b[13]-'0') + 1000*
+			int(b[12]-'0') + 10000*
+			int(b[11]-'0') + 100000*
+			int(b[10]-'0') + 1000000*
+			int(b[9]-'0') + 1_0000000*
+			int(b[8]-'0') + 1_00000000*
+			int(b[7]-'0') + 1_000000000*
+			int(b[6]-'0') + 1_0000000000*
+			int(b[5]-'0') + 1_00000000000*
+			int(b[4]-'0') + 1_000000000000*
+			int(b[3]-'0') + 1_0000000000000*
+			int(b[2]-'0') + 1_00000000000000*
+			int(b[1]-'0') + 1_000000000000000*
+			int(b[0]-'0')
+	case 17:
+		_ = b[16]
+		return 0 +
+			int(b[16]-'0') + 10*
+			int(b[15]-'0') + 100*
+			int(b[14]-'0') + 1000*
+			int(b[13]-'0') + 10000*
+			int(b[12]-'0') + 100000*
+			int(b[11]-'0') + 1000000*
+			int(b[10]-'0') + 10000000*
+			int(b[9]-'0') + 1_00000000*
+			int(b[8]-'0') + 1_000000000*
+			int(b[7]-'0') + 1_0000000000*
+			int(b[6]-'0') + 1_00000000000*
+			int(b[5]-'0') + 1_000000000000*
+			int(b[4]-'0') + 1_0000000000000*
+			int(b[3]-'0') + 1_00000000000000*
+			int(b[2]-'0') + 1_000000000000000*
+			int(b[1]-'0') + 1_0000000000000000*
+			int(b[0]-'0')
+	case 18:
+		_ = b[17]
+		return 0 +
+			int(b[17]-'0') + 10*
+			int(b[16]-'0') + 100*
+			int(b[15]-'0') + 1000*
+			int(b[14]-'0') + 10000*
+			int(b[13]-'0') + 100000*
+			int(b[12]-'0') + 1000000*
+			int(b[11]-'0') + 10000000*
+			int(b[10]-'0') + 100000000*
+			int(b[9]-'0') + 1_000000000*
+			int(b[8]-'0') + 1_0000000000*
+			int(b[7]-'0') + 1_00000000000*
+			int(b[6]-'0') + 1_000000000000*
+			int(b[5]-'0') + 1_0000000000000*
+			int(b[4]-'0') + 1_00000000000000*
+			int(b[3]-'0') + 1_000000000000000*
+			int(b[2]-'0') + 1_0000000000000000*
+			int(b[1]-'0') + 1_00000000000000000*
+			int(b[0]-'0')
+	default:
+		_ = b[18]
+		return 0 +
+			int(b[18]-'0') + 10*
+			int(b[17]-'0') + 100*
+			int(b[16]-'0') + 1000*
+			int(b[15]-'0') + 10000*
+			int(b[14]-'0') + 100000*
+			int(b[13]-'0') + 1000000*
+			int(b[12]-'0') + 10000000*
+			int(b[11]-'0') + 100000000*
+			int(b[10]-'0') + 1000000000*
+			int(b[9]-'0') + 1_0000000000*
+			int(b[8]-'0') + 1_00000000000*
+			int(b[7]-'0') + 1_000000000000*
+			int(b[6]-'0') + 1_0000000000000*
+			int(b[5]-'0') + 1_00000000000000*
+			int(b[4]-'0') + 1_000000000000000*
+			int(b[3]-'0') + 1_0000000000000000*
+			int(b[2]-'0') + 1_00000000000000000*
+			int(b[1]-'0') + 1_000000000000000000*
 			int(b[0]-'0')
 	}
 }
@@ -341,9 +631,49 @@ func parseDigitsFallthrough(b []byte) int {
 	n := 0
 	m := 1
 	switch len(b) {
-	case 9:
-		n = int(b[8] - '0')
+	case 19:
+		n = int(b[18] - '0')
 		m = 10
+		fallthrough
+	case 18:
+		n += m * int(b[17]-'0')
+		m *= 10
+		fallthrough
+	case 17:
+		n += m * int(b[16]-'0')
+		m *= 10
+		fallthrough
+	case 16:
+		n += m * int(b[15]-'0')
+		m *= 10
+		fallthrough
+	case 15:
+		n += m * int(b[14]-'0')
+		m *= 10
+		fallthrough
+	case 14:
+		n += m * int(b[13]-'0')
+		m *= 10
+		fallthrough
+	case 13:
+		n += m * int(b[12]-'0')
+		m *= 10
+		fallthrough
+	case 12:
+		n += m * int(b[11]-'0')
+		m *= 10
+		fallthrough
+	case 11:
+		n += m * int(b[10]-'0')
+		m *= 10
+		fallthrough
+	case 10:
+		n += m * int(b[9]-'0')
+		m *= 10
+		fallthrough
+	case 9:
+		n += m * int(b[8]-'0')
+		m *= 10
 		fallthrough
 	case 8:
 		n += m * int(b[7]-'0')
@@ -383,10 +713,10 @@ func parseDigitsFallthrough(b []byte) int {
 }
 
 var parseFuncSelector [45]func([]byte) int = [45]func([]byte) int{
-	returnZero, parse1Digit, parse2Digits, parse3Digits, parse4Digits,
-	parse5Digits, parse6Digits, parse7Digits, parse8Digits, parse9Digits,
-	parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly,
-	parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly,
+	returnZero, parse1digit, parse2digits, parse3digits, parse4digits,
+	parse5digits, parse6digits, parse7digits, parse8digits, parse9digits,
+	parse10digits, parse11digits, parse12digits, parse13digits, parse14digits,
+	parse15digits, parse16digits, parse17digits, parse18digits, parse19digits,
 	parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly,
 	parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly,
 	parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly, parseDigitsOnly,
@@ -419,75 +749,282 @@ func returnZero(_ []byte) int {
 	return 0
 }
 
-func parse1Digit(b []byte) int {
+func parse1digit(b []byte) int {
+	_ = b[0] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
 	return int(b[0] - '0')
 }
 
-func parse2Digits(b []byte) int {
+// We use `_ = b[n]` as a BCE hint to eliminate bounds checks on subsequent accesses,
+// reducing runtime overhead. Note: This requires the caller to guarantee buffer size.
+
+func parse2digits(b []byte) int {
+	_ = b[1] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
 	return int(b[1]-'0') + 10*int(b[0]-'0')
 }
 
-func parse3Digits(b []byte) int {
+func parse3digits(b []byte) int {
+	_ = b[2] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
 	return int(b[2]-'0') +
 		10*int(b[1]-'0') +
 		100*int(b[0]-'0')
 }
 
-func parse4Digits(b []byte) int {
+func parse4digits(b []byte) int {
+	_ = b[3] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
 	return int(b[3]-'0') +
 		10*int(b[2]-'0') +
 		100*int(b[1]-'0') +
 		1000*int(b[0]-'0')
 }
 
-func parse5Digits(b []byte) int {
+func parse5digits(b []byte) int {
+	_ = b[4] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
 	return int(b[4]-'0') +
 		10*int(b[3]-'0') +
 		100*int(b[2]-'0') +
 		1000*int(b[1]-'0') +
-		10_000*int(b[0]-'0')
+		10000*int(b[0]-'0')
 }
 
-func parse6Digits(b []byte) int {
+func parse6digits(b []byte) int {
+	_ = b[5] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
 	return int(b[5]-'0') +
 		10*int(b[4]-'0') +
 		100*int(b[3]-'0') +
 		1000*int(b[2]-'0') +
-		10_000*int(b[1]-'0') +
-		100_000*int(b[0]-'0')
+		10000*int(b[1]-'0') +
+		100000*int(b[0]-'0')
 }
 
-func parse7Digits(b []byte) int {
+func parse7digits(b []byte) int {
+	_ = b[6] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
 	return int(b[6]-'0') +
 		10*int(b[5]-'0') +
 		100*int(b[4]-'0') +
 		1000*int(b[3]-'0') +
-		10_000*int(b[2]-'0') +
-		100_000*int(b[1]-'0') +
-		1000_000*int(b[0]-'0')
+		10000*int(b[2]-'0') +
+		100000*int(b[1]-'0') +
+		1000000*int(b[0]-'0')
 }
 
-func parse8Digits(b []byte) int {
+func parse8digits(b []byte) int {
+	_ = b[7] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
 	return int(b[7]-'0') +
 		10*int(b[6]-'0') +
 		100*int(b[5]-'0') +
 		1000*int(b[4]-'0') +
-		10_000*int(b[3]-'0') +
-		100_000*int(b[2]-'0') +
-		1000_000*int(b[1]-'0') +
-		10_000_000*int(b[0]-'0')
+		10000*int(b[3]-'0') +
+		100000*int(b[2]-'0') +
+		1000000*int(b[1]-'0') +
+		10000000*int(b[0]-'0')
 }
 
-func parse9Digits(b []byte) int {
+func parse9digits(b []byte) int {
+	_ = b[8] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
 	return int(b[8]-'0') +
 		10*int(b[7]-'0') +
 		100*int(b[6]-'0') +
 		1000*int(b[5]-'0') +
-		10_000*int(b[4]-'0') +
-		100_000*int(b[3]-'0') +
-		1000_000*int(b[2]-'0') +
-		10_000_000*int(b[1]-'0') +
-		100_000_000*int(b[0]-'0')
+		10000*int(b[4]-'0') +
+		100000*int(b[3]-'0') +
+		1000000*int(b[2]-'0') +
+		10000000*int(b[1]-'0') +
+		100000000*int(b[0]-'0')
+}
+
+func parse10digits(b []byte) int {
+	_ = b[9] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[9]-'0') + 10*
+		int(b[8]-'0') + 100*
+		int(b[7]-'0') + 1000*
+		int(b[6]-'0') + 10000*
+		int(b[5]-'0') + 100000*
+		int(b[4]-'0') + 1000000*
+		int(b[3]-'0') + 10000000*
+		int(b[2]-'0') + 100000000*
+		int(b[1]-'0') + 1000000000*
+		int(b[0]-'0')
+}
+
+func parse11digits(b []byte) int {
+	_ = b[10] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[10]-'0') + 10*
+		int(b[9]-'0') + 1_00*
+		int(b[8]-'0') + 1_000*
+		int(b[7]-'0') + 1_0000*
+		int(b[6]-'0') + 1_00000*
+		int(b[5]-'0') + 1_000000*
+		int(b[4]-'0') + 1_0000000*
+		int(b[3]-'0') + 1_00000000*
+		int(b[2]-'0') + 1_000000000*
+		int(b[1]-'0') + 1_0000000000*
+		int(b[0]-'0')
+}
+
+func parse12digits(b []byte) int {
+	_ = b[11] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[11]-'0') + 10*
+		int(b[10]-'0') + 100*
+		int(b[9]-'0') + 1_000*
+		int(b[8]-'0') + 1_0000*
+		int(b[7]-'0') + 1_00000*
+		int(b[6]-'0') + 1_000000*
+		int(b[5]-'0') + 1_0000000*
+		int(b[4]-'0') + 1_00000000*
+		int(b[3]-'0') + 1_000000000*
+		int(b[2]-'0') + 1_0000000000*
+		int(b[1]-'0') + 1_00000000000*
+		int(b[0]-'0')
+}
+
+func parse13digits(b []byte) int {
+	_ = b[12] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[12]-'0') + 10*
+		int(b[11]-'0') + 100*
+		int(b[10]-'0') + 1000*
+		int(b[9]-'0') + 1_0000*
+		int(b[8]-'0') + 1_00000*
+		int(b[7]-'0') + 1_000000*
+		int(b[6]-'0') + 1_0000000*
+		int(b[5]-'0') + 1_00000000*
+		int(b[4]-'0') + 1_000000000*
+		int(b[3]-'0') + 1_0000000000*
+		int(b[2]-'0') + 1_00000000000*
+		int(b[1]-'0') + 1_000000000000*
+		int(b[0]-'0')
+}
+
+func parse14digits(b []byte) int {
+	_ = b[13] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[13]-'0') + 10*
+		int(b[12]-'0') + 100*
+		int(b[11]-'0') + 1000*
+		int(b[10]-'0') + 10000*
+		int(b[9]-'0') + 1_00000*
+		int(b[8]-'0') + 1_000000*
+		int(b[7]-'0') + 1_0000000*
+		int(b[6]-'0') + 1_00000000*
+		int(b[5]-'0') + 1_000000000*
+		int(b[4]-'0') + 1_0000000000*
+		int(b[3]-'0') + 1_00000000000*
+		int(b[2]-'0') + 1_000000000000*
+		int(b[1]-'0') + 1_0000000000000*
+		int(b[0]-'0')
+}
+
+func parse15digits(b []byte) int {
+	_ = b[14] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[14]-'0') + 10*
+		int(b[13]-'0') + 100*
+		int(b[12]-'0') + 1000*
+		int(b[11]-'0') + 10000*
+		int(b[10]-'0') + 100000*
+		int(b[9]-'0') + 1_000000*
+		int(b[8]-'0') + 1_0000000*
+		int(b[7]-'0') + 1_00000000*
+		int(b[6]-'0') + 1_000000000*
+		int(b[5]-'0') + 1_0000000000*
+		int(b[4]-'0') + 1_00000000000*
+		int(b[3]-'0') + 1_000000000000*
+		int(b[2]-'0') + 1_0000000000000*
+		int(b[1]-'0') + 1_00000000000000*
+		int(b[0]-'0')
+}
+
+func parse16digits(b []byte) int {
+	_ = b[15] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[15]-'0') + 10*
+		int(b[14]-'0') + 100*
+		int(b[13]-'0') + 1000*
+		int(b[12]-'0') + 10000*
+		int(b[11]-'0') + 100000*
+		int(b[10]-'0') + 1000000*
+		int(b[9]-'0') + 1_0000000*
+		int(b[8]-'0') + 1_00000000*
+		int(b[7]-'0') + 1_000000000*
+		int(b[6]-'0') + 1_0000000000*
+		int(b[5]-'0') + 1_00000000000*
+		int(b[4]-'0') + 1_000000000000*
+		int(b[3]-'0') + 1_0000000000000*
+		int(b[2]-'0') + 1_00000000000000*
+		int(b[1]-'0') + 1_000000000000000*
+		int(b[0]-'0')
+}
+
+func parse17digits(b []byte) int {
+	_ = b[16] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[16]-'0') + 10*
+		int(b[15]-'0') + 100*
+		int(b[14]-'0') + 1000*
+		int(b[13]-'0') + 10000*
+		int(b[12]-'0') + 100000*
+		int(b[11]-'0') + 1000000*
+		int(b[10]-'0') + 10000000*
+		int(b[9]-'0') + 1_00000000*
+		int(b[8]-'0') + 1_000000000*
+		int(b[7]-'0') + 1_0000000000*
+		int(b[6]-'0') + 1_00000000000*
+		int(b[5]-'0') + 1_000000000000*
+		int(b[4]-'0') + 1_0000000000000*
+		int(b[3]-'0') + 1_00000000000000*
+		int(b[2]-'0') + 1_000000000000000*
+		int(b[1]-'0') + 1_0000000000000000*
+		int(b[0]-'0')
+}
+
+func parse18digits(b []byte) int {
+	_ = b[17] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[17]-'0') + 10*
+		int(b[16]-'0') + 100*
+		int(b[15]-'0') + 1000*
+		int(b[14]-'0') + 10000*
+		int(b[13]-'0') + 100000*
+		int(b[12]-'0') + 1000000*
+		int(b[11]-'0') + 10000000*
+		int(b[10]-'0') + 100000000*
+		int(b[9]-'0') + 1_000000000*
+		int(b[8]-'0') + 1_0000000000*
+		int(b[7]-'0') + 1_00000000000*
+		int(b[6]-'0') + 1_000000000000*
+		int(b[5]-'0') + 1_0000000000000*
+		int(b[4]-'0') + 1_00000000000000*
+		int(b[3]-'0') + 1_000000000000000*
+		int(b[2]-'0') + 1_0000000000000000*
+		int(b[1]-'0') + 1_00000000000000000*
+		int(b[0]-'0')
+}
+
+func parse19digits(b []byte) int {
+	_ = b[19] // BCE hint to remove bounds check (perf). Caller must ensure sufficient length.
+	return 0 +
+		int(b[18]-'0') + 10*
+		int(b[17]-'0') + 100*
+		int(b[16]-'0') + 1000*
+		int(b[15]-'0') + 10000*
+		int(b[14]-'0') + 100000*
+		int(b[13]-'0') + 1000000*
+		int(b[12]-'0') + 10000000*
+		int(b[11]-'0') + 100000000*
+		int(b[10]-'0') + 100000000*
+		int(b[9]-'0') + 1_000000000*
+		int(b[8]-'0') + 1_0000000000*
+		int(b[7]-'0') + 1_00000000000*
+		int(b[6]-'0') + 1_000000000000*
+		int(b[5]-'0') + 1_0000000000000*
+		int(b[4]-'0') + 1_00000000000000*
+		int(b[3]-'0') + 1_000000000000000*
+		int(b[2]-'0') + 1_0000000000000000*
+		int(b[1]-'0') + 1_00000000000000000*
+		int(b[0]-'0')
 }
 
 //oligo:noescape
@@ -605,19 +1142,20 @@ func parse8DigitsSWAR(digits []byte) int {
 	// However, shifting right moves other bytes into our position.
 	// We must mask with 0xFF to isolate the specific byte (digit).
 
-	d0 := (val >> 0) & 0xFF  // Digit 0 (at bits 0-7)
-	d1 := (val >> 8) & 0xFF  // Digit 1 (at bits 8-15)
-	d2 := (val >> 16) & 0xFF // Digit 2
-	d3 := (val >> 24) & 0xFF // Digit 3
-	d4 := (val >> 32) & 0xFF // Digit 4
-	d5 := (val >> 40) & 0xFF // Digit 5
-	d6 := (val >> 48) & 0xFF // Digit 6
-	d7 := (val >> 56) & 0xFF // Digit 7 (at bits 56-63)
+	d0 := 0xFF & (val >> 0)  // Digit 0 (at bits 0-7)
+	d1 := 0xFF & (val >> 8)  // Digit 1 (at bits 8-15)
+	d2 := 0xFF & (val >> 16) // Digit 2
+	d3 := 0xFF & (val >> 24) // Digit 3
+	d4 := 0xFF & (val >> 32) // Digit 4
+	d5 := 0xFF & (val >> 40) // Digit 5
+	d6 := 0xFF & (val >> 48) // Digit 6
+	d7 := 0xFF & (val >> 56) // Digit 7 (at bits 56-63)
 
 	// 4. Compute the integer sum (Unrolled multiplication).
 	// We multiply by pre-calculated powers of 10.
 	// d0 is the most significant digit (10^7).
-	return int(d0)*10000000 +
+	return 0 +
+		int(d0)*10000000 +
 		int(d1)*1000000 +
 		int(d2)*100000 +
 		int(d3)*10000 +
