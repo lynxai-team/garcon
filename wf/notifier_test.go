@@ -19,6 +19,8 @@ import (
 	"github.com/lynxai-team/garcon/wf"
 )
 
+// TestNotifier_Notify performs an integration test against a live endpoint (or mock).
+// This test checks the error handling for a specific known endpoint scenario.
 func TestNotifier_Notify(t *testing.T) {
 	t.Parallel()
 
@@ -33,8 +35,9 @@ func TestNotifier_Notify(t *testing.T) {
 	}
 }
 
-// TestNotify_Functional2 tests the Notify method against a test server.
-func TestNotify_Functional2(t *testing.T) {
+// TestNotify_Functional tests the integration of Notify with a mock HTTP server.
+// It covers success scenarios and HTTP error scenarios.
+func TestNotify_Functional(t *testing.T) {
 	// Setup a mock server to verify the request body and control the response.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify the request method and content type.
@@ -206,10 +209,11 @@ func TestNotify_Functional(t *testing.T) {
 }
 
 // TestAppendCuratedEscaped_Unit tests the core logic of the sanitizer/quoter.
+// It verifies that input is correctly curated and escaped.
 func TestAppendCuratedEscaped_Unit(t *testing.T) {
 	tests := []struct {
 		name  string
-		want  string
+		want  string // Expected output string
 		input []byte
 	}{
 		{name: "Empty", input: []byte(""), want: ``},
@@ -218,9 +222,12 @@ func TestAppendCuratedEscaped_Unit(t *testing.T) {
 		{name: "Backslash", input: []byte(`C:\Path\`), want: `C:\\Path\\`},
 		{name: "Control Char Newline", input: []byte("Line1\nLine2"), want: `Line1\nLine2`},
 		{name: "Control Char Tab", input: []byte("Tab\tHere"), want: `Tab\tHere`},
-		{name: "Unicode Valid", input: []byte("日本"), want: `日本`},        // Valid UTF-8 is kept
-		{name: "Graphic Rune", input: []byte("\u00A0"), want: "\u00a0"}, // NO-BREAK SPACE (in isGraphic list)
-		{name: "Invalid UTF-8", input: []byte("\xFE"), want: ``},        // Invalid sequence stripped.
+		{name: "Unicode Valid Graphic", input: []byte("日本"), want: `日本`},  // Valid UTF-8 is kept
+		{name: "Invalid UTF-8", input: []byte("\xFE"), want: ``},          // Invalid sequence stripped.
+		{name: "Non Graphic Control", input: []byte("\x00"), want: ``},    // Null byte stripped.
+		{name: "Graphic Rune", input: []byte("\u00A0"), want: "\u00A0"},   // NO-BREAK SPACE (Graphic).
+		{name: "Escape Check", input: []byte("\n\r\t"), want: `\n\t`},     // Escaped control chars.
+		{name: "Non Graphic Escape", input: []byte("\x01\x02"), want: ``}, // Non graphic controls stripped.
 	}
 
 	for _, tc := range tests {
@@ -381,9 +388,9 @@ func TestAppendCuratedEscaped_Unit3(t *testing.T) {
 }
 
 // TestAppendCuratedEscaped_ValidJSON verifies the output is always valid JSON.
-func TestAppendCuratedEscaped_ValidJSON3(t *testing.T) {
+func TestAppendCuratedEscaped_ValidJSON(t *testing.T) {
 	// Seed with some random data.
-	rand.New(rand.NewSource(0)) // Use a deterministic seed for reproducibility.
+	rand := rand.New(rand.NewSource(0)) // Use a deterministic seed for reproducibility.
 
 	for range 100 {
 		// Generate random byte slice.
@@ -410,12 +417,12 @@ func TestAppendCuratedEscaped_ValidJSON3(t *testing.T) {
 
 // FuzzAppendCuratedEscaped implements the native fuzzing target for Go 1.18+.
 // This provides high coverage for the complex logic in AppendCuratedEscaped.
-func FuzzAppendCuratedEscaped3(f *testing.F) {
+func FuzzAppendCuratedEscaped(f *testing.F) {
 	// Add seed corpus with interesting values.
 	f.Add([]byte("Hello"))
 	f.Add([]byte("\xFE\xFF\xFF\xFF")) // Invalid UTF-8.
 	f.Add([]byte("\u00A0"))           // Graphic rune.
-	f.Add([]byte("\n\t"))             // Control chars handled by switch.
+	f.Add([]byte("\n\t"))             // Control chars.
 	f.Add([]byte("\x00\x01"))         // Non graphic controls.
 
 	// The fuzzer will generate random byte slices.
@@ -437,8 +444,9 @@ func FuzzAppendCuratedEscaped3(f *testing.F) {
 			t.Errorf("Output produced invalid JSON: %v, Input: %v", res, data)
 		}
 
-		// Invariant 3: The output should not contain invalid UTF-8 sequences from input.
-		// The function should strip them. We verify by checking that every rune in output is valid.
+		// Invariant 3: No invalid UTF-8 sequences from input are present in output.
+		// The function should strip them.
+		// We verify by checking that every rune in output is valid.
 		for i := 0; i < len(res); {
 			r, width := utf8.DecodeRune(res[i:])
 			if width == 1 && r == utf8.RuneError {
