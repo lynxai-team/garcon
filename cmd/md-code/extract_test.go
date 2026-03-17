@@ -23,6 +23,8 @@ func TestExtract(t *testing.T) {
 		"### 8. `hello.go` (Lock‑Free Dispatcher)",
 		"## File: hello.go",
 		"**File: `hello.go`**",
+		"### File: `hello.go`",
+		"// hello.go",
 	}
 
 	mdEnd := "```go" + `
