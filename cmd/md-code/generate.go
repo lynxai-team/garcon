@@ -149,62 +149,53 @@ var (
 func (c *Config) generateMarkdown() error {
 	log.Printf("Generating markdown %s from folder %s", c.mdPath, c.folder)
 
-	// If the destination already exists and overwriting is disabled, abort early.
-	if !c.overwrite {
-		_, err := os.Stat(c.mdPath)
-		if err == nil {
-			return fmt.Errorf("output file %s already exists (use -overwrite to replace)", c.mdPath)
-		}
-	}
-
-	var out io.Writer
-	if c.dryRun {
-		out = io.Discard
-	} else {
-		f, err := os.Create(c.mdPath)
-		if err != nil {
-			return fmt.Errorf("create %s: %w", c.mdPath, err)
-		}
-		defer f.Close()
-		out = f
-	}
-	w := bufio.NewWriter(out)
+	var w *bufio.Writer
 
 	// Walk the folder tree in lexical order for deterministic output.
 	err := filepath.WalkDir(c.folder, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			// Skip entries that cannot be accessed but continue the walk.
+			log.Stopf("SKIP file %q because err: %s", path, walkErr)
 			return nil
 		}
-		// -all omitted => skip the ignored files
-		if !c.all {
-			base := filepath.Base(path)
-			if base[0] == '.' {
-				log.Stopf("SKIP dot %q, use --all to include it", path)
-				return filepath.SkipDir
-			}
-			if entry.IsDir() {
-				if slices.Contains(ignoreFolders, base) {
+
+		if entry.IsDir() {
+			if !c.all {
+				if entry.Name()[0] == '.' {
+					log.Stopf("SKIP dot %q, use --all to include it", path)
+					return filepath.SkipDir
+				}
+				if slices.Contains(ignoreFolders, entry.Name()) {
 					log.Stopf("SKIP folder %q, use --all to include it", path)
 					return filepath.SkipDir
 				}
+			}
+			log.ArrowIn("Enter sub-folder", path)
+			return nil
+		}
+
+		if !c.custom.MatchString(path) {
+			log.Stopf("SKIP file %q does not match regex %q", path, c.custom)
+			return nil
+		}
+
+		// -all omitted => skip the ignored files
+		if !c.all {
+			if entry.Name()[0] == '.' {
+				log.Stopf("SKIP dot %q, use --all to include it", path)
 				return nil
 			}
-			if slices.Contains(ignoreFiles, base) {
+			if slices.Contains(ignoreFiles, entry.Name()) {
 				log.Stopf("SKIP file %q, use --all to include it", path)
 				return nil
 			}
 			for _, suffix := range ignoreSuffixes {
-				if strings.HasSuffix(base, suffix) {
+				if strings.HasSuffix(entry.Name(), suffix) {
 					log.Stopf("SKIP file %q (ext %s), use --all to include it", path, suffix)
 					return nil
 				}
 			}
 		}
-		if !c.custom.MatchString(path) {
-			log.Stopf("SKIP file %q does not match regex %q", path, c.custom)
-			return nil
-		}
+
 		isBinary, err := isBinaryFile(path)
 		if err != nil {
 			log.Stopf("SKIP file %q cannot be accessed err=%s", path, err)
@@ -214,14 +205,49 @@ func (c *Config) generateMarkdown() error {
 			log.Stopf("SKIP file %q is binary (first bytes are not UTF-8)", path)
 			return nil
 		}
+
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			log.Stopf("SKIP file %q ERROR filepath.Abs: %s", path, err)
+			return nil // should never happen
+		}
+		if abs == c.mdPath {
+			log.Stopf("SKIP output file %q", path)
+			return nil
+		}
+
 		// Compute a forward-slash relative path for markdown.
 		rel, err := filepath.Rel(c.folder, path)
 		if err != nil {
-			log.Stopf("SKIP file %q has a weird path filepath.Rel=%s", path, err)
+			log.Stopf("SKIP file %q ERROR filepath.Rel: %s", path, err)
 			return nil // should never happen
 		}
 		rel = filepath.ToSlash(rel)
 		log.Inputf("include file %q", path)
+
+		// create the file at the last time - this avoids creating an empty file
+		if w == nil {
+			var out io.Writer
+			if c.dryRun {
+				out = io.Discard
+			} else {
+				// If the destination already exists and overwriting is disabled, abort early.
+				if !c.overwrite {
+					_, err := os.Stat(c.mdPath)
+					if err == nil {
+						return fmt.Errorf("output file %s already exists (use -overwrite to replace)", c.mdPath)
+					}
+				}
+				f, err := os.Create(c.mdPath)
+				if err != nil {
+					return fmt.Errorf("create %s: %w", c.mdPath, err)
+				}
+				// defer f.Close()
+				out = f
+			}
+			w = bufio.NewWriter(out)
+		}
+
 		// Header line with filename.
 		_, err = fmt.Fprint(w, genFilenameLine(c.header, rel)+"\n\n")
 		if err != nil {
@@ -262,13 +288,18 @@ func (c *Config) generateMarkdown() error {
 		c.count++
 		return nil
 	})
+
 	if err != nil {
 		return fmt.Errorf("walk %s: %w", c.folder, err)
 	}
-	err = w.Flush()
-	if err != nil {
-		return fmt.Errorf("flush output: %w", err)
+
+	if w != nil {
+		err = w.Flush()
+		if err != nil {
+			return fmt.Errorf("flush output: %w", err)
+		}
 	}
+
 	return nil
 }
 

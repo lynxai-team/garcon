@@ -232,7 +232,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("generation failed: %v", err)
 		}
-		log.Resultf("Generated markdown with %d code blocs: %s", c.count, c.mdPath)
+		if c.count > 0 {
+			log.Resultf("Generated markdown with %d code blocs: %s", c.count, c.mdPath)
+		} else {
+			log.NotFoundf("Nothing generated: no file with regex=%s in path %q", c.fileRe, c.folder)
+		}
 		return
 	}
 
