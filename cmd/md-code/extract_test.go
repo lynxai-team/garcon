@@ -12,34 +12,49 @@ import (
 )
 
 // 1️⃣  Simple extraction using the bold-style filename line.
-func TestExtractBoldFilename(t *testing.T) {
+func TestExtract(t *testing.T) {
 	t.Parallel()
-	md := `
-## 5. HTTP/3 Wrapper (` + "`hello.go`" + `)
+	mdFilenames := []string{
+		"## 5. HTTP/3 Wrapper (`hello.go`)",
+		"#### 1️⃣ `hello.go` – embed every static file once, as raw `[]byte`",
+		"### 6️⃣ Response helpers (`hello.go`)",
+		"## 2️⃣ Embedded assets (`hello.go`)",
+		"## 1️⃣ `hello.go`",
+		"### 8. `hello.go` (Lock‑Free Dispatcher)",
+		"## File: hello.go",
+		"**File: `hello.go`**",
+	}
 
-` + "```go" + `
+	mdEnd := "```go" + `
 package main
 func main() {}
 ` + "```" + "\n"
 
-	mdPath := writeMD(t, md)
-	dest := t.TempDir()
-	c := defaultConfig([]string{mdPath, dest})
+	for i := range mdFilenames {
+		t.Run(mdFilenames[i], func(t *testing.T) {
+			t.Parallel()
 
-	err := c.extract()
-	if err != nil {
-		t.Fatalf("extractFiles failed: %v", err)
-	}
+			md := mdFilenames[i] + "\n" + mdEnd
+			mdPath := writeMD(t, md)
+			dest := t.TempDir()
+			c := defaultConfig([]string{mdPath, dest})
 
-	got, err := os.ReadFile(filepath.Join(dest, "hello.go"))
-	if err != nil {
-		t.Fatalf("file has not been extracted: %v", err)
-	}
-	want := "package main" + "\n" + "func main() {}" + "\n"
-	if string(got) != want {
-		t.Fatalf("file content mismatch."+
-			"\n"+"Got  %q"+
-			"\n"+"Want %q", got, want)
+			err := c.extract()
+			if err != nil {
+				t.Fatalf("extractFiles failed: %v", err)
+			}
+
+			got, err := os.ReadFile(filepath.Join(dest, "hello.go"))
+			if err != nil {
+				t.Fatalf("file has not been extracted: %v", err)
+			}
+			want := "package main" + "\n" + "func main() {}" + "\n"
+			if string(got) != want {
+				t.Fatalf("file content mismatch."+
+					"\n"+"Got  %q"+
+					"\n"+"Want %q", got, want)
+			}
+		})
 	}
 }
 
