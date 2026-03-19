@@ -586,7 +586,7 @@ func BenchmarkEscapePathSegments(b *testing.B) {
 	})
 }
 
-// 2.1  Small hand‑picked table of typical cases.
+// 2.1  Small hand-picked table of typical cases.
 var tableTests = []struct {
 	c  byte
 	ok bool
@@ -605,7 +605,7 @@ var tableTests = []struct {
 	{'%', false},
 	{'\n', false},
 	{0x7F, false}, // DEL
-	{0x80, false}, // non‑ASCII start
+	{0x80, false}, // non-ASCII start
 	{0xFF, false},
 }
 
@@ -650,7 +650,7 @@ func TestAllBytesAgreement(t *testing.T) {
 	}
 }
 
-// 3.1  Fuzzing – the reference implementation is the oracle.
+// 3.1  Fuzzing - the reference implementation is the oracle.
 func FuzzIsUnreserved(f *testing.F) {
 	// Seed the fuzzer with a few interesting bytes.
 	seeds := []byte{'a', 'Z', '0', '-', '.', '_', '~', ' ', '%', 0x80}
@@ -672,10 +672,10 @@ func FuzzIsUnreserved(f *testing.F) {
 func benchHelper(b *testing.B, fn func(byte) bool) {
 	b.Helper()
 
-	const bufSize = 1 << 16 // 64 KiB – large enough to defeat tiny‑loop optimisations
+	const bufSize = 1 << 16 // 64 KiB - large enough to defeat tiny-loop optimisations
 	data := make([]byte, bufSize)
 
-	// Deterministic pseudo‑random data → reproducible benchmarks
+	// Deterministic pseudo-random data -> reproducible benchmarks
 	src := rand.New(rand.NewSource(123456789))
 	for i := range data {
 		data[i] = byte(src.Intn(256))
@@ -684,7 +684,7 @@ func benchHelper(b *testing.B, fn func(byte) bool) {
 	b.ResetTimer()
 	for range b.N {
 		// Walk the whole buffer; the compiler can inline fn, making the inner loop
-		// essentially a tight branch‑free hot‑path.
+		// essentially a tight branch-free hot-path.
 		for _, c := range data {
 			_ = fn(c)
 		}
@@ -697,9 +697,9 @@ func BenchmarkIsUnreservedMask(b *testing.B)   { benchHelper(b, isUnreservedMask
 func BenchmarkIsUnreservedMask4(b *testing.B)  { benchHelper(b, isUnreservedMask4) }
 func BenchmarkIsUnreservedSimple(b *testing.B) { benchHelper(b, isUnreservedSimple) }
 
-// 4.3  Parallel benchmarks – simulate a realistic concurrent workload.
+// 4.3  Parallel benchmarks - simulate a realistic concurrent workload.
 func BenchmarkIsUnreserved_Parallel(b *testing.B) {
-	const bufSize = 1 << 12 // 4 KiB – small enough to stay in L1 cache
+	const bufSize = 1 << 12 // 4 KiB - small enough to stay in L1 cache
 	data := make([]byte, bufSize)
 	src := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for i := range data {
@@ -707,7 +707,7 @@ func BenchmarkIsUnreserved_Parallel(b *testing.B) {
 	}
 	b.RunParallel(func(pb *testing.PB) {
 		// Each goroutine picks a random index on every iteration,
-		// avoiding perfect cache‑line sharing.
+		// avoiding perfect cache-line sharing.
 		localSrc := rand.New(rand.NewSource(time.Now().UnixNano()))
 		for pb.Next() {
 			idx := localSrc.Intn(bufSize)

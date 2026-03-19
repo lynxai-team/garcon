@@ -371,19 +371,19 @@ func isUnreservedSimple(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '~'
 }
 
-// isUnreserved reports whether c is an “unreserved” character according to RFC‑3986.
+// isUnreserved reports whether c is an “unreserved” character according to RFC-3986.
 // The function works for any byte value; values ≥ 128 are automatically rejected.
 func isUnreserved(c byte) bool {
-	// 0‑9
+	// 0-9
 	if c >= '0' && c <= '9' {
 		return true
 	}
 
-	// A‑Z and a‑z share the same range once bit 0x20 (the 6‑th bit) is forced to 1.
-	//   'A' = 0x41 → 0x61  (a)
-	//   'Z' = 0x5A → 0x7A  (z)
-	//   'a' = 0x61 → 0x61  (a)
-	//   'z' = 0x7A → 0x7A  (z)
+	// A-Z and a-z share the same range once bit 0x20 (the 6-th bit) is forced to 1.
+	//   'A' = 0x41 -> 0x61  (a)
+	//   'Z' = 0x5A -> 0x7A  (z)
+	//   'a' = 0x61 -> 0x61  (a)
+	//   'z' = 0x7A -> 0x7A  (z)
 	if lc := c | 0x20; lc >= 'a' && lc <= 'z' {
 		return true
 	}
@@ -397,40 +397,40 @@ func isUnreserved(c byte) bool {
 	return c == '_' || c == '~'
 }
 
-// mask0 holds the bits for ASCII values 0‑63.
-// Bits that are set: 0x2D ('-'), 0x2E ('.'), 0x30‑0x39 ('0'‑'9').
+// mask0 holds the bits for ASCII values 0-63.
+// Bits that are set: 0x2D ('-'), 0x2E ('.'), 0x30-0x39 ('0'-'9').
 const mask0 uint64 = 0x03FF600000000000
 
-// mask1 holds the bits for ASCII values 64‑127.
-// Bits that are set: 0x41‑0x5A ('A'‑'Z'), 0x5F ('_'), 0x61‑0x7A ('a'‑'z'), 0x7E ('~').
+// mask1 holds the bits for ASCII values 64-127.
+// Bits that are set: 0x41-0x5A ('A'-'Z'), 0x5F ('_'), 0x61-0x7A ('a'-'z'), 0x7E ('~').
 const mask1 uint64 = 0x47FFFFFE87FFFFFE
 
-// unreservedMask is a two‑element array where the first element contains the
-// bitmap for values 0‑63 and the second element for 64‑127.
+// unreservedMask is a two-element array where the first element contains the
+// bitmap for values 0-63 and the second element for 64-127.
 var unreservedMask = [2]uint64{mask0, mask1}
 
-// isUnreservedMask is a branch‑free test that works for any byte value.
-// Values ≥128 are automatically rejected because they fall outside the 128‑bit bitmap.
+// isUnreservedMask is a branch-free test that works for any byte value.
+// Values ≥128 are automatically rejected because they fall outside the 128-bit bitmap.
 func isUnreservedMask(c byte) bool {
-	if c >= 128 { // outside the pre‑computed range
+	if c >= 128 { // outside the pre-computed range
 		return false
 	}
-	// c>>6 selects the half (0 for 0‑63, 1 for 64‑127),
+	// c>>6 selects the half (0 for 0-63, 1 for 64-127),
 	// c&0x3F gives the bit position inside that half.
 	return ((unreservedMask[c>>6] >> (c & 0x3F)) & 1) != 0
 }
 
-// 256‑bit bitmap of RFC‑3986 “unreserved” characters.
-// Entry 0 → bytes 0‑63, entry 1 → bytes 64‑127, entries 2‑3 (128‑255) are zero.
+// 256-bit bitmap of RFC-3986 “unreserved” characters.
+// Entry 0 -> bytes 0-63, entry 1 -> bytes 64-127, entries 2-3 (128-255) are zero.
 var unreservedMask4 = [4]uint64{
-	mask0, // '-' '.' '0'‑'9' (bits 45,46,48‑57)
-	mask1, // 'A'‑'Z' '_' 'a'‑'z' '~' (bits 1‑26,31,33‑58,62)
-	0, 0,  // 128‑255: none are unreserved
+	mask0, // '-' '.' '0'-'9' (bits 45,46,48-57)
+	mask1, // 'A'-'Z' '_' 'a'-'z' '~' (bits 1-26,31,33-58,62)
+	0, 0,  // 128-255: none are unreserved
 }
 
-// isUnreservedMask reports whether c is an RFC‑3986 unreserved byte.
-// The test is completely branch‑free: the 256‑bit bitmap is indexed by the
-// high 2 bits (c>>6) and the result is a simple shift‑and‑test.
+// isUnreservedMask reports whether c is an RFC-3986 unreserved byte.
+// The test is completely branch-free: the 256-bit bitmap is indexed by the
+// high 2 bits (c>>6) and the result is a simple shift-and-test.
 func isUnreservedMask4(c byte) bool {
 	return ((unreservedMask4[c>>6] >> (c & 0x3F)) & 1) != 0
 }
