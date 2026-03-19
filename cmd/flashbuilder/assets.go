@@ -47,7 +47,7 @@ type asset struct {
 
 	// headers
 	CSP       string  // content-Security-Policy header value
-	ETag      string  // base91 ETag for conditional GET (quoted)
+	ETag      ETag16B // base91 ETag for conditional GET (quoted)
 	Hash      uint128 // content hash from ImoHash
 	Size      int64   // original file size in bytes
 	Frequency int     // request frequency score for switch ordering
@@ -470,17 +470,30 @@ func uint128From16Bytes(b [16]byte) uint128 {
 	}
 }
 
+type ETag16B [16]byte
+
+func NewETag(str string) (etag ETag16B) {
+	if len(str) < len(etag) {
+		panic("ETag must be " + strconv.Itoa(len(etag)) + " bytes, but length is " + strconv.Itoa(len(str)))
+	}
+	return ETag16B([]byte(str[:len(etag)]))
+}
+
+func (e *ETag16B) String() string {
+	return string(e[:])
+}
+
 // computeImoHash computes the ImoHash for a file (128 bits).
-func computeImoHashEtag(input fs.FS, assetPath string) (hash uint128, etag string, err error) {
+func computeImoHashEtag(input fs.FS, assetPath string) (hash uint128, etag ETag16B, err error) {
 	f, err := input.Open(assetPath)
 	if err != nil {
-		return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag input.Open: %w", err)
+		return uint128{0, 0}, ETag16B{}, fmt.Errorf("computeImoHashEtag input.Open: %w", err)
 	}
 	defer f.Close()
 
 	info, err := f.Stat()
 	if err != nil {
-		return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag f.Stat: %w", err)
+		return uint128{0, 0}, ETag16B{}, fmt.Errorf("computeImoHashEtag f.Stat: %w", err)
 	}
 
 	// use ReaderAt for efficiency, fallback to buffered reading if not supported (fstest).
@@ -490,7 +503,7 @@ func computeImoHashEtag(input fs.FS, assetPath string) (hash uint128, etag strin
 		limitedReader := io.LimitReader(f, maxMemoryLoad)
 		buf, er := io.ReadAll(limitedReader)
 		if er != nil {
-			return uint128{0, 0}, "", fmt.Errorf("computeImoHashEtag io.ReadAll: %w", er)
+			return uint128{0, 0}, ETag16B{}, fmt.Errorf("computeImoHashEtag io.ReadAll: %w", er)
 		}
 		readerAt = bytes.NewReader(buf)
 	}
@@ -498,7 +511,7 @@ func computeImoHashEtag(input fs.FS, assetPath string) (hash uint128, etag strin
 	sr := io.NewSectionReader(readerAt, 0, info.Size())
 	sum, err := imohash.SumSectionReader(sr)
 	if err != nil {
-		return uint128{0, 0}, "", fmt.Errorf("imohash.SumSectionReader: %w", err)
+		return uint128{0, 0}, ETag16B{}, fmt.Errorf("imohash.SumSectionReader: %w", err)
 	}
 
 	hash = uint128From16Bytes(sum)
@@ -516,14 +529,14 @@ func computeImoHashEtag(input fs.FS, assetPath string) (hash uint128, etag strin
 //   - a double-quote (")
 //   - a back-slash (\)
 //
-// The remaining 91 characters are all pure ASCII (code points 0x21–0x7E, excluding the four omitted ones) and are therefore safe for any POSIX-compliant filesystem.
+// The remaining 91 characters are all pure ASCII (code points 0x21-0x7E, excluding the four omitted ones) and are therefore safe for any POSIX-compliant filesystem.
 // Windows (NTFS, FAT, exFAT) is not supported because it forbids the characters < > : " / \ | ? * and the NUL byte (Windows: only 85 ASCII characters).
 const base91Alphabet = "!#$%&'()*+,-.0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 
-func computeETag(hash [16]byte) string {
+func computeETag(hash [16]byte) ETag16B {
 	encoder := base91.NewEncoding(base91Alphabet)
 	b91 := encoder.EncodeToString(hash[:])
-	return b91
+	return NewETag(b91)
 }
 
 // allocateEmbedBudget determines which assets are eligible for embedding

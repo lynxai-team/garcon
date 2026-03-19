@@ -611,7 +611,7 @@ func wipFullPath(fullPath string) string {
 func variantFullPath(a *asset, dir string, useCache bool, quality int, ext string) (string, int64) {
 	varFullPath := a.Path + ext // in the assets/ or www/ directory
 	if useCache {
-		varFullPath = strconv.Itoa(quality) + a.ETag + ext // in the cache directory
+		varFullPath = strconv.Itoa(quality) + a.ETag.String() + ext // in the cache directory
 	}
 
 	varFullPath = path.Join(dir, varFullPath)

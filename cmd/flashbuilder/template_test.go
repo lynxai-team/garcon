@@ -75,7 +75,7 @@ func TestRenderTemplate(t *testing.T) {
 				Path:            "style.css",
 				Size:            100,
 				MIME:            "text/css",
-				ETag:            `"etag123"`,
+				ETag:            NewETag(`etag123 etag123 etag123 etag1234`),
 				Identifier:      "AssetStyle",
 				IsEmbedEligible: true,
 			},
