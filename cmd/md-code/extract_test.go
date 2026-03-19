@@ -16,11 +16,11 @@ func TestExtract(t *testing.T) {
 	t.Parallel()
 	mdFilenames := []string{
 		"## 5. HTTP/3 Wrapper (`hello.go`)",
-		"#### 1️⃣ `hello.go` – embed every static file once, as raw `[]byte`",
-		"### 6️⃣ Response helpers (`hello.go`)",
-		"## 2️⃣ Embedded assets (`hello.go`)",
-		"## 1️⃣ `hello.go`",
-		"### 8. `hello.go` (Lock‑Free Dispatcher)",
+		"#### 1️⃣ `hello.go` - embed every static file once, as raw `[]byte`",
+		"### 6️⃣ Response helpers (`hello.go`)",
+		"## 2️⃣ Embedded assets (`hello.go`)",
+		"## 1️⃣ `hello.go`",
+		"### 8. `hello.go` (Lock-Free Dispatcher)",
 		"## File: hello.go",
 		"**File: `hello.go`**",
 		"### File: `hello.go`",
@@ -328,7 +328,7 @@ func FuzzExtract(f *testing.F) {
 	// Seed corpus - valid examples
 	f.Add([]byte("**a.go**\n```go\npackage main\n```\n"))
 	f.Add([]byte("--- File: b.go\n```go\n// empty\n```\n"))
-	f.Add([]byte("\n```go\nfmt.Println(\"hello\")\n```\n")) // no filename → should be ignored
+	f.Add([]byte("\n```go\nfmt.Println(\"hello\")\n```\n")) // no filename -> should be ignored
 	f.Add([]byte("**file.go**\n```go\nfunc main() {\n\t// comment\n}\n```\n"))
 	f.Add([]byte("--- File: nested/file.go\n```javascript\nconsole.log('test');\n```\n"))
 	f.Add([]byte("**.hidden.go**\n```go\npackage main\n```\n"))

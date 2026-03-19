@@ -19,7 +19,7 @@ import (
 // filename for each bloc and writes the bloc to disk (or simulates the
 // write when dry-run is enabled).
 func (c *Config) extract() error {
-	log.Printf("Extracting code blocs from %q → %q", c.mdPath, c.folder)
+	log.Printf("Extracting code blocs from %q -> %q", c.mdPath, c.folder)
 
 	f, err := os.Open(c.mdPath)
 	if err != nil {
