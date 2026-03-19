@@ -35,9 +35,9 @@ func TestNotifier_Notify(t *testing.T) {
 	}
 }
 
-// TestNotify_Functional tests the integration of Notify with a mock HTTP server.
+// TestNotify_Functional2 tests the integration of Notify with a mock HTTP server.
 // It covers success scenarios and HTTP error scenarios.
-func TestNotify_Functional(t *testing.T) {
+func TestNotify_Functional2(t *testing.T) {
 	// Setup a mock server to verify the request body and control the response.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify the request method and content type.
@@ -241,8 +241,8 @@ func TestAppendCuratedEscaped_Unit(t *testing.T) {
 	}
 }
 
-// TestAppendCuratedEscaped_ValidJSON verifies the output is always valid JSON.
-func TestAppendCuratedEscaped_ValidJSON(t *testing.T) {
+// TestAppendCuratedEscaped_ValidJSON2 verifies the output is always valid JSON.
+func TestAppendCuratedEscaped_ValidJSON2(t *testing.T) {
 	// Seed with some random data.
 	for range 100 {
 		// Generate random byte slice.
@@ -267,9 +267,9 @@ func TestAppendCuratedEscaped_ValidJSON(t *testing.T) {
 	}
 }
 
-// FuzzAppendCuratedEscaped implements the native fuzzing target for Go 1.18+.
+// FuzzAppendCuratedEscaped3 implements the native fuzzing target for Go 1.18+.
 // This provides high coverage for the complex logic in wf.AppendCuratedEscaped.
-func FuzzAppendCuratedEscaped(f *testing.F) {
+func FuzzAppendCuratedEscaped3(f *testing.F) {
 	// Add seed corpus with interesting values.
 	f.Add([]byte("Hello"))
 	f.Add([]byte("\xFE\xFF\xFF\xFF")) // Invalid UTF-8.
@@ -301,7 +301,7 @@ func FuzzAppendCuratedEscaped(f *testing.F) {
 	})
 }
 
-// TestNotify_Functional tests the integration of Notify with a mock HTTP server.
+// TestNotify_Functional3 tests the integration of Notify with a mock HTTP server.
 func TestNotify_Functional3(t *testing.T) {
 	// Setup a mock server to verify the request body and control the response.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
