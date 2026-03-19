@@ -1811,7 +1811,7 @@ func generate(data TemplateData, output string) error {
 ### 16.1 `templates/embed.go.gotmpl`
 
 ```go
-// Package assets contains all embed-eligible assets.
+// Package assets contains all embedded assets.
 package assets
 
 import (

@@ -738,7 +738,7 @@ func serveAsset<Identifier>(w http.ResponseWriter, r *http.Request) {
 ### 6.1 embed.go Template
 
 ```go
-// Package assets contains all embed-eligible assets.
+// Package assets contains all embedded assets.
 package assets
 
 import (
@@ -752,7 +752,7 @@ var AssetAboutIndexHtml []byte
 //go:embed AssetMainCss.css
 var AssetMainCss []byte
 
-// ... all embed-eligible assets ...
+// ... all embedded assets ...
 
 var AssetAboutIndexHtmlHeader []byte = []byte("...")
 var AssetMainCssHeader []byte = []byte("...")
