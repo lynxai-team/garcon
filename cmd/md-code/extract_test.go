@@ -24,7 +24,10 @@ func TestExtract(t *testing.T) {
 		"## File: hello.go",
 		"**File: `hello.go`**",
 		"### File: `hello.go`",
+		"# hello.go",
+		"## hello.go",
 		"// hello.go",
+		"**File: hello.go**",
 	}
 
 	mdEnd := "```go" + `

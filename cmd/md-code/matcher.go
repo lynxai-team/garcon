@@ -13,7 +13,7 @@ import (
 // in the two lines preceding a fenced bloc.  The patterns are ordered from most
 // specific to most generic.
 type matcher struct {
-	exprs [4]*regexp.Regexp // compiled regexes
+	exprs [5]*regexp.Regexp // compiled regexes
 	prev  [5]string         // buffer with two lines before + one line after
 	lang  string            // language tag of the opening fence
 	idx   int               // index of the next slot in prev
@@ -23,17 +23,18 @@ type matcher struct {
 func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
 	// The header pattern uses the user-supplied header text verbatim.
 	return &matcher{
-		exprs: [4]*regexp.Regexp{
+		exprs: [5]*regexp.Regexp{
 			custom,
-			regexp.MustCompile(`\b[Ff]ile:\s+(` + fileRe + `)$`),
-			regexp.MustCompile("`(" + fileRe + ")`"),
-			regexp.MustCompile(`^//\s+(` + fileRe + `)$`),
+			regexp.MustCompile(`\b[Ff]ile: (` + fileRe + `)\b`),
+			regexp.MustCompile("[( ]`(" + fileRe + ")`"),
+			regexp.MustCompile(`^// (` + fileRe + `)$`),
+			regexp.MustCompile(`^#+ (` + fileRe + `)$`),
+			// regexp.MustCompile(`^\*\*(` + fileRe + `)\*\*$`),
 			// regexp.MustCompile(`^#+\s+(` + fileRe + `)`),
 			// regexp.MustCompile("^#+[\\s0-9.]*\\s+`(" + fileRe + ")`"),
 			// regexp.MustCompile(`^//\s+(` + fileRe + `) - `),
 			// regexp.MustCompile(`^#+\s+\((` + fileRe + `)\)$`),
 			// regexp.MustCompile(`^#*\s*\*\*(` + fileRe + `)\*\*`),
-			// regexp.MustCompile(`^\*\*` + "`(" + fileRe + ")`" + `\*\*$`),
 		},
 	}
 }
