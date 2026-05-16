@@ -448,7 +448,7 @@ func TestEscapePathSegments_Comparison(t *testing.T) {
 		{name: "Spaces", input: "a b/c d"},
 		{name: "UnsafeChars", input: "a?b#c"},
 		{name: "SlashPath", input: "a/b"},
-		{name: "UTF8", input: "日/本"},
+		{name: "UTF8", input: `日/本`},
 		{name: "PercentSign", input: "%"},
 		{name: "Mixed", input: "a b/c?d#e"},
 	}

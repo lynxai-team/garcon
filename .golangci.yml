@@ -700,7 +700,7 @@ linters:
 
     # https://golangci-lint.run/docs/linters/configuration/#sloglint
     sloglint:
-      context: disabled
+      context: scope
 
     # https://golangci-lint.run/docs/linters/configuration/#staticcheck
     staticcheck:
