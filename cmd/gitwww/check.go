@@ -126,9 +126,9 @@ func logHistory(repo *git.Repository, headHash, stopHash plumbing.Hash) {
 	count := 0
 	err = cIter.ForEach(func(commit *object.Commit) error {
 		// Get the patch for the commit
-		patch, err := getCommitPatch(commit)
-		if err != nil {
-			slog.Warn("Failed to get commit patch", "commit_hash", commit.Hash.String(), "err", err)
+		patch, er := getCommitPatch(commit)
+		if er != nil {
+			slog.Warn("Failed to get commit patch", "commit_hash", commit.Hash.String(), "err", er)
 		}
 
 		slog.Info("Commit",

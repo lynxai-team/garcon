@@ -36,12 +36,12 @@ func (cfg *Cfg) buildDockerImage(ctx context.Context, dir string) error {
 		Target:      cfg.getTarget(dir), // Target specifies the build stage to target
 		BuildArgs:   cfg.getDockerBuildArgs(dir),
 	}
-	slog.Debug("buildDockerImage", "dir", dir, "options", omitZeroEmpty(options))
+	slog.DebugContext(ctx, "buildDockerImage", "dir", dir, "options", omitZeroEmpty(options))
 
 	// create client that reads DOCKER_HOST, DOCKER_TLS_VERIFY...
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		slog.Warn("buildDockerImage client.NewClientWithOpts", "dir", dir, "err", err)
+		slog.WarnContext(ctx, "buildDockerImage client.NewClientWithOpts", "dir", dir, "err", err)
 		return fmt.Errorf("failed to create Docker client: %w", err)
 	}
 	defer cli.Close()
@@ -49,14 +49,14 @@ func (cfg *Cfg) buildDockerImage(ctx context.Context, dir string) error {
 	// parses .dockerignore to exclude/include files
 	tarOptions, err := newTarOptionsFromDockerignore(dir)
 	if err != nil {
-		slog.Warn("parseDockerignore", "dir", dir, "err", err)
+		slog.WarnContext(ctx, "parseDockerignore", "dir", dir, "err", err)
 		return fmt.Errorf("failed to create build context: %w", err)
 	}
 
 	// create build context as a tar archive
 	buildCtx, err := archive.TarWithOptions(dir, tarOptions)
 	if err != nil {
-		slog.Warn("archive.TarWithOptions", "dir", dir, "err", err)
+		slog.WarnContext(ctx, "archive.TarWithOptions", "dir", dir, "err", err)
 		return fmt.Errorf("failed to create build context: %w", err)
 	}
 	defer buildCtx.Close()
@@ -64,7 +64,7 @@ func (cfg *Cfg) buildDockerImage(ctx context.Context, dir string) error {
 	// Execute the build
 	resp, err := cli.ImageBuild(ctx, buildCtx, options)
 	if err != nil {
-		slog.Warn("buildDockerImage ImageBuild", "dir", dir, "err", err)
+		slog.WarnContext(ctx, "buildDockerImage ImageBuild", "dir", dir, "err", err)
 		return fmt.Errorf("build failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -73,16 +73,16 @@ func (cfg *Cfg) buildDockerImage(ctx context.Context, dir string) error {
 	termFd, isTerm := term.GetFdInfo(os.Stderr)
 	err = jsonmessage.DisplayJSONMessagesStream(resp.Body, os.Stderr, termFd, isTerm, decodeAux)
 	if err != nil {
-		slog.Warn("buildDockerImage", "dir", dir, "err", err)
+		slog.WarnContext(ctx, "buildDockerImage", "dir", dir, "err", err)
 		return err
 	}
 
-	slog.Info("✅ buildDockerImage OK", "dir", dir)
+	slog.InfoContext(ctx, "✅ buildDockerImage OK", "dir", dir)
 
 	// Create a temporary container from the image
 	containerResp, err := cli.ContainerCreate(ctx, &container.Config{Image: imageName}, nil, nil, nil, "")
 	if err != nil {
-		slog.Warn("buildDockerImage ContainerCreate", "dir", dir, "err", err)
+		slog.WarnContext(ctx, "buildDockerImage ContainerCreate", "dir", dir, "err", err)
 		return fmt.Errorf("failed to create container: %w", err)
 	}
 	defer func() {
@@ -94,7 +94,7 @@ func (cfg *Cfg) buildDockerImage(ctx context.Context, dir string) error {
 	distPath := cfg.getDistPath(dir)
 	reader, _, err := cli.CopyFromContainer(ctx, containerResp.ID, distPath)
 	if err != nil {
-		slog.Warn("buildDockerImage CopyFromContainer", "dir", dir, "err", err)
+		slog.WarnContext(ctx, "buildDockerImage CopyFromContainer", "dir", dir, "err", err)
 		return fmt.Errorf("failed to copy from container: %w", err)
 	}
 	defer reader.Close()
@@ -107,7 +107,7 @@ func (cfg *Cfg) buildDockerImage(ctx context.Context, dir string) error {
 	os.RemoveAll(newWWW)
 	err = archive.Untar(reader, newWWW, nil)
 	if err != nil {
-		slog.Warn("buildDockerImage Untar", "dir", dir, "www", www, "err", err)
+		slog.WarnContext(ctx, "buildDockerImage Untar", "dir", dir, "www", www, "err", err)
 		return fmt.Errorf("failed to extract files: %w", err)
 	}
 
@@ -116,7 +116,7 @@ func (cfg *Cfg) buildDockerImage(ctx context.Context, dir string) error {
 	os.RemoveAll(www)
 	err = os.Rename(newWWW, www)
 	if err != nil {
-		slog.Warn("buildDockerImage Rename", "dir", dir, "newWWW", newWWW, "err", err)
+		slog.WarnContext(ctx, "buildDockerImage Rename", "dir", dir, "newWWW", newWWW, "err", err)
 		return fmt.Errorf("failed to rename www: %w", err)
 	}
 

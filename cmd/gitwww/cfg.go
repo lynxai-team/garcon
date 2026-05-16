@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	_ "embed"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -17,6 +16,8 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/pelletier/go-toml/v2"
+
+	_ "embed"
 )
 
 type Cfg struct {
@@ -179,9 +180,9 @@ func getCfg() (*Cfg, error) {
 	}
 
 	if *writeService {
-		service, err := cfg.writeSystemdService()
+		service, er := cfg.writeSystemdService()
 		if err != nil {
-			slog.Error("Cannot write", "service", service, "err", err)
+			slog.Error("Cannot write", "service", service, "err", er)
 		} else {
 			slog.Info("Success write", "service", service)
 		}
@@ -271,8 +272,8 @@ func (cfg *Cfg) simplify(clean bool) error {
 		if params != nil {
 			www, found := params["www"]
 			if found {
-				rel, found := strings.CutPrefix(www, cfg.WWW)
-				if found && rel != "" {
+				rel, f := strings.CutPrefix(www, cfg.WWW)
+				if f && rel != "" {
 					www = rel[1:] // drop leading os.PathSeparator
 					params["www"] = www
 				}
@@ -281,8 +282,8 @@ func (cfg *Cfg) simplify(clean bool) error {
 				}
 			}
 
-			file, found := params["containerfile"]
-			if found {
+			file, f := params["containerfile"]
+			if f {
 				rel, found := strings.CutPrefix(file, dir)
 				if found && rel != "" {
 					file = rel[1:] // drop leading os.PathSeparator

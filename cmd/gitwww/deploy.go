@@ -20,10 +20,10 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 )
 
-// Log messages.
-func logMessage(msg string) {
-	log.Printf("\033[34m%s\033[m \033[32m%s\033[m", time.Now().Format("15:04"), msg)
-}
+// unused // Log messages.
+// unused func logMessage(msg string) {
+// unused 	log.Printf("\033[34m%s\033[m \033[32m%s\033[m", time.Now().Format("15:04"), msg)
+// unused }
 
 // Log error messages.
 func logError(msg string) {
