@@ -1,4 +1,5 @@
 // Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
 package main
@@ -13,7 +14,7 @@ import (
 // in the two lines preceding a fenced block.  The patterns are ordered from most
 // specific to most generic.
 type matcher struct {
-	exprs [6]*regexp.Regexp // compiled regexes
+	exprs [7]*regexp.Regexp // compiled regexes
 	prev  [5]string         // buffer with some lines before + one line after
 	lang  string            // language tag of the opening fence
 	idx   int               // index of the next slot in prev
@@ -23,18 +24,14 @@ type matcher struct {
 func newMatcher(custom *regexp.Regexp, fileRe string) *matcher {
 	// The header pattern uses the user-supplied header text verbatim.
 	return &matcher{
-		exprs: [6]*regexp.Regexp{
+		exprs: [7]*regexp.Regexp{
 			custom,
 			regexp.MustCompile(`\b[Ff]ile: (` + fileRe + `)\b`),
 			regexp.MustCompile("[( *]`(" + fileRe + ")`"),
 			regexp.MustCompile(`^// (` + fileRe + `)$`),
-			regexp.MustCompile(`^#+ (` + fileRe + `)$`),
+			regexp.MustCompile(`^#+ \**(` + fileRe + `)\**$`),
 			regexp.MustCompile(`^\*\*(` + fileRe + `)\*\*$`),
-			// regexp.MustCompile(`^#+\s+(` + fileRe + `)`),
-			// regexp.MustCompile("^#+[\\s0-9.]*\\s+`(" + fileRe + ")`"),
-			// regexp.MustCompile(`^//\s+(` + fileRe + `) - `),
-			// regexp.MustCompile(`^#+\s+\((` + fileRe + `)\)$`),
-			// regexp.MustCompile(`^#*\s*\*\*(` + fileRe + `)\*\*`),
+			regexp.MustCompile("^`(" + fileRe + ")`"),
 		},
 	}
 }

@@ -1,4 +1,5 @@
 // Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
 // mdeg is a tiny CLI to:

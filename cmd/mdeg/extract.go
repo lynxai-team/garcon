@@ -1,4 +1,5 @@
 // Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
 package main
@@ -151,8 +152,8 @@ func (c *Config) write(filename string, data []byte, start, stop int) {
 	if c.overwrite {
 		_ = os.Remove(cleanTarget)
 	} else {
-		info, err := os.Stat(cleanTarget)
-		if err == nil && info.Size() > 0 {
+		info, er := os.Stat(cleanTarget)
+		if er == nil && info.Size() > 0 {
 			log.Warnf("cannot overwrite file %s - Skip %d lines lang=%s %s:%d", cleanTarget, stop-start, c.matcher.lang, c.mdPath, start)
 			return
 		}

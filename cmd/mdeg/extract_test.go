@@ -1,4 +1,5 @@
 // Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
 package main
@@ -228,6 +229,8 @@ func main() {}
 
 // 9️⃣  No filename blocks - should be ignored when all=false.
 func TestNoFilenameIgnored(t *testing.T) {
+	t.Parallel()
+
 	md := `
 Some text
 
@@ -284,6 +287,8 @@ func main() {}
 }
 
 func TestExtractSubBlocks(t *testing.T) {
+	t.Parallel()
+
 	readme := `This is te README of the project.
 
 Example to use this file:

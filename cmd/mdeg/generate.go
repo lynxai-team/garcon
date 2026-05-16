@@ -1,4 +1,5 @@
 // Copyright 2021 The contributors of Garcon.
+// This file is part of Garcon, an automatic static-site builder, API server, middlewares and messy functions.
 // SPDX-License-Identifier: MIT
 
 package main
@@ -233,14 +234,14 @@ func (c *Config) generateMarkdown() error {
 			} else {
 				// If the destination already exists and overwriting is disabled, abort early.
 				if !c.overwrite {
-					_, err := os.Stat(c.mdPath)
-					if err == nil {
+					_, e := os.Stat(c.mdPath)
+					if e == nil {
 						return fmt.Errorf("output file %s already exists (use -overwrite to replace)", c.mdPath)
 					}
 				}
-				f, err := os.Create(c.mdPath)
-				if err != nil {
-					return fmt.Errorf("create %s: %w", c.mdPath, err)
+				f, er := os.Create(c.mdPath)
+				if er != nil {
+					return fmt.Errorf("create %s: %w", c.mdPath, er)
 				}
 				// defer f.Close()
 				out = f
@@ -288,7 +289,6 @@ func (c *Config) generateMarkdown() error {
 		c.count++
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("walk %s: %w", c.folder, err)
 	}
