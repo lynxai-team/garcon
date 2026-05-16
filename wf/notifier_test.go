@@ -38,6 +38,7 @@ func TestNotifier_Notify(t *testing.T) {
 // TestNotify_Functional2 tests the integration of Notify with a mock HTTP server.
 // It covers success scenarios and HTTP error scenarios.
 func TestNotify_Functional2(t *testing.T) {
+	t.Parallel()
 	// Setup a mock server to verify the request body and control the response.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify the request method and content type.
@@ -62,9 +63,10 @@ func TestNotify_Functional2(t *testing.T) {
 		// Ensure the server responds with 200 OK for the success test.
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
 		notifier := wf.NewMattermostNotifier(server.URL)
 		msg := []byte("Hello, World! \n \" \u00A0")
 		err := notifier.Notify(msg)
@@ -74,6 +76,7 @@ func TestNotify_Functional2(t *testing.T) {
 	})
 
 	t.Run("HTTP Error", func(t *testing.T) {
+		t.Parallel()
 		// Create a specific handler for failure.
 		failServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError) // 500
@@ -94,6 +97,7 @@ func TestNotify_Functional2(t *testing.T) {
 
 // TestAppendCuratedEscaped_Unit2 tests the core logic of the sanitizer/quoter.
 func TestAppendCuratedEscaped_Unit2(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		want  string
@@ -112,6 +116,7 @@ func TestAppendCuratedEscaped_Unit2(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := wf.AppendCurateEscape([]byte{}, tc.input)
 			// We check the string representation.
 			// Note: wf.AppendCuratedEscaped does not add quotes around the string.
@@ -154,6 +159,7 @@ func FuzzAppendCuratedEscaped2(f *testing.F) {
 
 // TestNotify_Functional tests the integration of Notify with a mock HTTP server.
 func TestNotify_Functional(t *testing.T) {
+	t.Parallel()
 	// Setup a mock server to verify the request body and control the response.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify the request method and content type.
@@ -178,9 +184,10 @@ func TestNotify_Functional(t *testing.T) {
 		// Ensure the server responds with 200 OK for the success test.
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
 		notifier := wf.NewMattermostNotifier(server.URL)
 		msg := []byte("Hello, World! \n \" \u00A0")
 		err := notifier.Notify(msg)
@@ -190,6 +197,7 @@ func TestNotify_Functional(t *testing.T) {
 	})
 
 	t.Run("HTTP Error", func(t *testing.T) {
+		t.Parallel()
 		// Create a specific handler for failure.
 		failServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError) // 500
@@ -211,6 +219,7 @@ func TestNotify_Functional(t *testing.T) {
 // TestAppendCuratedEscaped_Unit tests the core logic of the sanitizer/quoter.
 // It verifies that input is correctly curated and escaped.
 func TestAppendCuratedEscaped_Unit(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		want  string // Expected output string
@@ -232,6 +241,7 @@ func TestAppendCuratedEscaped_Unit(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := wf.AppendCurateEscape([]byte{}, tc.input)
 			// We check the string representation.
 			if string(result) != tc.want {
@@ -243,6 +253,7 @@ func TestAppendCuratedEscaped_Unit(t *testing.T) {
 
 // TestAppendCuratedEscaped_ValidJSON2 verifies the output is always valid JSON.
 func TestAppendCuratedEscaped_ValidJSON2(t *testing.T) {
+	t.Parallel()
 	// Seed with some random data.
 	for range 100 {
 		// Generate random byte slice.
@@ -303,6 +314,7 @@ func FuzzAppendCuratedEscaped3(f *testing.F) {
 
 // TestNotify_Functional3 tests the integration of Notify with a mock HTTP server.
 func TestNotify_Functional3(t *testing.T) {
+	t.Parallel()
 	// Setup a mock server to verify the request body and control the response.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify the request method and content type.
@@ -324,12 +336,13 @@ func TestNotify_Functional3(t *testing.T) {
 		// We ensure the server responds with 200 OK for the success test.
 		w.WriteHeader(http.StatusOK)
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	// Mock the notifier struct.
 	notifier := wf.NewMattermostNotifier(server.URL)
 
 	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
 		msg := []byte("Hello, World! \n \" \u00A0")
 		err := notifier.Notify(msg)
 		if err != nil {
@@ -338,6 +351,7 @@ func TestNotify_Functional3(t *testing.T) {
 	})
 
 	t.Run("HTTP Error", func(t *testing.T) {
+		t.Parallel()
 		// Create a specific handler for failure.
 		failServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError) // 500
@@ -358,6 +372,7 @@ func TestNotify_Functional3(t *testing.T) {
 
 // TestAppendCuratedEscaped_Unit tests the core logic of the sanitizer/quoter.
 func TestAppendCuratedEscaped_Unit3(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		want  string
@@ -378,6 +393,7 @@ func TestAppendCuratedEscaped_Unit3(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := wf.AppendCurateEscape([]byte{}, tc.input)
 			// We check the string representation.
 			if string(result) != tc.want {
@@ -389,6 +405,7 @@ func TestAppendCuratedEscaped_Unit3(t *testing.T) {
 
 // TestAppendCuratedEscaped_ValidJSON verifies the output is always valid JSON.
 func TestAppendCuratedEscaped_ValidJSON(t *testing.T) {
+	t.Parallel()
 	// Seed with some random data.
 	rand := rand.New(rand.NewSource(0)) // Use a deterministic seed for reproducibility.
 
