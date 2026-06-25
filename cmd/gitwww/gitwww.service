@@ -22,10 +22,10 @@ Environment="GITWWW_LOG=INFO"
 ExecStart=/var/opt/gitwww/gitwww
 
 # -------------------------------------------------
-# CPU scheduling – balanced trade‑off
+# CPU scheduling – balanced trade-off
 # -------------------------------------------------
 # Run with the idle scheduling policy so the daemon only gets CPU
-# time when no higher‑priority task is runnable. When the system is
+# time when no higher-priority task is runnable. When the system is
 # otherwise idle, the process can use all available CPUs, giving
 # BuildKit the full compute power it needs.
 CPUSchedulingPolicy=idle
@@ -45,7 +45,7 @@ RestartSec=10
 # When the service is enabled (systemctl enable gitwww.service),
 # systemd creates a symlink from this unit into
 # /etc/systemd/system/multi-user.target.wants/.
-# multi-user.target represents the normal, non‑graphical multi‑user
+# multi-user.target represents the normal, non-graphical multi-user
 # system state (runlevel 3).  At boot, when the system reaches that
 # target, all units wanted by it—including this one—are started
 # automatically.

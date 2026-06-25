@@ -6,8 +6,8 @@ The filename is taken from the second previous lines
 that appear **just before** the opening fence,
 using some patterns such as:
 
-* `**path/to/file.go**` (bold‑style)
-* `--- File: path/to/file.go` (header‑style)
+* `**path/to/file.go**` (bold-style)
+* `--- File: path/to/file.go` (header-style)
 
 Only the standard library and the logger `github.com/lynxai-team/emo` are used.
 
@@ -16,7 +16,7 @@ Only the standard library and the logger `github.com/lynxai-team/emo` are used.
 ## Table of Contents
 
 * [Run](#run)
-* [Command‑line usage](#commandline-usage)
+* [Command-line usage](#command-line-usage)
 * [Library usage](#library-usage)
 * [Options](#options)
 * [Testing & fuzzing](#testing--fuzzing)
@@ -47,7 +47,7 @@ cd garcon/cmd/mdeg
 go build -o mdeg .
 ```
 
-## Command‑line usage
+## Command-line usage
 
 ```txt
 $ mdeg -h
