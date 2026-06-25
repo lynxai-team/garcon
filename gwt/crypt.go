@@ -39,7 +39,7 @@ func AesGcmEncryptBin(plaintext []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// all will contain the nonce (first 12 bytes) + the cypher text + the GCM tag
+	// all will contain the nonce (first 12 bytes) + the cipher text + the GCM tag
 	all := make([]byte, gcm.NonceSize(), gcm.NonceSize()+len(plaintext)+gcmTagSize)
 
 	// write a random nonce
@@ -48,7 +48,7 @@ func AesGcmEncryptBin(plaintext []byte) ([]byte, error) {
 		return nil, log.EncryptError("random iv generation", err).Err()
 	}
 
-	// write the cypher text after the nonce and appends the GCM tag
+	// write the cipher text after the nonce and appends the GCM tag
 	all = gcm.Seal(all, all, plaintext, nil)
 	return all, nil
 }
