@@ -373,10 +373,10 @@ func estimateFrequencyScore(path string, isEmbedEligible bool, filename string) 
 
 ```
 FUNCTION build_dispatch_array(all_paths):
-    MaxLen = compute_maxlen(all_paths)
-    dispatch = make([]func(http.ResponseWriter, *http.Request), MaxLen+1)
+    MaxLenG = compute_maxlen(all_paths)
+    dispatch = make([]func(http.ResponseWriter, *http.Request), MaxLenG+1)
     
-    for L = 0 to MaxLen:
+    for L = 0 to MaxLenG:
         routes = collect_routes_of_length(L)
         if len(routes) > 0:
             sortRoutesByFrequency(routes)
@@ -413,7 +413,7 @@ func find_nearest_valid_dispatch(dispatch []http.HandlerFunc, maxIndex int) int 
 
 ```go
 func fallback_long_path(w http.ResponseWriter, r *http.Request, path string) {
-    for L := MaxLen; L >= 0; L-- {
+    for L := MaxLenG; L >= 0; L-- {
         if len(path) >= L {
             prefix := path[:L]
             if dispatch[L] != nil && dispatch[L] != http.NotFound {
@@ -526,7 +526,7 @@ import (
 
 type Server struct {
     logger   *slog.Logger
-    dispatch [MaxLen+1]func(http.ResponseWriter, *http.Request)
+    dispatch [MaxLenG+1]func(http.ResponseWriter, *http.Request)
     tlsCfg   *tls.Config
 }
 
@@ -534,7 +534,7 @@ func getLen0(w http.ResponseWriter, r *http.Request) {
     // Generated switch for length 0
 }
 
-// ... up to getLen<MaxLen> ...
+// ... up to getLen<MaxLenG> ...
 
 func serveAssetDownloadsFile(w http.ResponseWriter, r *http.Request) {
     http.ServeFile(w, r, "www/downloads/file.zip")
@@ -700,7 +700,7 @@ func setupGracefulShutdown(httpSrv *http.Server, adminSrv *http.Server, logger *
 10. **Link Creation:** Case 1 (hard link), Case 2 (symbolic link), Case 3 (symbolic link in www/), Case 4 (no creation).
 11. **Build Path Maps:** `canonicalPaths`, `shortcutPaths`, `duplicatePaths` with collision detection.
 12. **Generate embed.go:** Package, imports, `//go:embed` directives, headers, handlers.
-13. **Router Generation:** Compute `MaxLen`, generate dispatch array, per-length handlers, fallback logic.
+13. **Router Generation:** Compute `MaxLenG`, generate dispatch array, per-length handlers, fallback logic.
 14. **TLS Configuration:** Self-signed RSA 2048-bit, random 64-bit serial, 10-year validity.
 15. **Protocol Listeners:** HTTP/1.1 + h2c, HTTP/2 via ALPN, HTTP/3 via QUIC.
 16. **Module Initialization:** `go mod init flash`, `go mod tidy`.

@@ -246,15 +246,15 @@ Map construction:
 ```go
 type Server struct {
     logger   *slog.Logger
-    dispatch [MaxLen+2]func(http.ResponseWriter, *http.Request)
+    dispatch [MaxLenG+2]func(http.ResponseWriter, *http.Request)
     tlsCfg   *tls.Config
 }
 ```
 
-### 3.6 MaxLen Constant
+### 3.6 MaxLenG Constant
 
 ```go
-const MaxLen = <computed_at_generation>  // Maximum byte length of any relative path (no leading '/')
+const MaxLenG = <computed_at_generation>  // Maximum byte length of any relative path (no leading '/')
 ```
 
 Computed from all canonical, shortcut, and duplicate paths.
@@ -494,25 +494,25 @@ func EstimateFrequencyScore(path string) int {
 }
 ```
 
-### 4.10 MaxLen Computation
+### 4.10 MaxLenG Computation
 
 All the considered paths are relative, therefore none of them have a leading '/': no need to remove any eventual leading '/'.
 
 ```go
 func ComputeMaxLen() int {
-    maxLen := 0
+    maxLenG := 0
     for path := range canonicalPaths {
-        maxLen = max(maxLen, len(path))
+        maxLenG = max(maxLenG, len(path))
     }
     // also check duplicate paths
     for path := range duplicatePaths {
-        maxLen = max(maxLen, len(path))
+        maxLenG = max(maxLenG, len(path))
     }
     // and shortcut paths
     for path := range shortcutPaths {
-        maxLen = max(maxLen, len(path))
+        maxLenG = max(maxLenG, len(path))
     }
-    return maxLen
+    return maxLenG
 }
 ```
 
@@ -637,17 +637,17 @@ func BuildHeader(asset Asset, isHTTPS bool, csp string) []byte {
 ### 5.1 Dispatch Array Structure
 
 ```go
-var dispatch [MaxLen+2]func(http.ResponseWriter, *http.Request)
+var dispatch [MaxLenG+2]func(http.ResponseWriter, *http.Request)
 ```
 
-Each entry corresponds to a request path length L (0 to MaxLen+1 included) and the corresponding routes having length = (L-1). No nil entries permitted.
+Each entry corresponds to a request path length L (0 to MaxLenG+1 included) and the corresponding routes having length = (L-1). No nil entries permitted.
 
 ### 5.2 Dispatch Array Population Algorithm
 
 ```
 ALGORITHM BuildDispatch(assets):
-    MaxLen = ComputeMaxLen(assets)
-    dispatch = make([]func(http.ResponseWriter, *http.Request), MaxLen+2)
+    MaxLenG = ComputeMaxLen(assets)
+    dispatch = make([]func(http.ResponseWriter, *http.Request), MaxLenG+2)
     
     // Root index handling
     if hasRootIndex():
@@ -657,8 +657,8 @@ ALGORITHM BuildDispatch(assets):
         dispatch[0] = http.NotFound
         dispatch[1] = http.NotFound
     
-    // For each length L from 2 to MaxLen+1:
-    for L = 2 to MaxLen+1:
+    // For each length L from 2 to MaxLenG+1:
+    for L = 2 to MaxLenG+1:
         routes = collect all paths of length L-1 (canonical, duplicate, shortcut)
         if len(routes) > 0:
             sortRoutesByFrequencyScore(routes)  // descending
@@ -1134,6 +1134,6 @@ output/
 | **Shortcut** | Canonical path without extension (non-index) or without `/index.html` (index files) |
 | **Router** | Compile-time generated dispatch array plus per-length switch statements |
 | **Cache directory** | XDG-compliant directory holding transformed variants |
-| **MaxLen** | Compile-time constant: byte length of longest path without leading `/` |
+| **MaxLenG** | Compile-time constant: byte length of longest path without leading `/` |
 | **Hot path** | Request processing with one bounds check, one switch, one conditional GET if |
 | **Frequency score** | Estimated request traffic frequency used to order switch cases |

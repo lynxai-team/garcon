@@ -54,7 +54,7 @@ The generator requires the following system libraries and build environment for 
 | **Shortcut** | Canonical path without extension (non‑index) or without `/index.html` (index files). Root index shortcut is `""`. |
 | **Router** | Compile‑time generated length‑based dispatch array plus per‑length `switch` mapping raw request path to handler. |
 | **Cache directory** | Follows XDG Base Directory Specification (`$XDG_CACHE_HOME/flashbuilder` or `$HOME/.cache/flashbuilder` or `./.cache/flashbuilder`). Holds transformed variants. Must be on same filesystem as output. |
-| **MaxLen** | Compile‑time constant: byte length of longest canonical, shortcut, or duplicate path (no leading `/`). |
+| **MaxLenG** | Compile‑time constant: byte length of longest canonical, shortcut, or duplicate path (no leading `/`). |
 | **assets/** | Sub‑directory in output containing all embed‑eligible assets as links, with single `embed.go`. |
 | **www/** | Sub‑directory in output containing large assets in tree structure mirroring input. |
 | **Hot path** | Request processing path containing at most one array bounds check, one `switch`, one conditional‑GET `if`. |
@@ -163,7 +163,7 @@ At server start‑up, generate a self‑signed RSA 2048‑bit certificate with
 
 ### FR‑10: Router Generation with Frequency‑Ordered Switch Cases
 
-Build a compile‑time `dispatch` array of size `MaxLen+1`. Each entry points to a per‑length handler. Router extracts raw request path via `r.URL.Path[1:]` (no leading `/`). **Exact‑length matching first**: if request path length matches a registered path length, invoke per‑length handler. If no exact match, search backwards for the largest route path that is a prefix of the request path. Dispatch array fully populated – no `nil` entries. Path matching uses raw byte comparison; URL-encoded characters are not decoded before matching. Both canonical and duplicate paths are included in the router's switch statements, both calling the canonical handler from the `assets` package.
+Build a compile‑time `dispatch` array of size `MaxLenG+1`. Each entry points to a per‑length handler. Router extracts raw request path via `r.URL.Path[1:]` (no leading `/`). **Exact‑length matching first**: if request path length matches a registered path length, invoke per‑length handler. If no exact match, search backwards for the largest route path that is a prefix of the request path. Dispatch array fully populated – no `nil` entries. Path matching uses raw byte comparison; URL-encoded characters are not decoded before matching. Both canonical and duplicate paths are included in the router's switch statements, both calling the canonical handler from the `assets` package.
 
 **Switch case ordering optimization**: For each per‑length handler `getLenL`, the generator estimates the relative access frequency of each route and orders `case` statements by descending estimated frequency to minimize average comparison count. The ordering is performed independently for each length value `L`, considering only routes of that exact byte length. Routes with higher estimated frequency appear earlier in the switch statement, reducing the average number of string comparisons for frequently accessed assets.
 
@@ -629,7 +629,7 @@ If embed‑eligible assets exist, generate single `embed.go` in `assets/` packag
 
 ### 8.13: Router Generation with Frequency‑Ordered Switch Cases
 
-Compute MaxLen (byte length of longest path without leading `/`). Generate dispatch array and per‑length handlers. For each per‑length handler `getLenL`, estimate the relative access frequency of each route and order `case` statements by descending frequency to minimize average comparison count. (See **Section 9: Router Implementation** for details).
+Compute MaxLenG (byte length of longest path without leading `/`). Generate dispatch array and per‑length handlers. For each per‑length handler `getLenL`, estimate the relative access frequency of each route and order `case` statements by descending frequency to minimize average comparison count. (See **Section 9: Router Implementation** for details).
 
 ### 8.14: TLS Configuration
 
@@ -667,14 +667,14 @@ Return `0` on success, appropriate non‑zero exit code on failure.
 
 ## 9. Router Implementation
 
-### 9.1: MaxLen Computation
+### 9.1: MaxLenG Computation
 
-Generator computes `MaxLen` as the **byte length** of the longest canonical, shortcut, or duplicate path (no leading `/`). `MaxLen` is a compile‑time constant.
+Generator computes `MaxLenG` as the **byte length** of the longest canonical, shortcut, or duplicate path (no leading `/`). `MaxLenG` is a compile‑time constant.
 
 ### 9.2: Dispatch Array Structure
 
 ```go
-var dispatch [MaxLen+1]func(http.ResponseWriter, *http.Request)
+var dispatch [MaxLenG+1]func(http.ResponseWriter, *http.Request)
 ```
 
 ### 9.3: Path Maps Construction
@@ -817,7 +817,7 @@ The path is relative to the binary's working directory, where the large asset is
 
 ### 9.6: No‑Nil Guarantee
 
-For each length `L` (`0 ≤ L ≤ MaxLen`):
+For each length `L` (`0 ≤ L ≤ MaxLenG`):
 - If no canonical, shortcut, or duplicate path has length L, locate nearest‑shorter index K where `dispatch[K] != nil` (`K < L`) and set `dispatch[L] = dispatch[K]`.
 - If no shorter K exists, set `dispatch[L] = http.NotFound`.
 - For `dispatch[0]`: if no canonical or shortcut path matches length 0, set `dispatch[0] = http.NotFound`.
@@ -849,7 +849,7 @@ func (s *server) router(w http.ResponseWriter, r *http.Request) {
 ```go
 type server struct {
     logger   *slog.Logger
-    dispatch [MaxLen+1]func(http.ResponseWriter, *http.Request)
+    dispatch [MaxLenG+1]func(http.ResponseWriter, *http.Request)
     tlsCfg   *tls.Config
 }
 ```
@@ -1042,7 +1042,7 @@ Any failure aborts generation with exit code 3 (`E079`).
 === flashbuilder dry‑run summary ===
 Source directory (input):    ./website
 Output directory (output):    ./generated
-MaxLen: 27
+MaxLenG: 27
 Total assets discovered:    842
   – Embed‑eligible assets:  542 (selected by greedy size‑budget)
     – Consolidated in assets/ directory

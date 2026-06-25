@@ -257,18 +257,18 @@ The `go.mod` and `go.sum` files are not part of this implementation.
 ```
 flashbuilder/
 ├── main.go           # CLI, entry point, cli struct, orchestration
-├── assets.go         # Asset discovery, dedupe, identifier, link, asset/variant types
-├── endpoints.go       # Dispatch generation, routing, computeMaxLen
+├── assets.go         # Asset discovery, dedupe, identifier, hashing, budget allocation
+├── dispatch.go       # Dispatch generation, routing, computeMaxLen
 ├── generate.go       # Code generation, templates, data structures
-├── cache.go          # Cache management, budget allocation, fileInfo
-├── variant.go        # Variant generation, compression, hashing
+├── variant.go        # Variant generation, compression, cache management, link
 └── templates/
-    ├── embed.go.gotmpl          # Template for assets/embed.go
     ├── main.go.gotmpl           # Template for main.go
-    ├── handlers.go.gotmpl       # Template for per-length handlers
-    ├── headers.http.gotmpl      # Template for header literals
-    ├── shared-imports.go.gotmpl # Shared import declarations
-    └── shared-struct.go.gotmpl  # Server struct template
+    ├── embed.go.gotmpl          # Template for assets/embed.go
+    ├── http-headers.go.gotmpl   # Template for header literals
+    ├── https-headers.go.gotmpl  # Template for header literals
+    ├── server.go.gotmpl         # Template for the Server struct
+    ├── get.go.gotmpl            # Template for per-length GET handlers (static files)
+    └── post.go.gotmpl           # Template for per-length POST handlers (API)
 ```
 
 **Intent**: Simplify project structure with flat package organization.
@@ -284,14 +284,21 @@ flashbuilder/
 ```
 flash/
 ├── assets/
-│   ├── embed.go                # Embedded assets and handlers
-│   └── Asset<Identifier>.<ext> # Links to originals/variants
+│   ├── index.html.br             # Links to originals/variants
+│   ├── favicon.ico               # Links to originals/variants
+│   └── <relpath>/<filename>      # Other links to originals/variants
 ├── www/
-│   └── <relpath>/<filename>    # Large assets
-├── main.go                     # Router, dispatch, server
-├── go.mod
-├── go.sum
-└── flash                       # Compiled binary
+│   └── <relpath>/<filename>    # Links to large assets
+├── main.go                # Rendered from main.go.gotmpl
+├── embed.go               # Rendered from embed.go.gotmpl
+├── http-headers.go        # Rendered from http-headers.go.gotmpl
+├── https-headers.go       # Rendered from https-headers.go.gotmpl
+├── http-server.go         # Rendered from server.go.gotmpl
+├── https-server.go        # Rendered from server.go.gotmpl
+├── http-get.go            # Rendered from get.go.gotmpl
+├── https-get.go           # Rendered from get.go.gotmpl
+├── http-post.go           # Rendered from post.go.gotmpl
+└── https-post.go          # Rendered from post.go.gotmpl
 ```
 
 **Intent**: Clean separation between embedded assets and large assets.
@@ -374,7 +381,7 @@ type TemplateData struct {
     Assets   []AssetData
     Dispatch DispatchData
     PathMaps PathMapsData
-    MaxLen   int
+    MaxLenG   int
 }
 
 // ConfigData holds configuration for template rendering
@@ -479,7 +486,6 @@ type RouteData struct {
 type DispatchData struct {
     HTTP     []DispatchEntry   // HTTP dispatch array entries
     HTTPS    []DispatchEntry   // HTTPS dispatch array entries
-    MaxLen   int               // Maximum path length
 }
 
 // DispatchEntry represents a dispatch array entry
@@ -938,7 +944,7 @@ Document that "Dispatch Indexing Logic" within the generated code of the `flash`
 // - Index 0: Empty path (root request "/")
 // - Index 1: Paths of length 1 (e.g., "/a") -> asset route length 0
 // - Index L: Paths of length L -> asset route length L-1
-// - MaxLen+1: Fallback for paths exceeding maximum length
+// - MaxLenG+1: Fallback for paths exceeding maximum length
 //
 // Asset routes are stored without leading slash:
 // - Route "" (empty) corresponds to dispatch index 1
@@ -951,7 +957,7 @@ Document that "Dispatch Indexing Logic" within the generated code of the `flash`
 ### 9.2 Dispatch Array Generation
 
 ```go
-func buildDispatch(assets []asset, maxLen int) (httpDispatch, httpsDispatch []DispatchEntry) {
+func buildDispatch(assets []asset, maxLenG int) (httpDispatch, httpsDispatch []DispatchEntry) {
     // routesByLength groups routes by length (asset route length = dispatch index - 1)
     routesByLength := make(map[int][]RouteData)
     
@@ -979,8 +985,8 @@ func buildDispatch(assets []asset, maxLen int) (httpDispatch, httpsDispatch []Di
         })
     }
     
-    httpDispatch = make([]DispatchEntry, maxLen+2)
-    httpsDispatch = make([]DispatchEntry, maxLen+2)
+    httpDispatch = make([]DispatchEntry, maxLenG+2)
+    httpsDispatch = make([]DispatchEntry, maxLenG+2)
     
     // Index 0 and 1: Root handlers
     // Index 0: Empty path after removing leading slash (root "/")
@@ -998,7 +1004,7 @@ func buildDispatch(assets []asset, maxLen int) (httpDispatch, httpsDispatch []Di
         httpsDispatch[1] = DispatchEntry{Index: 1, Handler: "http.NotFound"}
     }
     
-    for index := 2; index <= maxLen+1; index++ {
+    for index := 2; index <= maxLenG+1; index++ {
         routes := routesByLength[index]
         if len(routes) == 0 {
             // No routes at this length, fallback to previous
@@ -1457,18 +1463,18 @@ func generateShortcut(relPath string) string {
 
 **Rationale**: Shortcuts enable cleaner URLs (e.g., `/about` instead of `/about/index.html` or `/style` instead of `/style.css`).
 
-### 10.8 MaxLen Computation
+### 10.8 MaxLenG Computation
 
 ```go
 // computeMaxLen calculates the maximum path length for dispatch array sizing
 func computeMaxLen(assets []asset, canonicalPaths, duplicatePaths, shortcutPaths map[string]string) int {
-    maxLen := 0
+    maxLenG := 0
     for _, asset := range assets {
-        if len(asset.RelPath) > maxLen {
-            maxLen = len(asset.RelPath)
+        if len(asset.RelPath) > maxLenG {
+            maxLenG = len(asset.RelPath)
         }
     }
-    return maxLen
+    return maxLenG
 }
 ```
 
@@ -1892,8 +1898,8 @@ import (
 
 type Server struct {
     Logger        *slog.Logger
-    DispatchHTTP  [{{.MaxLen}}+2]func(http.ResponseWriter, *http.Request)
-    DispatchHTTPS [{{.MaxLen}}+2]func(http.ResponseWriter, *http.Request)
+    DispatchHTTP  [{{.MaxLenG}}+2]func(http.ResponseWriter, *http.Request)
+    DispatchHTTPS [{{.MaxLenG}}+2]func(http.ResponseWriter, *http.Request)
     TLSCfg        *tls.Config
 }
 
@@ -1907,14 +1913,14 @@ func (s *Server) routerHTTP(w http.ResponseWriter, r *http.Request) {
     // We skip the leading slash to get: "example/path"
     pathNoSlash := r.URL.Path[1:]
     // Dispatch array index equals the length of pathNoSlash
-    // MaxLen+1 is the fallback for paths exceeding maximum length
-    idx := min(len(pathNoSlash), {{.MaxLen}}+1)
+    // MaxLenG+1 is the fallback for paths exceeding maximum length
+    idx := min(len(pathNoSlash), {{.MaxLenG}}+1)
     s.DispatchHTTP[idx](w, r)
 }
 
 func (s *Server) routerHTTPS(w http.ResponseWriter, r *http.Request) {
     pathNoSlash := r.URL.Path[1:]
-    idx := min(len(pathNoSlash), {{.MaxLen}}+1)
+    idx := min(len(pathNoSlash), {{.MaxLenG}}+1)
     s.DispatchHTTPS[idx](w, r)
 }
 
@@ -2169,8 +2175,8 @@ import (
 {{define "serverStruct"}}
 type Server struct {
     Logger        *slog.Logger
-    DispatchHTTP  [{{.MaxLen}}+2]func(http.ResponseWriter, *http.Request)
-    DispatchHTTPS [{{.MaxLen}}+2]func(http.ResponseWriter, *http.Request)
+    DispatchHTTP  [{{.MaxLenG}}+2]func(http.ResponseWriter, *http.Request)
+    DispatchHTTPS [{{.MaxLenG}}+2]func(http.ResponseWriter, *http.Request)
     TLSCfg        *tls.Config
 }
 {{end}}
@@ -2284,11 +2290,11 @@ func main() {
         }
     }
     
-    // Step 11: Compute MaxLen
-    maxLen := computeMaxLen(assets, canonicalPaths, duplicatePaths, shortcutPaths)
+    // Step 11: Compute MaxLenG
+    maxLenG := computeMaxLen(assets, canonicalPaths, duplicatePaths, shortcutPaths)
     
     // Step 12: Generate dispatch arrays
-    httpDispatch, httpsDispatch := buildDispatch(assets, maxLen)
+    httpDispatch, httpsDispatch := buildDispatch(assets, maxLenG)
     
     // Step 13: Convert to template data
     data := TemplateData{
@@ -2301,14 +2307,14 @@ func main() {
         Dispatch: DispatchData{
             HTTP:   httpDispatch,
             HTTPS:  httpsDispatch,
-            MaxLen: maxLen,
+            MaxLenG: maxLenG,
         },
         PathMaps: PathMapsData{
             Canonical:  canonicalPaths,
             Duplicate:  duplicatePaths,
             Shortcut:   shortcutPaths,
         },
-        MaxLen:    maxLen,
+        MaxLenG:    maxLenG,
     }
     
     // Step 14: Generate Go code
@@ -2450,9 +2456,9 @@ func runTests(output string) error {
 
 Implement all files:
 
-- `assets.go` - Asset discovery, dedupe, identifier, link, asset/variant types
+- `embed.go` - Asset discovery, dedupe, identifier, link, asset/variant types
 - `cache.go` - Cache management, budget allocation, fileInfo
-- `endpoints.go` - Dispatch generation, routing, computeMaxLen
+- `get.go` - Dispatch generation, routing, computeMaxLen
 - `generate.go` - Code generation, templates, data structures
 - `main.go` - CLI, entry point, cli struct, orchestration
 - `variant.go` - Variant generation, compression, hashing
@@ -2930,11 +2936,11 @@ func TestBuildDispatch(t *testing.T) {
         {RelPath: "script.js", Identifier: "AssetScript", FrequencyScore: 600, IsDuplicate: false},
     }
     
-    maxLen := computeMaxLen(assets)
-    httpDispatch, httpsDispatch := buildDispatch(assets, maxLen)
+    maxLenG := computeMaxLen(assets)
+    httpDispatch, httpsDispatch := buildDispatch(assets, maxLenG)
     
     // Verify dispatch arrays have correct length
-    expectedLen := maxLen + 2
+    expectedLen := maxLenG + 2
     if len(httpDispatch) != expectedLen {
         t.Errorf("HTTP dispatch length: expected %d, got %d", expectedLen, len(httpDispatch))
     }
@@ -3402,20 +3408,20 @@ func TestIntegration_DiscoverToDispatch(t *testing.T) {
     }
     
     // Compute max length
-    maxLen := computeMaxLen(assets)
-    if maxLen <= 0 {
-        t.Errorf("MaxLen should be positive, got %d", maxLen)
+    maxLenG := computeMaxLen(assets)
+    if maxLenG <= 0 {
+        t.Errorf("MaxLenG should be positive, got %d", maxLenG)
     }
     
     // Build dispatch
-    httpDispatch, httpsDispatch := buildDispatch(assets, maxLen)
+    httpDispatch, httpsDispatch := buildDispatch(assets, maxLenG)
     
     // Verify dispatch arrays
-    if len(httpDispatch) != maxLen+2 {
-        t.Errorf("HTTP dispatch length: expected %d, got %d", maxLen+2, len(httpDispatch))
+    if len(httpDispatch) != maxLenG+2 {
+        t.Errorf("HTTP dispatch length: expected %d, got %d", maxLenG+2, len(httpDispatch))
     }
-    if len(httpsDispatch) != maxLen+2 {
-        t.Errorf("HTTPS dispatch length: expected %d, got %d", maxLen+2, len(httpsDispatch))
+    if len(httpsDispatch) != maxLenG+2 {
+        t.Errorf("HTTPS dispatch length: expected %d, got %d", maxLenG+2, len(httpsDispatch))
     }
 }
 ```
