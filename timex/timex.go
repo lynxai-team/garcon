@@ -390,7 +390,7 @@ func consumeUnit(str string) (i int, nanoseconds int64, _ error) {
 
 func computeNanoseconds(unitNs, value, fraPart int64, scale float64) (int64, error) {
 	// Convert the integer part in nanoseconds
-	if value > (math.MaxInt64)/unitNs {
+	if value > math.MaxInt64/unitNs {
 		return 0, ErrOverflowTime
 	}
 	nanoseconds := value * unitNs
@@ -434,7 +434,7 @@ func integralPart(str string) (int64, int, error) {
 		if c < '0' || c > '9' {
 			return v, i, nil
 		}
-		if v > (math.MaxInt64)/10 {
+		if v > math.MaxInt64/10 {
 			return 0, 0, ErrOverflowTime
 		}
 		v = v*10 + int64(c) - '0'
@@ -462,7 +462,7 @@ func fractionalPart(str string) (int64, int, float64) {
 		if overflow {
 			continue
 		}
-		if f > (math.MaxInt64)/10 {
+		if f > math.MaxInt64/10 {
 			// It's possible for overflow to give a positive number, so take care.
 			overflow = true
 			continue

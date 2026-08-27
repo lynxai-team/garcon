@@ -69,7 +69,8 @@ func main() {
 		gars.MiddlewareLogRequest(),
 		gars.MiddlewareRateLimiter(burst, perMinute),
 		gars.MiddlewareServerHeader("KeyStore"),
-		gars.MiddlewareCORS())
+		gars.MiddlewareCORS(),
+	)
 
 	// handles both REST API and static web files
 	r := router(gars)

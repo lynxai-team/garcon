@@ -34,7 +34,8 @@ func MiddlewareRejectUnprintableURI(next http.Handler) http.Handler {
 			}
 
 			next.ServeHTTP(w, r)
-		})
+		},
+	)
 }
 
 // MiddlewareSecureHTTPHeader is a middleware adding recommended HTTP response headers to secure the web application.
@@ -59,6 +60,7 @@ func MiddlewareSecureHTTPHeader(secure bool) func(next http.Handler) http.Handle
 					w.Header().Set("Referrer-Policy", "TODO")
 					w.Header().Set("Forwarded", "TODO")
 				}
-			})
+			},
+		)
 	}
 }

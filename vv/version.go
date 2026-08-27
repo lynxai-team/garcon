@@ -251,6 +251,7 @@ func MiddlewareServerHeader(version string) func(next http.Handler) http.Handler
 			func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Server", version)
 				next.ServeHTTP(w, r)
-			})
+			},
+		)
 	}
 }

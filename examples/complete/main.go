@@ -76,7 +76,8 @@ func main() {
 		g.MiddlewareRateLimiter(),
 		g.MiddlewareServerHeader("MyApp"),
 		g.MiddlewareCORS(),
-		g.MiddlewareLogDuration(true))
+		g.MiddlewareLogDuration(true),
+	)
 
 	// TODO disable --- if *auth {
 	// TODO disable --- 	middleware = middleware.Append(g.MiddlewareOPA(opaFile))

@@ -114,7 +114,8 @@ func (ns ServerName) MiddlewareExportTrafficMetrics(next http.Handler) http.Hand
 		"request_duration_seconds",
 		"Time to handle a client request",
 		"code",
-		"route")
+		"route",
+	)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		record := &statusRecorder{ResponseWriter: w, StatusCode: http.StatusOK}
@@ -207,7 +208,8 @@ func MiddlewareLogRequest(next http.Handler) http.Handler {
 		func(w http.ResponseWriter, r *http.Request) {
 			log.In(ipMethodURL(r))
 			next.ServeHTTP(w, r)
-		})
+		},
+	)
 }
 
 // MiddlewareLogRequestSafe is similar to LogRequest but sanitize the URL.
@@ -218,7 +220,8 @@ func MiddlewareLogRequestSafe(next http.Handler) http.Handler {
 		func(w http.ResponseWriter, r *http.Request) {
 			log.In(ipMethodURLSafe(r))
 			next.ServeHTTP(w, r)
-		})
+		},
+	)
 }
 
 // MiddlewareLogFingerprint is the middleware to log
@@ -230,7 +233,8 @@ func MiddlewareLogFingerprint(next http.Handler) http.Handler {
 		func(w http.ResponseWriter, r *http.Request) {
 			log.In(ipMethodURL(r) + gg.FingerprintTxt(r))
 			next.ServeHTTP(w, r)
-		})
+		},
+	)
 }
 
 // MiddlewareLogFingerprintSafe is similar to MiddlewareLogFingerprints but sanitize the URL.
@@ -241,7 +245,8 @@ func MiddlewareLogFingerprintSafe(next http.Handler) http.Handler {
 		func(w http.ResponseWriter, r *http.Request) {
 			log.In(ipMethodURLSafe(r) + gg.FingerprintTxt(r))
 			next.ServeHTTP(w, r)
-		})
+		},
+	)
 }
 
 // StartExporter creates and starts the exporter health server

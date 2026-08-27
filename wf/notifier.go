@@ -173,7 +173,8 @@ func (n TelegramNotifier) Notify(msg []byte) error {
 		url.Values{
 			"chat_id": {n.chatID},
 			"text":    {string(msg)},
-		})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("TelegramNotifier chat_id=%s: %w", n.chatID, err)
 	}
