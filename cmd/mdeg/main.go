@@ -23,9 +23,10 @@ import (
 
 // Default values used when a flag is omitted.
 const (
-	defaultFence  = "```"
-	defaultHeader = "## File: "
-	defaultRegex  = "[\\/A-Za-z0-9._-]{3,}[A-Za-z0-9]\\b"
+	defaultFenceExt = "```"
+	defaultFenceGen = "````"
+	defaultHeader   = "## File: "
+	defaultRegex    = "[\\/A-Za-z0-9._-]{3,}[A-Za-z0-9]\\b"
 
 	usage = `mdeg - extract or generate fenced code blocks.
 
@@ -107,7 +108,7 @@ func defaultConfig(arguments []string) *Config {
 // It aborts the program with a helpful message on any error.
 func parseFlags(flags *flag.FlagSet, arguments []string) (bool, *Config) {
 	var (
-		fence     = flags.String("fence", defaultFence, "fence used to delimit code blocks (must be ≥3 backticks)")
+		fence     = flags.String("fence", defaultFenceExt, "fence used to delimit code blocks (must be ≥3 backticks)")
 		header    = flags.String("header", defaultHeader, "text printed before each generated code block")
 		regex     = flags.String("regex", defaultRegex, "regular expression that a filename must match")
 		all       = flags.Bool("all", false, "extract code blocks that have no explicit filename")
@@ -127,13 +128,18 @@ func parseFlags(flags *flag.FlagSet, arguments []string) (bool, *Config) {
 		log.Fatalf("invalid fence %q: must be at least three backticks", *fence)
 	}
 
+	// By default, use four backticks in --gen mode
+	if *gen && *fence == defaultFenceExt {
+		*fence = defaultFenceGen
+	}
+
 	// Positional arguments: [markdown-file] [folder]
 	if flags.NArg() > 2 {
 		flags.Usage()
 		log.Fatalf("too many CLI arguments NArg=%d (max=2)", flags.NArg())
 	}
 
-	// figure out what argument is a directory
+	// Identify if arguments is directory or file
 	arg0dir := false // does not exist or not a directory
 	arg1dir := false // does not exist or not a directory
 	info, err := os.Stat(flags.Arg(0))

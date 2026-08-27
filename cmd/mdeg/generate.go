@@ -56,30 +56,14 @@ var (
 		// Windows cache file
 		"Thumbs.db",
 		// Essential Node.js-related entries
-		"bun.lock",
 		"bun.lockb",
 		"package-lock.json",
 		"pnpm-lock.yaml",
 		"yarn-error.log",
-		"yarn.lock",
-		// Essential Python-related entries
-		"Pipfile.lock",
-		"poetry.lock",
-		"uv.lock",
-		// Essential Rust-related entries
-		"Cargo.lock",
-		"Cargo.toml.orig",
-		// Essential PHP-related entries
-		"composer.lock",
-		// Essential Ruby-related entries
-		"Gemfile.lock",
 		// Essential Go-related entries
 		"go.sum",
-		// Essential Elixir-related entries
-		"mix.lock",
 		// Essential Haskell-related entries
 		"cabal.project.freeze",
-		"stack.yaml.lock",
 	}
 	ignoreSuffixes = []string{
 		".log",
@@ -90,13 +74,13 @@ var (
 		".o",
 		".obj",
 		".so",
+		".lock",
 		// Runtime data
-		".pid.lock",
 		".pid",
 		".seed",
 		// Cache directories
 		".cache",
-		// Archive files
+		// Archive
 		".7z",  // 7-zip
 		".br",  // brotli
 		".bz2", // Bzip2
@@ -107,16 +91,19 @@ var (
 		".tgz",
 		".zip",
 		".zst", // Zstandard
-		// Editor directories and files
+		// Backup
 		".bak",
+		".orig",
 		".swn",
 		".swo",
 		".swp",
-		// Essential Python-related entries
+		"~",
+		// Python
+		".egg-info",
 		".pyc",
 		".pyd",
 		".pyo",
-		// Essential Rust-related entries
+		// Rust
 		".rs.bk",
 		// images
 		".bmp",          // BMP

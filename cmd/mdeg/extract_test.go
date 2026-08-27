@@ -422,7 +422,7 @@ I'll now provide all the source files:
 ` + "```go" + `
 module github.com/org/truc
 
-go 1.26
+go 1.27
 
 require (
 	github.com/alecthomas/kong v1.14.0
