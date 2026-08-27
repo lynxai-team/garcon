@@ -144,7 +144,7 @@ func TestNewAccessToken(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			algo := strings.Split(c.name, "=")[0]
+			algo, _, _ := strings.Cut(c.name, "=")
 
 			privateKey, err := gwt.GenerateSigningKey(algo)
 			if (err != nil) != c.wantGenErr {
