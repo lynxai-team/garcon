@@ -147,41 +147,65 @@ func (c *Config) generateMarkdown() error {
 		}
 
 		if entry.IsDir() {
+			if entry.Name()[0] == '.' {
+				log.Stopf("SKIP dot folder %q", path)
+				return filepath.SkipDir
+			}
 			if !c.all {
-				if entry.Name()[0] == '.' {
-					log.Stopf("SKIP dot %q, use --all to include it", path)
-					return filepath.SkipDir
-				}
 				if slices.Contains(ignoreFolders, entry.Name()) {
 					log.Stopf("SKIP folder %q, use --all to include it", path)
 					return filepath.SkipDir
 				}
 			}
-			log.ArrowIn("Enter sub-folder", path)
+		} else if !c.custom.MatchString(path) {
+			log.Stopf("SKIP %q does not match regex %q", path, c.custom)
 			return nil
 		}
 
-		if !c.custom.MatchString(path) {
-			log.Stopf("SKIP file %q does not match regex %q", path, c.custom)
+		if entry.Name()[0] == '.' {
+			log.Stopf("SKIP dot file %q", path)
 			return nil
 		}
 
 		// -all omitted => skip the ignored files
 		if !c.all {
-			if entry.Name()[0] == '.' {
-				log.Stopf("SKIP dot %q, use --all to include it", path)
-				return nil
-			}
 			if slices.Contains(ignoreFiles, entry.Name()) {
-				log.Stopf("SKIP file %q, use --all to include it", path)
+				log.Stopf("SKIP %q, use --all to include it", path)
+				if entry.IsDir() {
+					return filepath.SkipDir
+				}
 				return nil
 			}
 			for _, suffix := range ignoreSuffixes {
 				if strings.HasSuffix(entry.Name(), suffix) {
-					log.Stopf("SKIP file %q (ext %s), use --all to include it", path, suffix)
+					log.Stopf("SKIP %q (ext %s), use --all to include it", path, suffix)
+					if entry.IsDir() {
+						return filepath.SkipDir
+					}
 					return nil
 				}
 			}
+		}
+
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			log.Stopf("SKIP file %q ERROR filepath.Abs: %s", path, err)
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil // should never happen
+		}
+		if abs == c.mdPath {
+			log.Stopf("SKIP output file %q", path)
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if entry.IsDir() {
+			log.ArrowIn("Enter sub-folder", path)
+			return nil
 		}
 
 		isBinary, err := isBinaryFile(path)
@@ -191,16 +215,6 @@ func (c *Config) generateMarkdown() error {
 		}
 		if isBinary {
 			log.Stopf("SKIP file %q is binary (first bytes are not UTF-8)", path)
-			return nil
-		}
-
-		abs, err := filepath.Abs(path)
-		if err != nil {
-			log.Stopf("SKIP file %q ERROR filepath.Abs: %s", path, err)
-			return nil // should never happen
-		}
-		if abs == c.mdPath {
-			log.Stopf("SKIP output file %q", path)
 			return nil
 		}
 
