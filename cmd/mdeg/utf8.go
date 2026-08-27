@@ -4,6 +4,8 @@
 
 package main
 
+import "slices"
+
 import "unicode/utf8"
 
 const (
@@ -69,7 +71,7 @@ func Valid(p []byte) bool {
 	// This optimization avoids the need to recompute the capacity
 	// when generating code for p[8:], bringing it to parity with
 	// ValidString, which was 20% faster on long ASCII strings.
-	p = p[:len(p):len(p)]
+	p = slices.Clip(p)
 
 	// Fast path. Check for and skip 8 bytes of ASCII characters per iteration.
 	for len(p) >= 8 {
