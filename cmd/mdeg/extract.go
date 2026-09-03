@@ -38,6 +38,7 @@ func (c *Config) extractFromReader(reader io.Reader) error {
 	var start int
 	var buf bytes.Buffer // accumulates the current bloc
 	var closingIsIn bool // next closing fence is part of the current bloc
+	fence := c.fence
 
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
@@ -46,9 +47,9 @@ func (c *Config) extractFromReader(reader io.Reader) error {
 		trim := strings.TrimSpace(line)
 
 		// Detect fence
-		if strings.HasPrefix(line, c.fence) {
+		if strings.HasPrefix(line, fence) {
 			// Closing fence
-			if len(trim) == len(c.fence) {
+			if len(trim) == len(fence) {
 				if start == 0 {
 					log.Warnf("Skip fence without language tag %s:%d", c.mdPath, lineNum)
 				} else if closingIsIn {
@@ -69,6 +70,7 @@ func (c *Config) extractFromReader(reader io.Reader) error {
 					start = 0
 					buf.Reset()
 					c.matcher.reset()
+					fence = c.fence
 				}
 				continue
 			}
@@ -76,7 +78,10 @@ func (c *Config) extractFromReader(reader io.Reader) error {
 			// Opening fence while searching a new bloc
 			if start == 0 {
 				start = lineNum
-				c.matcher.lang = trim[len(c.fence):] // store the language tag of the fence (```go)
+				// store the language tag of the fence (```go)
+				c.matcher.lang = strings.TrimLeft(trim[len(fence):], fence[0:1])
+				// the closing fence must be same length as the opening
+				fence = trim[:len(trim)-len(c.matcher.lang)]
 				continue
 			}
 
