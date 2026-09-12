@@ -6,6 +6,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"io/fs"
@@ -263,23 +264,15 @@ func (c *Config) generateMarkdown() error {
 			return err
 		}
 
-		// Stream file contents into the markdown.
-		f, err := os.Open(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintf(w, "error os.Open(%s) %v\n", path, err)
 			log.Warnf("error os.Open(%s) %v\n", path, err)
-			// If we cannot read a file, just skip it.
-			return nil
-		} else {
-			_, copyErr := io.Copy(w, f)
-			closeErr := f.Close()
-			if copyErr != nil {
-				log.Warnf("error os.Copy %q %v\n", path, copyErr)
-			}
-			if closeErr != nil {
-				log.Warnf("error os.Close %q %v\n", path, closeErr)
-			}
+			return nil // If we cannot read a file, just skip it.
 		}
+		// replace the trailing \n \r bytes with exactly one \n
+		data = append(bytes.TrimRight(data, "\r\n"), '\n')
+		w.Write(data)
 
 		// Ensure the fenced block ends with a newline and a blank line afterwards.
 		_, err = fmt.Fprintf(w, "%s\n\n", c.fence)
